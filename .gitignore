@@ -1,0 +1,12 @@
+# Environment variables
+.env
+
+# Compiled source 
+bin/
+
+# Executables and test files
+*.exe
+*.test
+
+# Logs and databases
+/tmp
