@@ -1,12 +1,19 @@
 # Environment variables
 .env
 
-# Compiled source 
+# Compiled source
 bin/
 
 # Executables and test files
 *.exe
 *.test
 
-# Logs and databases
+# Logs and temp
 /tmp
+
+# sqlc generated code
+internal/sqlcgen/
+
+# Air hot reload
+tmp/
+.air.toml
