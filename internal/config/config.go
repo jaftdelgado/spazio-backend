@@ -8,16 +8,19 @@ import (
 )
 
 type Config struct {
-	Port string
+	Port        string
+	DatabaseURL string
 }
 
+// Load reads application configuration from the environment.
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found, reading from environment")
 	}
 
 	return &Config{
-		Port: getEnv("APP_PORT", "8080"),
+		Port:        getEnv("APP_PORT", "8080"),
+		DatabaseURL: getEnv("DATABASE_URL", ""),
 	}
 }
 
