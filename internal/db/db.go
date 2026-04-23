@@ -2,15 +2,23 @@ package db
 
 import (
 	"context"
-	"log"
+	"database/sql"
+	"fmt"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func Connect(databaseURL string) *pgxpool.Pool {
-	pool, err := pgxpool.New(context.Background(), databaseURL)
+// Connect opens and verifies a database connection.
+func Connect(ctx context.Context, databaseURL string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		log.Fatalf("unable to connect to database: %v", err)
+		return nil, fmt.Errorf("open database: %w", err)
 	}
-	return pool
+
+	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+
+	return db, nil
 }
