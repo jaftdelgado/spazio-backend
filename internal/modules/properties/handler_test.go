@@ -1,4 +1,4 @@
-package handlers
+package properties
 
 import (
 	"bytes"
@@ -10,17 +10,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jaftdelgado/spazio-backend/internal/services"
 )
 
-type mockPropertyCreator struct {
-	result services.CreatePropertyResult
+type mockService struct {
+	result CreatePropertyResult
 	err    error
-	input  services.CreatePropertyInput
+	input  CreatePropertyInput
 	called bool
 }
 
-func (m *mockPropertyCreator) CreateProperty(_ context.Context, input services.CreatePropertyInput) (services.CreatePropertyResult, error) {
+func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
 	m.called = true
 	m.input = input
 	return m.result, m.err
@@ -32,7 +31,7 @@ func TestCreateProperty(t *testing.T) {
 	tests := []struct {
 		name             string
 		payload          any
-		mock             *mockPropertyCreator
+		mock             *mockService
 		wantStatusCode   int
 		wantBodyContains string
 		wantCalled       bool
@@ -48,8 +47,8 @@ func TestCreateProperty(t *testing.T) {
 				"status_id":        4,
 				"cover_photo_url":  "https://example.com/cover.jpg",
 			},
-			mock: &mockPropertyCreator{
-				result: services.CreatePropertyResult{
+			mock: &mockService{
+				result: CreatePropertyResult{
 					PropertyID: 7,
 					Title:      "Casa demo",
 					CreatedAt:  time.Date(2026, time.April, 23, 12, 0, 0, 0, time.UTC),
@@ -62,7 +61,7 @@ func TestCreateProperty(t *testing.T) {
 		{
 			name:             "rejects invalid payload",
 			payload:          gin.H{"title": ""},
-			mock:             &mockPropertyCreator{},
+			mock:             &mockService{},
 			wantStatusCode:   http.StatusBadRequest,
 			wantBodyContains: "owner_id is required",
 			wantCalled:       false,
@@ -81,8 +80,8 @@ func TestCreateProperty(t *testing.T) {
 			ctx.Request = httptest.NewRequest(http.MethodPost, "/properties", bytes.NewReader(body))
 			ctx.Request.Header.Set("Content-Type", "application/json")
 
-			handler := NewPropertyHandler(tt.mock)
-			handler.CreateProperty(ctx)
+			handler := NewHandler(tt.mock)
+			handler.createProperty(ctx)
 
 			if recorder.Code != tt.wantStatusCode {
 				t.Fatalf("status code = %d, want %d", recorder.Code, tt.wantStatusCode)
@@ -102,12 +101,12 @@ func TestCreateProperty(t *testing.T) {
 func TestValidateCreatePropertyRequest(t *testing.T) {
 	tests := []struct {
 		name    string
-		req     createPropertyRequest
+		req     CreatePropertyInput
 		wantErr string
 	}{
 		{
 			name: "valid request",
-			req: createPropertyRequest{
+			req: CreatePropertyInput{
 				OwnerID:        1,
 				Title:          "Casa demo",
 				Description:    "Descripcion",
@@ -119,7 +118,7 @@ func TestValidateCreatePropertyRequest(t *testing.T) {
 		},
 		{
 			name:    "missing owner",
-			req:     createPropertyRequest{Title: "Casa demo"},
+			req:     CreatePropertyInput{Title: "Casa demo"},
 			wantErr: "owner_id is required",
 		},
 	}
