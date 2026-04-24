@@ -13,6 +13,7 @@ import (
 
 func main() {
 	cfg := config.Load()
+
 	database, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatal(err)
@@ -22,12 +23,14 @@ func main() {
 	propertiesModule := properties.NewModule(database)
 
 	r := gin.Default()
+	r.SetTrustedProxies(nil)
 	r.Use(middleware.CORS())
-	api := r.Group("")
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	api := r.Group("")
 	propertiesModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
