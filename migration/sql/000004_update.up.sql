@@ -1,4 +1,3 @@
-
 ALTER TABLE prices ALTER COLUMN period_id DROP NOT NULL;
 ALTER TABLE prices ADD COLUMN is_current BOOLEAN DEFAULT true;
 ALTER TABLE prices ADD CONSTRAINT chk_price_positive CHECK (sale_price > 0 OR rent_price > 0);
