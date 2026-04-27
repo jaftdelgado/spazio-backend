@@ -1,5 +1,3 @@
--- Minimal schema for sqlc code generation.
-
 CREATE TABLE users (
 	user_id serial PRIMARY KEY
 );
@@ -31,4 +29,27 @@ CREATE TABLE properties (
 	updated_at timestamptz,
 	created_at timestamptz NOT NULL DEFAULT now(),
 	deleted_at timestamptz
+);
+
+CREATE TABLE service_categories (
+	category_id serial PRIMARY KEY,
+	code varchar(40) NOT NULL UNIQUE,
+	name varchar(80) NOT NULL
+);
+
+CREATE TABLE services (
+	service_id serial PRIMARY KEY,
+	code varchar(40) NOT NULL UNIQUE,
+	icon varchar(80) NOT NULL,
+	category_id int NOT NULL REFERENCES service_categories(category_id),
+	is_active boolean NOT NULL DEFAULT true,
+	is_deprecated boolean NOT NULL DEFAULT false,
+	sort_order int NOT NULL
+);
+
+CREATE TABLE property_services (
+	property_id int NOT NULL REFERENCES properties(property_id),
+	service_id int NOT NULL REFERENCES services(service_id),
+	assigned_at timestamptz NOT NULL DEFAULT now(),
+	PRIMARY KEY (property_id, service_id)
 );

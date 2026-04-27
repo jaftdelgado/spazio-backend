@@ -9,6 +9,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/config"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
 )
 
 func main() {
@@ -21,6 +22,7 @@ func main() {
 	defer database.Close()
 
 	propertiesModule := properties.NewModule(database)
+	servicesModule := services.NewModule(database)
 
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
@@ -32,6 +34,7 @@ func main() {
 
 	api := r.Group("")
 	propertiesModule.RegisterRoutes(api)
+	servicesModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
