@@ -11,15 +11,23 @@ import (
 )
 
 type mockServicesService struct {
-	result ListServicesResult
-	err    error
-	input  ListServicesInput
-	called bool
+	result        ListServicesResult
+	err           error
+	popularInput  ListPopularInput
+	searchInput   SearchInput
+	calledPopular bool
+	calledSearch  bool
 }
 
-func (m *mockServicesService) ListServices(_ context.Context, input ListServicesInput) (ListServicesResult, error) {
-	m.called = true
-	m.input = input
+func (m *mockServicesService) ListPopularServices(_ context.Context, input ListPopularInput) (ListServicesResult, error) {
+	m.calledPopular = true
+	m.popularInput = input
+	return m.result, m.err
+}
+
+func (m *mockServicesService) SearchServices(_ context.Context, input SearchInput) (ListServicesResult, error) {
+	m.calledSearch = true
+	m.searchInput = input
 	return m.result, m.err
 }
 
@@ -27,13 +35,15 @@ func TestListServices(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
-		name             string
-		url              string
-		mock             *mockServicesService
-		wantStatusCode   int
-		wantBodyContains string
-		wantCalled       bool
-		wantInput        ListServicesInput
+		name              string
+		url               string
+		mock              *mockServicesService
+		wantStatusCode    int
+		wantBodyContains  string
+		wantCalledPopular bool
+		wantCalledSearch  bool
+		wantPopularInput  ListPopularInput
+		wantSearchInput   SearchInput
 	}{
 		{
 			name: "lists popular services by default",
@@ -44,10 +54,11 @@ func TestListServices(t *testing.T) {
 					Meta: ListServicesMeta{Total: 1, Shown: 1},
 				},
 			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"service_id\":1",
-			wantCalled:       true,
-			wantInput:        ListServicesInput{Limit: 12},
+			wantStatusCode:    http.StatusOK,
+			wantBodyContains:  "\"service_id\":1",
+			wantCalledPopular: true,
+			wantCalledSearch:  false,
+			wantPopularInput:  ListPopularInput{Limit: 12},
 		},
 		{
 			name: "searches services when q is provided",
@@ -58,18 +69,20 @@ func TestListServices(t *testing.T) {
 					Meta: ListServicesMeta{Total: 1, Shown: 1},
 				},
 			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"service_id\":1",
-			wantCalled:       true,
-			wantInput:        ListServicesInput{Query: "wifi", Limit: 2},
+			wantStatusCode:    http.StatusOK,
+			wantBodyContains:  "\"service_id\":1",
+			wantCalledPopular: false,
+			wantCalledSearch:  true,
+			wantSearchInput:   SearchInput{Query: "wifi", Limit: 2},
 		},
 		{
-			name:             "rejects invalid limit",
-			url:              "/services?limit=foo",
-			mock:             &mockServicesService{},
-			wantStatusCode:   http.StatusBadRequest,
-			wantBodyContains: "limit must be a valid integer",
-			wantCalled:       false,
+			name:              "rejects invalid limit",
+			url:               "/services?limit=foo",
+			mock:              &mockServicesService{},
+			wantStatusCode:    http.StatusBadRequest,
+			wantBodyContains:  "limit must be a valid integer",
+			wantCalledPopular: false,
+			wantCalledSearch:  false,
 		},
 	}
 
@@ -86,12 +99,20 @@ func TestListServices(t *testing.T) {
 				t.Fatalf("status code = %d, want %d", recorder.Code, tt.wantStatusCode)
 			}
 
-			if tt.wantCalled != tt.mock.called {
-				t.Fatalf("called = %v, want %v", tt.mock.called, tt.wantCalled)
+			if tt.wantCalledPopular != tt.mock.calledPopular {
+				t.Fatalf("calledPopular = %v, want %v", tt.mock.calledPopular, tt.wantCalledPopular)
 			}
 
-			if tt.wantCalled && tt.mock.input != tt.wantInput {
-				t.Fatalf("input = %#v, want %#v", tt.mock.input, tt.wantInput)
+			if tt.wantCalledSearch != tt.mock.calledSearch {
+				t.Fatalf("calledSearch = %v, want %v", tt.mock.calledSearch, tt.wantCalledSearch)
+			}
+
+			if tt.wantCalledPopular && tt.mock.popularInput != tt.wantPopularInput {
+				t.Fatalf("popularInput = %#v, want %#v", tt.mock.popularInput, tt.wantPopularInput)
+			}
+
+			if tt.wantCalledSearch && tt.mock.searchInput != tt.wantSearchInput {
+				t.Fatalf("searchInput = %#v, want %#v", tt.mock.searchInput, tt.wantSearchInput)
 			}
 
 			if tt.wantBodyContains != "" && !strings.Contains(recorder.Body.String(), tt.wantBodyContains) {

@@ -10,10 +10,15 @@ type Service struct {
 	CategoryCode string `json:"category_code"`
 }
 
-// ListServicesInput defines filters for the service catalog list operation.
-type ListServicesInput struct {
-	Query string `form:"q"`
-	Limit int32  `form:"limit"`
+// ListPopularInput defines filters for listing popular services.
+type ListPopularInput struct {
+	Limit int32
+}
+
+// SearchInput defines filters for searching services.
+type SearchInput struct {
+	Query string
+	Limit int32
 }
 
 // ListServicesMeta defines metadata returned with service catalog results.
@@ -37,5 +42,6 @@ type ServicesRepository interface {
 
 // ServicesService defines business operations for the services catalog.
 type ServicesService interface {
-	ListServices(ctx context.Context, input ListServicesInput) (ListServicesResult, error)
+	ListPopularServices(ctx context.Context, input ListPopularInput) (ListServicesResult, error)
+	SearchServices(ctx context.Context, input SearchInput) (ListServicesResult, error)
 }

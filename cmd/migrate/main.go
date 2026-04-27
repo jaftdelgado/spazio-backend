@@ -20,9 +20,9 @@ func main() {
 	direction := flag.String("direction", "up", "Dirección de la migración: up | down")
 	flag.Parse()
 
-	databaseURL := os.Getenv("DATABASE_URL")
+	databaseURL := os.Getenv("MIGRATE_URL")
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is not defined")
+		log.Fatal("MIGRATE_URL is not defined")
 	}
 
 	m, err := migrate.New(

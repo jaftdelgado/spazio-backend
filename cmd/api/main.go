@@ -14,6 +14,7 @@ import (
 
 func main() {
 	cfg := config.Load()
+	log.Println("DATABASE_URL:", cfg.DatabaseURL)
 
 	database, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
