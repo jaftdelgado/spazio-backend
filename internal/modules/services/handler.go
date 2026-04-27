@@ -29,7 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 func (h *Handler) listServices(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
-	limit, err := resolveLimit(c.Query("limit"), defaultLimit(query))
+	limit, err := resolveLimit(c.Query("limit"), resolveDefaultLimit(query))
 	if err != nil {
 		shared.BadRequest(c, err)
 		return
@@ -40,10 +40,14 @@ func (h *Handler) listServices(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListServices(c.Request.Context(), ListServicesInput{
-		Query: query,
-		Limit: int32(limit),
-	})
+	ctx := c.Request.Context()
+
+	var result ListServicesResult
+	if query == "" {
+		result, err = h.service.ListPopularServices(ctx, ListPopularInput{Limit: int32(limit)})
+	} else {
+		result, err = h.service.SearchServices(ctx, SearchInput{Query: query, Limit: int32(limit)})
+	}
 	if err != nil {
 		shared.InternalError(c, "could not list services")
 		return
@@ -52,11 +56,10 @@ func (h *Handler) listServices(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func defaultLimit(query string) int {
-	if strings.TrimSpace(query) == "" {
+func resolveDefaultLimit(query string) int {
+	if query == "" {
 		return defaultPopularLimit
 	}
-
 	return defaultSearchLimit
 }
 

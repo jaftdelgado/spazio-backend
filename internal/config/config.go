@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port        string
 	DatabaseURL string
+	MigrateURL  string
 }
 
 // Load reads application configuration from the environment.
@@ -21,6 +22,7 @@ func Load() *Config {
 	return &Config{
 		Port:        getEnv("APP_PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
+		MigrateURL:  getEnv("MIGRATE_URL", ""),
 	}
 }
 

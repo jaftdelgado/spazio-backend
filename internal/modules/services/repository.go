@@ -19,11 +19,6 @@ func NewRepository(db *pgxpool.Pool) ServicesRepository {
 }
 
 func (r *repository) ListPopularServices(ctx context.Context, limit int32) ([]Service, int64, error) {
-	total, err := r.queries.CountActiveServices(ctx)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count active services: %w", err)
-	}
-
 	rows, err := r.queries.ListPopularServices(ctx, limit)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list popular services: %w", err)
@@ -39,16 +34,15 @@ func (r *repository) ListPopularServices(ctx context.Context, limit int32) ([]Se
 		})
 	}
 
-	return services, total, nil
+	if len(rows) == 0 {
+		return services, 0, nil
+	}
+
+	return services, rows[0].TotalCount, nil
 }
 
 func (r *repository) SearchServices(ctx context.Context, query string, limit int32) ([]Service, int64, error) {
 	textQuery := pgtype.Text{String: query, Valid: true}
-
-	total, err := r.queries.CountSearchServices(ctx, textQuery)
-	if err != nil {
-		return nil, 0, fmt.Errorf("count search services: %w", err)
-	}
 
 	rows, err := r.queries.SearchServices(ctx, sqlcgen.SearchServicesParams{
 		Query:       textQuery,
@@ -68,5 +62,9 @@ func (r *repository) SearchServices(ctx context.Context, query string, limit int
 		})
 	}
 
-	return services, total, nil
+	if len(rows) == 0 {
+		return services, 0, nil
+	}
+
+	return services, rows[0].TotalCount, nil
 }

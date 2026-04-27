@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+-- Minimal schema for sqlc code generation.
+
+>>>>>>> 07dcfd2 (feat(properties): implement initial setup for property creation endpoint and related services)
 CREATE TABLE users (
 	user_id serial PRIMARY KEY
 );
@@ -30,6 +35,7 @@ CREATE TABLE properties (
 	created_at timestamptz NOT NULL DEFAULT now(),
 	deleted_at timestamptz
 );
+<<<<<<< HEAD
 
 CREATE TABLE service_categories (
 	category_id serial PRIMARY KEY,
@@ -53,3 +59,5 @@ CREATE TABLE property_services (
 	assigned_at timestamptz NOT NULL DEFAULT now(),
 	PRIMARY KEY (property_id, service_id)
 );
+=======
+>>>>>>> 07dcfd2 (feat(properties): implement initial setup for property creation endpoint and related services)

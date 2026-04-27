@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 type service struct {
@@ -15,24 +14,23 @@ func NewService(repository ServicesRepository) ServicesService {
 	return &service{repository: repository}
 }
 
-func (s *service) ListServices(ctx context.Context, input ListServicesInput) (ListServicesResult, error) {
-	query := strings.TrimSpace(input.Query)
-	if query == "" {
-		items, total, err := s.repository.ListPopularServices(ctx, input.Limit)
-		if err != nil {
-			return ListServicesResult{}, fmt.Errorf("list popular services: %w", err)
-		}
-
-		return ListServicesResult{
-			Data: items,
-			Meta: ListServicesMeta{
-				Total: total,
-				Shown: len(items),
-			},
-		}, nil
+func (s *service) ListPopularServices(ctx context.Context, input ListPopularInput) (ListServicesResult, error) {
+	items, total, err := s.repository.ListPopularServices(ctx, input.Limit)
+	if err != nil {
+		return ListServicesResult{}, fmt.Errorf("list popular services: %w", err)
 	}
 
-	items, total, err := s.repository.SearchServices(ctx, query, input.Limit)
+	return ListServicesResult{
+		Data: items,
+		Meta: ListServicesMeta{
+			Total: total,
+			Shown: len(items),
+		},
+	}, nil
+}
+
+func (s *service) SearchServices(ctx context.Context, input SearchInput) (ListServicesResult, error) {
+	items, total, err := s.repository.SearchServices(ctx, input.Query, input.Limit)
 	if err != nil {
 		return ListServicesResult{}, fmt.Errorf("search services: %w", err)
 	}
@@ -42,7 +40,7 @@ func (s *service) ListServices(ctx context.Context, input ListServicesInput) (Li
 		Meta: ListServicesMeta{
 			Total: total,
 			Shown: len(items),
-			Query: &query,
+			Query: &input.Query,
 		},
 	}, nil
 }
