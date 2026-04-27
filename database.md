@@ -9,18 +9,19 @@ Granular access control and user profile management.
 ### [Users]
 
 - `user_id` (SERIAL, PK)
-- `user_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
+- `user_uuid` (UUID, UNIQUE) -- default generation removed (no DEFAULT)
 - `role_id` (INT, FK → Roles)
 - `first_name` (VARCHAR 80)
 - `last_name` (VARCHAR 80)
 - `email` (VARCHAR 150, UNIQUE)
-- `password_hash` (VARCHAR 255)
 - `phone` (VARCHAR 20)
-- `profile_picture_url` (VARCHAR 255)
+- `profile_picture_url` (VARCHAR 255, Nullable)
 - `status_id` (INT, FK → UserStatus)
 - `created_at` (TIMESTAMPTZ, DEFAULT NOW())
 - `updated_at` (TIMESTAMPTZ, DEFAULT NOW())
 - `deleted_at` (TIMESTAMPTZ, Nullable)
+
+**Notes:** `password_hash` was removed (authentication handled externally). `user_uuid` no longer has a DEFAULT in DB migrations and `profile_picture_url` is nullable.
 
 ### [Roles]
 
@@ -55,18 +56,19 @@ Base entities for real estate management.
 - `property_id` (SERIAL, PK)
 - `property_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
 - `owner_id` (INT, FK → Users) -- The legal owner/landlord
-- `current_resident_id` (INT, FK → Users, Nullable) -- Current Tenant or Buyer
 - `title` (VARCHAR 128)
 - `description` (TEXT)
 - `property_type_id` (INT, FK → PropertyTypes)
 - `modality_id` (INT, FK → Modalities)
 - `status_id` (INT, FK → PropertyStatus)
-- `cover_photo_url` (VARCHAR 255)
+- `cover_photo_url` (VARCHAR 255, Nullable)
 - `is_featured` (BOOLEAN, DEFAULT false)
 - `published_at` (TIMESTAMPTZ, Nullable)
 - `updated_at` (TIMESTAMPTZ, Nullable)
 - `created_at` (TIMESTAMPTZ, DEFAULT NOW())
 - `deleted_at` (TIMESTAMPTZ, Nullable)
+- `lot_area` (DECIMAL 12,2, Nullable)
+- `category` (property_category NOT NULL) -- enum: ('residential','commercial','land','other')
 
 ### [PropertyTypes]
 
@@ -100,7 +102,6 @@ Specific attributes for different property types.
 - `floors` (SMALLINT)
 - `parking_spots` (SMALLINT)
 - `built_area` (DECIMAL 12,2)
-- `lot_area` (DECIMAL 12,2)
 - `construction_year` (SMALLINT)
 - `orientation_id` (INT, FK → Orientations)
 - `is_furnished` (BOOLEAN, DEFAULT false)
@@ -112,7 +113,6 @@ Specific attributes for different property types.
 - `loading_docks` (SMALLINT)
 - `internal_offices` (SMALLINT)
 - `three_phase_power` (BOOLEAN)
-- `lot_area` (DECIMAL 12,2)
 - `land_use` (VARCHAR 100)
 
 ### [Orientations]
@@ -126,14 +126,18 @@ Specific attributes for different property types.
 
 Hierarchical geo-management with PostGIS integration.
 
+### [Cities]
+
+- `city_id` (SERIAL, PK)
+- `state_id` (INT NOT NULL, FK → States)
+- `name` (VARCHAR 80) NOT NULL
+
 ### [Locations]
 
 - `location_id` (SERIAL, PK)
 - `property_id` (INT, FK → Properties)
-- `country_id` (INT, FK → Countries)
-- `state_id` (INT, FK → States)
+- `city_id` (INT NOT NULL, FK → Cities)
 - `zone_id` (INT, FK → Zones, Nullable)
-- `city` (VARCHAR 60)
 - `neighborhood` (VARCHAR 60)
 - `street` (VARCHAR 120)
 - `exterior_number` (VARCHAR 20)
@@ -181,12 +185,18 @@ Immutable snapshots for property pricing.
 - `rent_price` (DECIMAL 15,2, Nullable)
 - `deposit` (DECIMAL 15,2, Nullable)
 - `currency` (CHAR 3, DEFAULT 'MXN')
-- `period_id` (INT, FK → RentPeriods)
+- `period_id` (INT, FK → RentPeriods, Nullable)
 - `is_negotiable` (BOOLEAN, DEFAULT false)
+- `is_current` (BOOLEAN, DEFAULT true)
 - `valid_from` (TIMESTAMPTZ, DEFAULT NOW())
 - `valid_until` (TIMESTAMPTZ, Nullable) -- NULL means 'currently active'
 - `change_reason` (VARCHAR 100, Nullable)
 - `changed_by_user_id` (INT, FK → Users)
+
+**Constraints added:**
+
+- Price positivity: either `sale_price > 0` OR `rent_price > 0`.
+- Sale vs rent period rule: if `sale_price` is set then `period_id` must be NULL; if `rent_price` is set then `period_id` must be NOT NULL.
 
 ### [RentPeriods]
 
@@ -210,6 +220,8 @@ High-volume tracking optimized for performance with partitioning.
 - `label` (VARCHAR 60, Nullable)
 - `alt_text` (VARCHAR 255, Nullable) -- Accessibility Requirement (WCAG)
 - `created_at` (TIMESTAMPTZ, DEFAULT NOW())
+
+**Indexes/constraints:** Unique partial index `idx_single_property_cover` enforces que solo una foto por `property_id` pueda tener `is_cover = true`.
 
 ### [PropertyEvents]
 
@@ -255,9 +267,7 @@ Dynamic property features with versioning.
 - `clause_id` (SERIAL, PK)
 - `code` (VARCHAR 40, UNIQUE)
 - `name` (VARCHAR 100)
-- `description` (TEXT)
 - `value_type_id` (INT, FK → ClauseValueTypes)
-- `icon` (VARCHAR 80)
 - `is_active` (BOOLEAN, DEFAULT true)
 - `is_deprecated` (BOOLEAN, DEFAULT false)
 - `sort_order` (INT)
@@ -278,6 +288,14 @@ Dynamic property features with versioning.
 - `min_value` (DECIMAL 12,2, Nullable)
 - `max_value` (DECIMAL 12,2, Nullable)
 - `assigned_at` (TIMESTAMPTZ, DEFAULT NOW())
+
+### [ClauseModalities]
+
+- `clause_id` (INT, FK → Clauses)
+- `modality_id` (INT, FK → Modalities)
+- PRIMARY KEY (`clause_id`, `modality_id`)
+
+**Notes:** `Clauses.description` and `Clauses.icon` were removed; a many-to-many `clause_modalities` table was introduced.
 
 ---
 
@@ -316,7 +334,8 @@ Lead management, agent assignments, and visit scheduling.
 - `start_time` (TIME)
 - `end_time` (TIME)
 - `is_active` (BOOLEAN, DEFAULT true)
-- **Constraint:** UNIQUE (agent_id, day_of_week, start_time, end_time)
+
+**Constraints/Notes:** migrations add an exclusion constraint (using `btree_gist` extension and a `tsrange`) to prevent overlapping schedules for the same agent/day.
 
 ### [PropertyExceptions]
 
@@ -324,6 +343,8 @@ Lead management, agent assignments, and visit scheduling.
 - `property_id` (INT, FK → Properties)
 - `exception_date` (DATE)
 - `reason` (VARCHAR 100)
+- `start_time` (TIME, Nullable)
+- `end_time` (TIME, Nullable)
 
 ### [Visits]
 
@@ -378,6 +399,7 @@ Business logic for deal closing and digital transactions.
 - `created_at` (TIMESTAMPTZ, DEFAULT NOW())
 - `updated_at` (TIMESTAMPTZ, DEFAULT NOW())
 - `deleted_at` (TIMESTAMPTZ, Nullable)
+- `parent_contract_id` (INT, FK → Contracts, Nullable)
 
 ### [ContractStatus]
 
@@ -389,18 +411,19 @@ Business logic for deal closing and digital transactions.
 - `payment_id` (SERIAL, PK)
 - `payment_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
 - `contract_id` (INT, FK → Contracts)
-- `client_id` (INT, FK → Users)
 - `billing_period` (DATE) -- CHECK (Day = 1)
 - `due_date` (DATE)
 - `amount` (DECIMAL 15,2)
 - `payment_method_id` (INT, FK → PaymentMethods)
-- `gateway_id` (INT, FK → PaymentGateways)
+- `gateway_id` (INT, FK → PaymentGateways, Nullable)
 - `gateway_payment_id` (VARCHAR 100, Nullable)
 - `gateway_order_id` (VARCHAR 100, Nullable)
 - `status_id` (INT, FK → PaymentStatus)
 - `gateway_status` (VARCHAR 50, Nullable)
 - `payment_date` (TIMESTAMPTZ, Nullable)
 - `metadata` (JSONB, Nullable)
+
+**Notes:** `payments.client_id` column was removed; `gateway_id` is now nullable.
 
 ### [PaymentGateways]
 
@@ -461,3 +484,11 @@ Consistent status history pattern applied to all operational entities.
 - `new_status_id` (INT, FK → TransactionStatus)
 - `changed_by_user_id` (INT, FK → Users)
 - `changed_at` (TIMESTAMPTZ, DEFAULT NOW())
+
+---
+
+## Migration / DB-level notes
+
+- `btree_gist` extension is required for exclusion constraints (used by `agent_schedules`).
+- Exclusion constraint added to `agent_schedules` to prevent overlapping time ranges per agent/day (uses `tsrange` and `gist`).
+- Partial unique index `idx_single_property_cover` ensures a single cover photo per property.
