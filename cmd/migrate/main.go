@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
@@ -17,7 +18,8 @@ func main() {
 		log.Println("Warning: .env not found, using system environment variables")
 	}
 
-	direction := flag.String("direction", "up", "Dirección de la migración: up | down")
+	direction := flag.String("direction", "up", "Dirección de la migración: up | down | force")
+	version := flag.Int("version", 0, "Versión a forzar (solo con -direction force)")
 	flag.Parse()
 
 	databaseURL := os.Getenv("MIGRATE_URL")
@@ -29,7 +31,6 @@ func main() {
 		"file://migration/sql",
 		databaseURL,
 	)
-
 	if err != nil {
 		log.Fatal("Error creating migrator: ", err)
 	}
@@ -40,14 +41,24 @@ func main() {
 		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			log.Fatal("Error applying migrations: ", err)
 		}
-
 		log.Println("[OK] UP migrations applied")
+
 	case "down":
 		if err := m.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 			log.Fatal("Error rolling back migrations: ", err)
 		}
 		log.Println("[OK] DOWN migrations applied")
+
+	case "force":
+		if *version == 0 {
+			log.Fatal("Debes indicar la versión con -version <número>, e.g.: -direction force -version 3")
+		}
+		if err := m.Force(*version); err != nil {
+			log.Fatal("Error forzando versión: ", err)
+		}
+		log.Printf("[OK] Versión forzada a %s", strconv.Itoa(*version))
+
 	default:
-		log.Fatalf("Invalid direction: '%s' - use 'up' or 'down'", *direction)
+		log.Fatalf("Invalid direction: '%s' - use 'up', 'down' or 'force'", *direction)
 	}
 }

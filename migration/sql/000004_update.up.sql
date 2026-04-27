@@ -1,4 +1,3 @@
-
 ALTER TABLE prices ALTER COLUMN period_id DROP NOT NULL;
 ALTER TABLE prices ADD COLUMN is_current BOOLEAN DEFAULT true;
 ALTER TABLE prices ADD CONSTRAINT chk_price_positive CHECK (sale_price > 0 OR rent_price > 0);
@@ -36,8 +35,8 @@ EXCLUDE USING gist (
   agent_id WITH =,
   day_of_week WITH =,
   tsrange(
-    (current_date + start_time)::timestamp,
-    (current_date + end_time)::timestamp
+    ('2000-01-01'::date + start_time)::timestamp,
+    ('2000-01-01'::date + end_time)::timestamp
   ) WITH &&
 );
 
@@ -48,8 +47,27 @@ CREATE UNIQUE INDEX idx_single_property_cover ON property_photos(property_id) WH
 
 ALTER TABLE contracts ADD COLUMN parent_contract_id INT REFERENCES contracts(contract_id);
 
-CREATE TYPE property_category AS ENUM ('residential', 'commercial', 'land', 'other'); 
-ALTER TABLE properties ADD COLUMN category property_category NOT NULL;
+CREATE TYPE property_category AS ENUM ('residential', 'commercial', 'land', 'other');
+ALTER TABLE properties ADD COLUMN category property_category NOT NULL DEFAULT 'residential';
+ALTER TABLE properties ALTER COLUMN category DROP DEFAULT;
 
 ALTER TABLE users DROP COLUMN password_hash;
 ALTER TABLE users ALTER COLUMN user_uuid DROP DEFAULT;
+
+-- Clauses: search_tags + clause_modalities
+ALTER TABLE clauses DROP COLUMN IF EXISTS description;
+ALTER TABLE clauses DROP COLUMN IF EXISTS icon;
+ALTER TABLE clauses ADD COLUMN search_tags JSONB NULL;
+
+CREATE INDEX IF NOT EXISTS idx_clauses_search_tags ON clauses USING GIN (search_tags);
+
+CREATE TABLE IF NOT EXISTS clause_modalities (
+  clause_id   INT NOT NULL REFERENCES clauses(clause_id),
+  modality_id INT NOT NULL REFERENCES modalities(modality_id),
+  PRIMARY KEY (clause_id, modality_id)
+);
+
+-- Services: search_tags
+ALTER TABLE services ADD COLUMN search_tags JSONB NULL;
+
+CREATE INDEX IF NOT EXISTS idx_services_search_tags ON services USING GIN (search_tags);
