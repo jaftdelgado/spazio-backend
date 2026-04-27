@@ -7,3 +7,4 @@ sql:
       go:
         package: "sqlcgen"
         out: "../internal/sqlcgen"
+        sql_package: "pgx/v5"
