@@ -38,3 +38,6 @@ DROP TABLE IF EXISTS clause_modalities;
 
 ALTER TABLE clauses ADD COLUMN IF NOT EXISTS description text;
 ALTER TABLE clauses ADD COLUMN IF NOT EXISTS icon varchar(80);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash varchar(255) NOT NULL DEFAULT '';
+ALTER TABLE users ALTER COLUMN user_uuid SET DEFAULT gen_random_uuid();

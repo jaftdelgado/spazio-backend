@@ -50,3 +50,6 @@ ALTER TABLE contracts ADD COLUMN parent_contract_id INT REFERENCES contracts(con
 
 CREATE TYPE property_category AS ENUM ('residential', 'commercial', 'land', 'other'); 
 ALTER TABLE properties ADD COLUMN category property_category NOT NULL;
+
+ALTER TABLE users DROP COLUMN password_hash;
+ALTER TABLE users ALTER COLUMN user_uuid DROP DEFAULT;
