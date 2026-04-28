@@ -33,3 +33,21 @@ func (r *repository) ListModalities(ctx context.Context) ([]Modality, error) {
 
 	return modalities, nil
 }
+
+func (r *repository) ListPropertyTypes(ctx context.Context) ([]PropertyType, error) {
+	rows, err := r.queries.ListPropertyTypes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list property types: %w", err)
+	}
+
+	propertyTypes := make([]PropertyType, 0, len(rows))
+	for _, row := range rows {
+		propertyTypes = append(propertyTypes, PropertyType{
+			PropertyTypeID: row.PropertyTypeID,
+			Name:           row.Name,
+			Icon:           row.Icon,
+		})
+	}
+
+	return propertyTypes, nil
+}

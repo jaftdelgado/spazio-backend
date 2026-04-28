@@ -17,12 +17,23 @@ func NewHandler(service CatalogsService) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/catalogs/modalities", h.listModalities)
+	r.GET("/catalogs/property-types", h.listPropertyTypes)
 }
 
 func (h *Handler) listModalities(c *gin.Context) {
 	result, err := h.service.ListModalities(c.Request.Context())
 	if err != nil {
 		shared.InternalError(c, "could not list modalities")
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) listPropertyTypes(c *gin.Context) {
+	result, err := h.service.ListPropertyTypes(c.Request.Context())
+	if err != nil {
+		shared.InternalError(c, "could not list property types")
 		return
 	}
 

@@ -22,3 +22,12 @@ func (s *service) ListModalities(ctx context.Context) (ListModalitiesResult, err
 
 	return ListModalitiesResult{Data: items}, nil
 }
+
+func (s *service) ListPropertyTypes(ctx context.Context) (ListPropertyTypesResult, error) {
+	items, err := s.repository.ListPropertyTypes(ctx)
+	if err != nil {
+		return ListPropertyTypesResult{}, fmt.Errorf("list property types: %w", err)
+	}
+
+	return ListPropertyTypesResult{Data: items}, nil
+}
