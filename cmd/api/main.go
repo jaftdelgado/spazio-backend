@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/config"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/clauses"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
@@ -25,6 +26,7 @@ func main() {
 
 	propertiesModule := properties.NewModule(database)
 	servicesModule := services.NewModule(database)
+	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 
 	r := gin.Default()
@@ -38,6 +40,7 @@ func main() {
 	api := r.Group("")
 	propertiesModule.RegisterRoutes(api)
 	servicesModule.RegisterRoutes(api)
+	catalogsModule.RegisterRoutes(api)
 	clausesModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
