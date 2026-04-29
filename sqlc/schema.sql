@@ -4,11 +4,15 @@ CREATE TABLE users (
 );
 
 CREATE TABLE property_types (
-	property_type_id serial PRIMARY KEY
+    property_type_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL,
+    icon varchar(80),
+    is_deprecated boolean NOT NULL DEFAULT false
 );
 
 CREATE TABLE modalities (
-	modality_id serial PRIMARY KEY
+    modality_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL
 );
 
 CREATE TABLE property_status (
@@ -76,4 +80,25 @@ CREATE TABLE clause_modalities (
 	clause_id int NOT NULL REFERENCES clauses(clause_id),
 	modality_id int NOT NULL REFERENCES modalities(modality_id),
 	PRIMARY KEY (clause_id, modality_id)
+);
+
+CREATE TABLE countries (
+	country_id serial PRIMARY KEY,
+	iso2_code varchar(2) NOT NULL,
+	name varchar(100) NOT NULL,
+	is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE states (
+	state_id serial PRIMARY KEY,
+	country_id int NOT NULL REFERENCES countries(country_id),
+	iso_code varchar(10),
+	name varchar(100) NOT NULL,
+	is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE cities (
+	city_id serial PRIMARY KEY,
+	state_id int NOT NULL REFERENCES states(state_id),
+	name varchar(100) NOT NULL
 );
