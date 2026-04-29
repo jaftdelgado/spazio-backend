@@ -6,6 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"github.com/jaftdelgado/spazio-backend/internal/config"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
@@ -13,8 +17,15 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
+
+	_ "github.com/jaftdelgado/spazio-backend/docs"
 )
 
+// @title Spazio API
+// @version 1.0
+// @description API de Spazio Backend
+// @host localhost:8080
+// @BasePath /
 func main() {
 	cfg := config.Load()
 	log.Println("DATABASE_URL:", cfg.DatabaseURL)
@@ -35,9 +46,8 @@ func main() {
 	r.SetTrustedProxies(nil)
 	r.Use(middleware.CORS())
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
+	// Swagger endpoint
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("")
 	propertiesModule.RegisterRoutes(api)
