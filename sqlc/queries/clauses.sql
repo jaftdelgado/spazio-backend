@@ -41,7 +41,7 @@ WHERE c.is_active = true
     OR EXISTS (
       SELECT 1
       FROM jsonb_array_elements_text(c.search_tags) AS tag(value)
-      WHERE tag.value ILIKE '%' || sqlc.arg(query) || '%'
+      WHERE tag.value ILIKE '%' || sqlc.arg(query)::text || '%'
     )
   )
 ORDER BY c.sort_order ASC
