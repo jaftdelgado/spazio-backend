@@ -56,6 +56,7 @@ func main() {
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
 
+	log.Printf("API running on port %s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}

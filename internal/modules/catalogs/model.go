@@ -4,21 +4,21 @@ import "context"
 
 // Modality is a catalog item exposed by the modalities endpoint.
 type Modality struct {
-	ModalityID int32  `json:"modality_id"`
-	Name       string `json:"name"`
+	ModalityID int32  `json:"modality_id" example:"1"`
+	Name       string `json:"name" example:"Rent"`
 }
 
 // PropertyType is a catalog item exposed by the property-types endpoint.
 type PropertyType struct {
-	PropertyTypeID int32   `json:"property_type_id"`
-	Name           string  `json:"name"`
-	Icon           *string `json:"icon,omitempty"`
+	PropertyTypeID int32   `json:"property_type_id" example:"1"`
+	Name           string  `json:"name" example:"Apartment"`
+	Icon           *string `json:"icon,omitempty" example:"/icons/apartment.svg"`
 }
 
 // RentPeriod is a catalog item exposed by the rent-periods endpoint.
 type RentPeriod struct {
-	PeriodID int32  `json:"period_id"`
-	Name     string `json:"name"`
+	PeriodID int32  `json:"period_id" example:"1"`
+	Name     string `json:"name" example:"Monthly"`
 }
 
 // ListModalitiesResult is the response payload returned by the modalities use case.

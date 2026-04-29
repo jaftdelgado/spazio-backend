@@ -165,6 +165,9 @@ swag init -g main.go --output docs
 - [ ] `@Router` matches the registered route exactly (including leading `/` and `{id}` params)
 - [ ] Referenced structs exist in `model.go` with `example` tags
 - [ ] Module tag is consistent with the naming table above
+- [ ] `@Accept json` is only included when the endpoint receives a request body — omit it on GET endpoints
+- [ ] `@Failure 400` is only included when the endpoint parses params or a body — pure list endpoints that cannot produce a 400 must omit it
+- [ ] `@Description` field names are plain text — do not wrap them in backticks, swaggo renders them as literals
 
 ---
 
