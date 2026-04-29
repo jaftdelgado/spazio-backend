@@ -42,10 +42,15 @@ func (r *repository) ListPropertyTypes(ctx context.Context) ([]PropertyType, err
 
 	propertyTypes := make([]PropertyType, 0, len(rows))
 	for _, row := range rows {
+		var icon *string
+		if row.Icon.Valid {
+			icon = &row.Icon.String
+		}
+
 		propertyTypes = append(propertyTypes, PropertyType{
 			PropertyTypeID: row.PropertyTypeID,
 			Name:           row.Name,
-			Icon:           row.Icon,
+			Icon:           icon,
 		})
 	}
 

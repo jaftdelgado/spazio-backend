@@ -10,9 +10,9 @@ type Modality struct {
 
 // PropertyType is a catalog item exposed by the property-types endpoint.
 type PropertyType struct {
-	PropertyTypeID int32  `json:"property_type_id"`
-	Name           string `json:"name"`
-	Icon           string `json:"icon"`
+	PropertyTypeID int32   `json:"property_type_id"`
+	Name           string  `json:"name"`
+	Icon           *string `json:"icon,omitempty"`
 }
 
 // ListModalitiesResult is the response payload returned by the modalities use case.

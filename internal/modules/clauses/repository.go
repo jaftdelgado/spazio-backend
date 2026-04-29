@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
@@ -50,7 +49,7 @@ func (r *repository) ListClauses(ctx context.Context, modalityID, pageSize, page
 func (r *repository) SearchClauses(ctx context.Context, modalityID int32, query string, pageSize, pageOffset int32) ([]Clause, int64, error) {
 	rows, err := r.queries.SearchClauses(ctx, sqlcgen.SearchClausesParams{
 		ModalityID: modalityID,
-		Query:      pgtype.Text{String: query, Valid: true},
+		Query:      query,
 		PageSize:   pageSize,
 		PageOffset: pageOffset,
 	})
