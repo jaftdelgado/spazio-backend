@@ -15,6 +15,12 @@ type PropertyType struct {
 	Icon           *string `json:"icon,omitempty"`
 }
 
+// RentPeriod is a catalog item exposed by the rent-periods endpoint.
+type RentPeriod struct {
+	PeriodID int32  `json:"period_id"`
+	Name     string `json:"name"`
+}
+
 // ListModalitiesResult is the response payload returned by the modalities use case.
 type ListModalitiesResult struct {
 	Data []Modality `json:"data"`
@@ -25,14 +31,21 @@ type ListPropertyTypesResult struct {
 	Data []PropertyType `json:"data"`
 }
 
+// ListRentPeriodsResult is the response payload returned by the rent-periods use case.
+type ListRentPeriodsResult struct {
+	Data []RentPeriod `json:"data"`
+}
+
 // CatalogsRepository defines persistence operations for the catalogs module.
 type CatalogsRepository interface {
 	ListModalities(ctx context.Context) ([]Modality, error)
 	ListPropertyTypes(ctx context.Context) ([]PropertyType, error)
+	ListRentPeriods(ctx context.Context) ([]RentPeriod, error)
 }
 
 // CatalogsService defines business operations for the catalogs module.
 type CatalogsService interface {
 	ListModalities(ctx context.Context) (ListModalitiesResult, error)
 	ListPropertyTypes(ctx context.Context) (ListPropertyTypesResult, error)
+	ListRentPeriods(ctx context.Context) (ListRentPeriodsResult, error)
 }

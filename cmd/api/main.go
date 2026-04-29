@@ -28,7 +28,6 @@ import (
 // @BasePath /
 func main() {
 	cfg := config.Load()
-	log.Println("DATABASE_URL:", cfg.DatabaseURL)
 
 	database, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
@@ -42,11 +41,12 @@ func main() {
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
 
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.SetTrustedProxies(nil)
 	r.Use(middleware.CORS())
 
-	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("")

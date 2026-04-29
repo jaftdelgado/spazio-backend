@@ -56,3 +56,20 @@ func (r *repository) ListPropertyTypes(ctx context.Context) ([]PropertyType, err
 
 	return propertyTypes, nil
 }
+
+func (r *repository) ListRentPeriods(ctx context.Context) ([]RentPeriod, error) {
+	rows, err := r.queries.ListRentPeriods(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list rent periods: %w", err)
+	}
+
+	rentPeriods := make([]RentPeriod, 0, len(rows))
+	for _, row := range rows {
+		rentPeriods = append(rentPeriods, RentPeriod{
+			PeriodID: row.PeriodID,
+			Name:     row.Name,
+		})
+	}
+
+	return rentPeriods, nil
+}
