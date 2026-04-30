@@ -17,6 +17,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
+	"github.com/jaftdelgado/spazio-backend/internal/storage"
 
 	_ "github.com/jaftdelgado/spazio-backend/docs"
 )
@@ -35,11 +36,17 @@ func main() {
 	}
 	defer database.Close()
 
+	r2, err := storage.NewR2Client(cfg.R2)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	propertiesModule := properties.NewModule(database)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
+	_ = r2
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -56,7 +63,6 @@ func main() {
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
 
-	log.Printf("API running on port %s", cfg.Port)
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}
