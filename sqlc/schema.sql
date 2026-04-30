@@ -15,12 +15,18 @@ CREATE TABLE modalities (
     name varchar(50) NOT NULL
 );
 
+CREATE TABLE rent_periods (
+	period_id serial PRIMARY KEY,
+	name varchar(50) NOT NULL
+);
+
 CREATE TABLE property_status (
 	status_id serial PRIMARY KEY
 );
 
 CREATE TABLE properties (
 	property_id serial PRIMARY KEY,
+	property_uuid uuid NOT NULL,
 	owner_id int NOT NULL REFERENCES users(user_id),
 	current_resident_id int REFERENCES users(user_id),
 	title varchar(128) NOT NULL,
@@ -101,4 +107,16 @@ CREATE TABLE cities (
 	city_id serial PRIMARY KEY,
 	state_id int NOT NULL REFERENCES states(state_id),
 	name varchar(100) NOT NULL
+);
+
+CREATE TABLE property_photos (
+	photo_id serial PRIMARY KEY,
+	property_id int NOT NULL REFERENCES properties(property_id),
+	storage_key varchar(255) NOT NULL,
+	mime_type varchar(30) NOT NULL,
+	sort_order smallint NOT NULL DEFAULT 0,
+	is_cover boolean NOT NULL DEFAULT false,
+	label varchar(60),
+	alt_text varchar(255),
+	created_at timestamptz NOT NULL DEFAULT now()
 );

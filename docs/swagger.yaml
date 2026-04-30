@@ -1,4 +1,175 @@
+basePath: /
+definitions:
+  catalogs.ListModalitiesResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/catalogs.Modality'
+        type: array
+    type: object
+  catalogs.ListPropertyTypesResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/catalogs.PropertyType'
+        type: array
+    type: object
+  catalogs.ListRentPeriodsResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/catalogs.RentPeriod'
+        type: array
+    type: object
+  catalogs.Modality:
+    properties:
+      modality_id:
+        example: 1
+        type: integer
+      name:
+        example: Rent
+        type: string
+    type: object
+  catalogs.PropertyType:
+    properties:
+      icon:
+        example: /icons/apartment.svg
+        type: string
+      name:
+        example: Apartment
+        type: string
+      property_type_id:
+        example: 1
+        type: integer
+    type: object
+  catalogs.RentPeriod:
+    properties:
+      name:
+        example: Monthly
+        type: string
+      period_id:
+        example: 1
+        type: integer
+    type: object
+  shared.ErrorResponse:
+    properties:
+      code:
+        example: 404
+        type: integer
+      message:
+        example: Resource not found
+        type: string
+    type: object
+  uploads.UploadPhotoResult:
+    properties:
+      photo_id:
+        type: integer
+      storage_key:
+        type: string
+      url:
+        type: string
+    type: object
+host: localhost:8080
 info:
   contact: {}
-paths: {}
+  description: API de Spazio Backend
+  title: Spazio API
+  version: "1.0"
+paths:
+  /catalogs/modalities:
+    get:
+      description: Returns all modalities ordered by modality_id ascending.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of modalities
+          schema:
+            $ref: '#/definitions/catalogs.ListModalitiesResult'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List modalities
+      tags:
+      - Catalogs
+  /catalogs/property-types:
+    get:
+      description: Returns all non-deprecated property types ordered by property_type_id
+        ascending.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of property types
+          schema:
+            $ref: '#/definitions/catalogs.ListPropertyTypesResult'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List property types
+      tags:
+      - Catalogs
+  /catalogs/rent-periods:
+    get:
+      description: Returns all rent periods ordered by period_id ascending.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of rent periods
+          schema:
+            $ref: '#/definitions/catalogs.ListRentPeriodsResult'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List rent periods
+      tags:
+      - Catalogs
+  /uploads/properties/{property_uuid}/photos:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a photo for a property to R2 and registers it
+      parameters:
+      - description: Property UUID
+        in: path
+        name: property_uuid
+        required: true
+        type: string
+      - description: The image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Label
+        in: formData
+        name: label
+        type: string
+      - description: Alt Text
+        in: formData
+        name: alt_text
+        type: string
+      - default: 0
+        description: Sort Order
+        in: formData
+        name: sort_order
+        type: integer
+      - default: false
+        description: Is Cover
+        in: formData
+        name: is_cover
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/uploads.UploadPhotoResult'
+      summary: Upload property photo
+      tags:
+      - uploads
 swagger: "2.0"

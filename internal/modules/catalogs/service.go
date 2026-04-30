@@ -31,3 +31,12 @@ func (s *service) ListPropertyTypes(ctx context.Context) (ListPropertyTypesResul
 
 	return ListPropertyTypesResult{Data: items}, nil
 }
+
+func (s *service) ListRentPeriods(ctx context.Context) (ListRentPeriodsResult, error) {
+	items, err := s.repository.ListRentPeriods(ctx)
+	if err != nil {
+		return ListRentPeriodsResult{}, fmt.Errorf("list rent periods: %w", err)
+	}
+
+	return ListRentPeriodsResult{Data: items}, nil
+}
