@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -68,4 +69,18 @@ func (r *R2Client) PublicURL(ctx context.Context, storageKey string) (string, er
 		return fmt.Sprintf("%s/%s", r.publicURL, storageKey), nil
 	}
 	return r.PresignGetURL(ctx, storageKey, time.Hour)
+}
+
+// Upload uploads a file to R2.
+func (r *R2Client) Upload(ctx context.Context, storageKey string, contentType string, body io.Reader) error {
+	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(r.bucket),
+		Key:         aws.String(storageKey),
+		Body:        body,
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		return fmt.Errorf("upload to r2: %w", err)
+	}
+	return nil
 }

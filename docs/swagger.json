@@ -86,6 +86,71 @@
                     }
                 }
             }
+        },
+        "/uploads/properties/{property_uuid}/photos": {
+            "post": {
+                "description": "Uploads a photo for a property to R2 and registers it",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "uploads"
+                ],
+                "summary": "Upload property photo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "property_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "The image file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Label",
+                        "name": "label",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Alt Text",
+                        "name": "alt_text",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Is Cover",
+                        "name": "is_cover",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/uploads.UploadPhotoResult"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -175,6 +240,20 @@
                 "message": {
                     "type": "string",
                     "example": "Resource not found"
+                }
+            }
+        },
+        "uploads.UploadPhotoResult": {
+            "type": "object",
+            "properties": {
+                "photo_id": {
+                    "type": "integer"
+                },
+                "storage_key": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
                 }
             }
         }

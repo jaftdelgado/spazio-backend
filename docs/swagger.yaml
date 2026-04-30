@@ -60,6 +60,15 @@ definitions:
         example: Resource not found
         type: string
     type: object
+  uploads.UploadPhotoResult:
+    properties:
+      photo_id:
+        type: integer
+      storage_key:
+        type: string
+      url:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -119,4 +128,48 @@ paths:
       summary: List rent periods
       tags:
       - Catalogs
+  /uploads/properties/{property_uuid}/photos:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a photo for a property to R2 and registers it
+      parameters:
+      - description: Property UUID
+        in: path
+        name: property_uuid
+        required: true
+        type: string
+      - description: The image file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - description: Label
+        in: formData
+        name: label
+        type: string
+      - description: Alt Text
+        in: formData
+        name: alt_text
+        type: string
+      - default: 0
+        description: Sort Order
+        in: formData
+        name: sort_order
+        type: integer
+      - default: false
+        description: Is Cover
+        in: formData
+        name: is_cover
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/uploads.UploadPhotoResult'
+      summary: Upload property photo
+      tags:
+      - uploads
 swagger: "2.0"
