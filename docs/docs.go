@@ -14,17 +14,266 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {
+        "/catalogs/modalities": {
+            "get": {
+                "description": "Returns all modalities ordered by modality_id ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List modalities",
+                "responses": {
+                    "200": {
+                        "description": "List of modalities",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListModalitiesResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalogs/property-types": {
+            "get": {
+                "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List property types",
+                "responses": {
+                    "200": {
+                        "description": "List of property types",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListPropertyTypesResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/catalogs/rent-periods": {
+            "get": {
+                "description": "Returns all rent periods ordered by period_id ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List rent periods",
+                "responses": {
+                    "200": {
+                        "description": "List of rent periods",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListRentPeriodsResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/uploads/properties/{property_uuid}/photos": {
+            "post": {
+                "description": "Uploads a photo for a property to R2 and registers it",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "uploads"
+                ],
+                "summary": "Upload property photo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "property_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "The image file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Label",
+                        "name": "label",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Alt Text",
+                        "name": "alt_text",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Sort Order",
+                        "name": "sort_order",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Is Cover",
+                        "name": "is_cover",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/uploads.UploadPhotoResult"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "catalogs.ListModalitiesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.Modality"
+                    }
+                }
+            }
+        },
+        "catalogs.ListPropertyTypesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.PropertyType"
+                    }
+                }
+            }
+        },
+        "catalogs.ListRentPeriodsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.RentPeriod"
+                    }
+                }
+            }
+        },
+        "catalogs.Modality": {
+            "type": "object",
+            "properties": {
+                "modality_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Rent"
+                }
+            }
+        },
+        "catalogs.PropertyType": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "example": "/icons/apartment.svg"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Apartment"
+                },
+                "property_type_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "catalogs.RentPeriod": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Monthly"
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "shared.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "example": 404
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Resource not found"
+                }
+            }
+        },
+        "uploads.UploadPhotoResult": {
+            "type": "object",
+            "properties": {
+                "photo_id": {
+                    "type": "integer"
+                },
+                "storage_key": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        }
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "",
-	Host:             "",
-	BasePath:         "",
+	Version:          "1.0",
+	Host:             "localhost:8080",
+	BasePath:         "/",
 	Schemes:          []string{},
-	Title:            "",
-	Description:      "",
+	Title:            "Spazio API",
+	Description:      "API de Spazio Backend",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
