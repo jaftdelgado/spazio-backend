@@ -49,6 +49,7 @@ func Load() *Config {
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
+		log.Println("Cargando URL de Supabase:", os.Getenv("SUPABASE_URL"))
 		return v
 	}
 	return fallback
