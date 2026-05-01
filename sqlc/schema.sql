@@ -60,7 +60,10 @@ CREATE TABLE rent_periods (
 	name varchar(50) NOT NULL
 );
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> fa39902 (feat(catalogs): implement property type-specific rent periods retrieval and update API documentation)
 CREATE TABLE property_type_periods (
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
 	period_id int NOT NULL REFERENCES rent_periods(period_id),

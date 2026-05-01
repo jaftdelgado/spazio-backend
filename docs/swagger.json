@@ -36,10 +36,14 @@
             }
         },
 <<<<<<< HEAD
+<<<<<<< HEAD
         "/api/v1/catalogs/orientations": {
 =======
         "/catalogs/orientations": {
 >>>>>>> 4920b6b (feat(catalogs): add orientations endpoint and related database schema)
+=======
+        "/api/v1/catalogs/orientations": {
+>>>>>>> fa39902 (feat(catalogs): implement property type-specific rent periods retrieval and update API documentation)
             "get": {
                 "description": "Returns all orientations ordered by name ascending.",
                 "produces": [
@@ -66,10 +70,14 @@
             }
         },
 <<<<<<< HEAD
+<<<<<<< HEAD
         "/api/v1/catalogs/property-types": {
 =======
         "/catalogs/property-types": {
 >>>>>>> 4920b6b (feat(catalogs): add orientations endpoint and related database schema)
+=======
+        "/api/v1/catalogs/property-types": {
+>>>>>>> fa39902 (feat(catalogs): implement property type-specific rent periods retrieval and update API documentation)
             "get": {
                 "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
                 "produces": [
