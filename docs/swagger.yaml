@@ -69,6 +69,54 @@ definitions:
       url:
         type: string
     type: object
+  visits.CreateVisitRequest:
+    properties:
+      property_id:
+        type: integer
+      visit_date:
+        type: string
+    required:
+    - property_id
+    - visit_date
+    type: object
+  visits.TimeSlot:
+    properties:
+      available:
+        type: boolean
+      end_time:
+        type: string
+      start_time:
+        type: string
+    type: object
+  visits.VisitResponse:
+    properties:
+      address:
+        type: string
+      agent_id:
+        type: integer
+      agent_name:
+        type: string
+      agent_phone:
+        type: string
+      city_name:
+        type: string
+      client_name:
+        type: string
+      client_phone:
+        type: string
+      created_at:
+        type: string
+      property_id:
+        type: integer
+      property_title:
+        type: string
+      status:
+        type: string
+      visit_date:
+        type: string
+      visit_uuid:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -128,6 +176,41 @@ paths:
       summary: List rent periods
       tags:
       - Catalogs
+  /properties/{id}/availability:
+    get:
+      consumes:
+      - application/json
+      description: Get available 1-hour slots for a property on a specific date
+      parameters:
+      - description: Property ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Date (YYYY-MM-DD). Defaults to today.
+        in: query
+        name: date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/visits.TimeSlot'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get property availability
+      tags:
+      - visits
   /uploads/properties/{property_uuid}/photos:
     post:
       consumes:
@@ -172,4 +255,194 @@ paths:
       summary: Upload property photo
       tags:
       - uploads
+  /visits:
+    get:
+      consumes:
+      - application/json
+      description: List visits according to user role (Admin, Agent, Client). Supports
+        filtering by status, property and date. Requires X-User-ID header.
+      parameters:
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Property ID
+        in: query
+        name: property_id
+        type: integer
+      - description: Date (YYYY-MM-DD)
+        in: query
+        name: date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/visits.VisitResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List user visits
+      tags:
+      - visits
+    post:
+      consumes:
+      - application/json
+      description: Create a new visit request in 'Pending' status. Requires X-User-ID
+        header.
+      parameters:
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Visit Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/visits.CreateVisitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/visits.VisitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Schedule a visit
+      tags:
+      - visits
+  /visits/{uuid}/complete:
+    patch:
+      consumes:
+      - application/json
+      description: Mark a confirmed visit as completed. Only for Agents or Admin.
+        Requires X-User-ID header.
+      parameters:
+      - description: Visit UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Complete a visit
+      tags:
+      - visits
+  /visits/{uuid}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Transition a visit status towards 'Confirmed' by Client or Agent.
+        Requires X-User-ID header.
+      parameters:
+      - description: Visit UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm a visit
+      tags:
+      - visits
+  /visits/{uuid}/reschedule:
+    patch:
+      consumes:
+      - application/json
+      description: Cancels the old visit and creates a new one with the new date.
+        Requires X-User-ID header.
+      parameters:
+      - description: Old Visit UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: New Visit Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/visits.CreateVisitRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/visits.VisitResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Reschedule a visit
+      tags:
+      - visits
 swagger: "2.0"
