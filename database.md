@@ -3,23 +3,28 @@
 ## 1. Módulo de Seguridad y Usuarios (RBAC)
 
 **Clase: roles**
+
 - `role_id` (SERIAL, PK)
 - `name` (VARCHAR 50, UNIQUE)
 
 **Clase: user_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 30)
 
 **Clase: permissions**
+
 - `permission_id` (SERIAL, PK)
 - `code` (VARCHAR 60, UNIQUE)
 - `description` (TEXT)
 
 **Clase: role_permissions**
+
 - `role_id` (INT, PK, FK -> roles)
 - `permission_id` (INT, PK, FK -> permissions)
 
 **Clase: users**
+
 - `user_id` (SERIAL, PK)
 - `user_uuid` (UUID, UNIQUE) -- UID Sincronizado con Supabase
 - `role_id` (INT, FK -> roles)
@@ -38,12 +43,14 @@
 ## 2. Módulo Geográfico Normalizado
 
 **Clase: countries**
+
 - `country_id` (SERIAL, PK)
 - `iso2_code` (CHAR 2, UNIQUE)
 - `name` (VARCHAR 60)
 - `is_active` (BOOLEAN)
 
 **Clase: states**
+
 - `state_id` (SERIAL, PK)
 - `country_id` (INT, FK -> countries)
 - `iso_code` (VARCHAR 10)
@@ -51,11 +58,13 @@
 - `is_active` (BOOLEAN)
 
 **Clase: cities**
+
 - `city_id` (SERIAL, PK)
 - `state_id` (INT, FK -> states)
 - `name` (VARCHAR 80)
 
 **Clase: postal_codes**
+
 - `postal_code_id` (SERIAL, PK)
 - `code` (VARCHAR 10)
 - `city_id` (INT, FK -> cities)
@@ -65,6 +74,7 @@
 - `updated_at` (TIMESTAMPTZ)
 
 **Clase: zones**
+
 - `zone_id` (SERIAL, PK)
 - `state_id` (INT, FK -> states)
 - `parent_zone_id` (INT, FK -> zones, NULL)
@@ -74,6 +84,7 @@
 - `postal_code_id` (INT, FK -> postal_codes, NULL)
 
 **Clase: postal_code_zones**
+
 - `postal_code_id` (INT, PK, FK -> postal_codes)
 - `zone_id` (INT, PK, FK -> zones)
 
@@ -82,20 +93,24 @@
 ## 3. Módulo de Propiedades (Core y Herencia)
 
 **Clase: property_types**
+
 - `property_type_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 - `icon` (VARCHAR 80)
 - `is_deprecated` (BOOLEAN)
 
 **Clase: modalities**
+
 - `modality_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: property_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: properties**
+
 - `property_id` (SERIAL, PK)
 - `property_uuid` (UUID, UNIQUE)
 - `owner_id` (INT, FK -> users)
@@ -114,6 +129,7 @@
 - `deleted_at` (TIMESTAMPTZ, NULL)
 
 **Clase: locations**
+
 - `location_id` (SERIAL, PK)
 - `property_id` (INT, UNIQUE, FK -> properties)
 - `city_id` (INT, FK -> cities)
@@ -128,10 +144,12 @@
 - `is_public_address` (BOOLEAN)
 
 **Clase: orientations**
+
 - `orientation_id` (SERIAL, PK)
 - `name` (VARCHAR 30)
 
 **Clase: residential_properties**
+
 - `property_id` (INT, PK, FK -> properties)
 - `bedrooms` (SMALLINT)
 - `bathrooms` (SMALLINT)
@@ -144,6 +162,7 @@
 - `is_furnished` (BOOLEAN)
 
 **Clase: commercial_properties**
+
 - `property_id` (INT, PK, FK -> properties)
 - `ceiling_height` (DECIMAL 5,2)
 - `loading_docks` (SMALLINT)
@@ -156,25 +175,40 @@
 ## 4. Módulo Financiero y Multimedia
 
 **Clase: rent_periods**
+
 - `period_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
-**Clase: prices**
+**Clase: sale_prices**
+
 - `price_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
-- `night_price` (DECIMAL 15,2) -- OBLIGATORIO
-- `sale_price` (DECIMAL 15,2, NULL)
-- `rent_price` (DECIMAL 15,2, NULL)
-- `deposit` (DECIMAL 15,2, NULL)
+- `sale_price` (DECIMAL 15,2)
 - `currency` (CHAR 3)
-- `period_id` (INT, FK -> rent_periods, NULL)
 - `is_negotiable` (BOOLEAN)
+- `is_current` (BOOLEAN)
 - `valid_from` (TIMESTAMPTZ)
 - `valid_until` (TIMESTAMPTZ, NULL)
+- `change_reason` (VARCHAR 100, NULL)
 - `changed_by_user_id` (INT, FK -> users)
+
+**Clase: rent_prices**
+
+- `rent_price_id` (SERIAL, PK)
+- `property_id` (INT, FK -> properties)
+- `period_id` (INT, FK -> rent_periods)
+- `rent_price` (DECIMAL 15,2)
+- `deposit` (DECIMAL 15,2, NULL)
+- `currency` (CHAR 3)
+- `is_negotiable` (BOOLEAN)
 - `is_current` (BOOLEAN)
+- `valid_from` (TIMESTAMPTZ)
+- `valid_until` (TIMESTAMPTZ, NULL)
+- `change_reason` (VARCHAR 100, NULL)
+- `changed_by_user_id` (INT, FK -> users)
 
 **Clase: property_photos**
+
 - `photo_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `storage_key` (VARCHAR 255)
@@ -189,11 +223,13 @@
 ## 5. Módulo de Servicios y Cláusulas
 
 **Clase: service_categories**
+
 - `category_id` (SERIAL, PK)
 - `code` (VARCHAR 40)
 - `name` (VARCHAR 80)
 
 **Clase: services**
+
 - `service_id` (SERIAL, PK)
 - `code` (VARCHAR 40)
 - `icon` (VARCHAR 80)
@@ -203,11 +239,13 @@
 - `sort_order` (INT)
 
 **Clase: clause_value_types**
+
 - `value_type_id` (SERIAL, PK)
 - `code` (VARCHAR 40)
 - `name` (VARCHAR 80)
 
 **Clase: clauses**
+
 - `clause_id` (SERIAL, PK)
 - `code` (VARCHAR 40)
 - `name` (VARCHAR 100)
@@ -217,14 +255,17 @@
 - `is_active` (BOOLEAN)
 
 **Clase: clause_modalities**
+
 - `clause_id` (INT, PK, FK -> clauses)
 - `modality_id` (INT, PK, FK -> modalities)
 
 **Clase: property_services**
+
 - `property_id` (INT, PK, FK -> properties)
 - `service_id` (INT, PK, FK -> services)
 
 **Clase: property_clauses**
+
 - `property_clause_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `clause_id` (INT, FK -> clauses)
@@ -238,14 +279,17 @@
 ## 6. Módulo CRM y Logística
 
 **Clase: follow_up_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: visit_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: inquiries**
+
 - `inquiry_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `user_id` (INT, FK -> users, NULL)
@@ -253,11 +297,13 @@
 - `follow_up_status_id` (INT, FK -> follow_up_status)
 
 **Clase: property_agents**
+
 - `property_id` (INT, PK, FK -> properties)
 - `agent_id` (INT, PK, FK -> users)
 - `is_primary` (BOOLEAN)
 
 **Clase: agent_schedules**
+
 - `schedule_id` (SERIAL, PK)
 - `agent_id` (INT, FK -> users)
 - `day_of_week` (SMALLINT)
@@ -266,12 +312,14 @@
 - `is_active` (BOOLEAN)
 
 **Clase: property_exceptions**
+
 - `exception_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `exception_date` (DATE)
 - `reason` (VARCHAR 100)
 
 **Clase: visits**
+
 - `visit_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `client_id` (INT, FK -> users)
@@ -284,26 +332,32 @@
 ## 7. Módulo de Operaciones y Auditoría
 
 **Clase: transaction_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: contract_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: payment_gateways**
+
 - `gateway_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: payment_methods**
+
 - `method_id` (SERIAL, PK)
 - `name` (VARCHAR 50)
 
 **Clase: payment_status**
+
 - `status_id` (SERIAL, PK)
 - `name` (VARCHAR 30)
 
 **Clase: transactions**
+
 - `transaction_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `client_id` (INT, FK -> users)
@@ -314,6 +368,7 @@
 - `closing_date` (DATE)
 
 **Clase: contracts**
+
 - `contract_id` (SERIAL, PK)
 - `transaction_id` (INT, FK -> transactions)
 - `parent_contract_id` (INT, FK -> contracts, NULL)
@@ -325,6 +380,7 @@
 - `status_id` (INT, FK -> contract_status)
 
 **Clase: payments**
+
 - `payment_id` (SERIAL, PK)
 - `contract_id` (INT, FK -> contracts)
 - `billing_period` (DATE)
@@ -336,6 +392,7 @@
 - `payment_date` (TIMESTAMPTZ, NULL)
 
 **Clase: status_history**
+
 - `history_id` (SERIAL, PK)
 - `property_id` (INT, FK -> properties)
 - `previous_status_id` (INT, FK -> property_status)
