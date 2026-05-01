@@ -74,6 +74,11 @@
 - `icon` (VARCHAR 80)
 - `is_deprecated` (BOOLEAN)
 
+**Clase: property_type_periods**
+
+- `property_type_id` (INT, PK, FK -> property_types)
+- `period_id` (INT, PK, FK -> rent_periods)
+
 **Clase: modalities**
 
 - `modality_id` (SERIAL, PK)
