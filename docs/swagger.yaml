@@ -7,6 +7,13 @@ definitions:
           $ref: '#/definitions/catalogs.Modality'
         type: array
     type: object
+  catalogs.ListOrientationsResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/catalogs.Orientation'
+        type: array
+    type: object
   catalogs.ListPropertyTypesResult:
     properties:
       data:
@@ -29,6 +36,15 @@ definitions:
       name:
         example: Rent
         type: string
+    type: object
+  catalogs.Orientation:
+    properties:
+      name:
+        example: North
+        type: string
+      orientation_id:
+        example: 1
+        type: integer
     type: object
   catalogs.PropertyType:
     properties:
@@ -139,6 +155,23 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: List modalities
+      tags:
+      - Catalogs
+  /catalogs/orientations:
+    get:
+      description: Returns all orientations ordered by name ascending.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of orientations
+          schema:
+            $ref: '#/definitions/catalogs.ListOrientationsResult'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List orientations
       tags:
       - Catalogs
   /catalogs/property-types:

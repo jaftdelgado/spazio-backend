@@ -63,31 +63,6 @@
 - `state_id` (INT, FK -> states)
 - `name` (VARCHAR 80)
 
-**Clase: postal_codes**
-
-- `postal_code_id` (SERIAL, PK)
-- `code` (VARCHAR 10)
-- `city_id` (INT, FK -> cities)
-- `state_id` (INT, FK -> states)
-- `source` (VARCHAR 30) -- seed, zippopotam, manual
-- `created_at` (TIMESTAMPTZ)
-- `updated_at` (TIMESTAMPTZ)
-
-**Clase: zones**
-
-- `zone_id` (SERIAL, PK)
-- `state_id` (INT, FK -> states)
-- `parent_zone_id` (INT, FK -> zones, NULL)
-- `zone_type` (VARCHAR 30)
-- `name` (VARCHAR 60)
-- `is_active` (BOOLEAN)
-- `postal_code_id` (INT, FK -> postal_codes, NULL)
-
-**Clase: postal_code_zones**
-
-- `postal_code_id` (INT, PK, FK -> postal_codes)
-- `zone_id` (INT, PK, FK -> zones)
-
 ---
 
 ## 3. Módulo de Propiedades (Core y Herencia)

@@ -41,6 +41,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/catalogs/orientations": {
+            "get": {
+                "description": "Returns all orientations ordered by name ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List orientations",
+                "responses": {
+                    "200": {
+                        "description": "List of orientations",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListOrientationsResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/catalogs/property-types": {
             "get": {
                 "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
@@ -502,6 +528,17 @@ const docTemplate = `{
                 }
             }
         },
+        "catalogs.ListOrientationsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.Orientation"
+                    }
+                }
+            }
+        },
         "catalogs.ListPropertyTypesResult": {
             "type": "object",
             "properties": {
@@ -534,6 +571,19 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "Rent"
+                }
+            }
+        },
+        "catalogs.Orientation": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "North"
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

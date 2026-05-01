@@ -40,3 +40,12 @@ func (s *service) ListRentPeriods(ctx context.Context) (ListRentPeriodsResult, e
 
 	return ListRentPeriodsResult{Data: items}, nil
 }
+
+func (s *service) ListOrientations(ctx context.Context) (ListOrientationsResult, error) {
+	items, err := s.repository.ListOrientations(ctx)
+	if err != nil {
+		return ListOrientationsResult{}, fmt.Errorf("list orientations: %w", err)
+	}
+
+	return ListOrientationsResult{Data: items}, nil
+}

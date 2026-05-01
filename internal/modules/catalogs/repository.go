@@ -73,3 +73,20 @@ func (r *repository) ListRentPeriods(ctx context.Context) ([]RentPeriod, error) 
 
 	return rentPeriods, nil
 }
+
+func (r *repository) ListOrientations(ctx context.Context) ([]Orientation, error) {
+	rows, err := r.queries.ListOrientations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list orientations: %w", err)
+	}
+
+	orientations := make([]Orientation, 0, len(rows))
+	for _, row := range rows {
+		orientations = append(orientations, Orientation{
+			OrientationID: row.OrientationID,
+			Name:          row.Name,
+		})
+	}
+
+	return orientations, nil
+}

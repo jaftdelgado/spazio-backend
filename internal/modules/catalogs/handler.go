@@ -1,6 +1,7 @@
 package catalogs
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,9 +17,13 @@ func NewHandler(service CatalogsService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("/catalogs/modalities", h.listModalities)
-	r.GET("/catalogs/property-types", h.listPropertyTypes)
-	r.GET("/catalogs/rent-periods", h.listRentPeriods)
+	catalogs := r.Group("/api/v1/catalogs")
+	{
+		catalogs.GET("/modalities", h.listModalities)
+		catalogs.GET("/property-types", h.listPropertyTypes)
+		catalogs.GET("/rent-periods", h.listRentPeriods)
+		catalogs.GET("/orientations", h.listOrientations)
+	}
 }
 
 // listModalities godoc
@@ -28,7 +33,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Produce      json
 // @Success      200  {object}  ListModalitiesResult  "List of modalities"
 // @Failure      500  {object}  shared.ErrorResponse  "Internal error"
-// @Router       /catalogs/modalities [get]
+// @Router       /api/v1/catalogs/modalities [get]
 func (h *Handler) listModalities(c *gin.Context) {
 	result, err := h.service.ListModalities(c.Request.Context())
 	if err != nil {
@@ -46,7 +51,7 @@ func (h *Handler) listModalities(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  ListPropertyTypesResult  "List of property types"
 // @Failure      500  {object}  shared.ErrorResponse     "Internal error"
-// @Router       /catalogs/property-types [get]
+// @Router       /api/v1/catalogs/property-types [get]
 func (h *Handler) listPropertyTypes(c *gin.Context) {
 	result, err := h.service.ListPropertyTypes(c.Request.Context())
 	if err != nil {
@@ -64,11 +69,30 @@ func (h *Handler) listPropertyTypes(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  ListRentPeriodsResult  "List of rent periods"
 // @Failure      500  {object}  shared.ErrorResponse   "Internal error"
-// @Router       /catalogs/rent-periods [get]
+// @Router       /api/v1/catalogs/rent-periods [get]
 func (h *Handler) listRentPeriods(c *gin.Context) {
 	result, err := h.service.ListRentPeriods(c.Request.Context())
 	if err != nil {
 		shared.InternalError(c, "could not list rent periods")
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// listOrientations godoc
+// @Summary      List orientations
+// @Description  Returns all orientations ordered by name ascending.
+// @Tags         Catalogs
+// @Produce      json
+// @Success      200  {object}  ListOrientationsResult  "List of orientations"
+// @Failure      500  {object}  shared.ErrorResponse    "Internal error"
+// @Router       /api/v1/catalogs/orientations [get]
+func (h *Handler) listOrientations(c *gin.Context) {
+	result, err := h.service.ListOrientations(c.Request.Context())
+	if err != nil {
+		log.Printf("list orientations: %v", err)
+		shared.InternalError(c, "could not list orientations")
 		return
 	}
 

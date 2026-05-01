@@ -13,3 +13,10 @@ SELECT
 FROM property_types
 WHERE is_deprecated = false
 ORDER BY property_type_id ASC;
+
+-- name: ListOrientations :many
+SELECT
+    orientation_id,
+    name
+FROM orientations
+ORDER BY name ASC;
