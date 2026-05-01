@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/catalogs/modalities": {
+        "/api/v1/catalogs/modalities": {
             "get": {
                 "description": "Returns all modalities ordered by modality_id ascending.",
                 "produces": [
@@ -41,7 +41,33 @@ const docTemplate = `{
                 }
             }
         },
-        "/catalogs/property-types": {
+        "/api/v1/catalogs/orientations": {
+            "get": {
+                "description": "Returns all orientations ordered by name ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List orientations",
+                "responses": {
+                    "200": {
+                        "description": "List of orientations",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListOrientationsResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/catalogs/property-types": {
             "get": {
                 "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
                 "produces": [
@@ -67,9 +93,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/catalogs/rent-periods": {
+        "/api/v1/catalogs/rent-periods": {
             "get": {
-                "description": "Returns all rent periods ordered by period_id ascending.",
+                "description": "Returns rent periods enabled for the provided property type, ordered by period_id ascending.",
                 "produces": [
                     "application/json"
                 ],
@@ -77,11 +103,26 @@ const docTemplate = `{
                     "Catalogs"
                 ],
                 "summary": "List rent periods",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Property type ID",
+                        "name": "property_type_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "List of rent periods",
                         "schema": {
                             "$ref": "#/definitions/catalogs.ListRentPeriodsResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
@@ -502,6 +543,17 @@ const docTemplate = `{
                 }
             }
         },
+        "catalogs.ListOrientationsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.Orientation"
+                    }
+                }
+            }
+        },
         "catalogs.ListPropertyTypesResult": {
             "type": "object",
             "properties": {
@@ -534,6 +586,19 @@ const docTemplate = `{
                 "name": {
                     "type": "string",
                     "example": "Rent"
+                }
+            }
+        },
+        "catalogs.Orientation": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "North"
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

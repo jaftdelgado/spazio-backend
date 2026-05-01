@@ -28,9 +28,20 @@ CREATE TABLE modalities (
     name varchar(50) NOT NULL
 );
 
+CREATE TABLE orientations (
+	orientation_id serial PRIMARY KEY,
+	name varchar(30) NOT NULL
+);
+
 CREATE TABLE rent_periods (
 	period_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL
+);
+
+CREATE TABLE property_type_periods (
+	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
+	period_id int NOT NULL REFERENCES rent_periods(period_id),
+	PRIMARY KEY (property_type_id, period_id)
 );
 
 CREATE TABLE property_status (
