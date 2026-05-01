@@ -1,12 +1,14 @@
 package uploads
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
 type Handler struct {
@@ -100,6 +102,10 @@ func (h *Handler) uploadPropertyPhoto(c *gin.Context) {
 		File:         file,
 	})
 	if err != nil {
+		if errors.Is(err, ErrPropertyNotFound) {
+			shared.NotFound(c, err.Error())
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not upload property photo"})
 		return
 	}
