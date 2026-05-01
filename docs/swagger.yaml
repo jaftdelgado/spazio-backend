@@ -67,6 +67,194 @@ definitions:
         example: 1
         type: integer
     type: object
+  properties.CreateCommercialInput:
+    properties:
+      ceiling_height:
+        example: 4.5
+        type: number
+      internal_offices:
+        example: 2
+        type: integer
+      land_use:
+        example: Retail
+        type: string
+      loading_docks:
+        example: 1
+        type: integer
+      three_phase_power:
+        example: true
+        type: boolean
+    type: object
+  properties.CreateLocationInput:
+    properties:
+      city_id:
+        example: 1
+        type: integer
+      exterior_number:
+        example: "45"
+        type: string
+      interior_number:
+        example: A
+        type: string
+      is_public_address:
+        example: true
+        type: boolean
+      latitude:
+        example: 19.5438
+        type: number
+      longitude:
+        example: -96.9102
+        type: number
+      neighborhood:
+        example: Centro
+        type: string
+      postal_code:
+        example: "91000"
+        type: string
+      street:
+        example: Av. Principal
+        type: string
+    type: object
+  properties.CreatePropertyClauseInput:
+    properties:
+      boolean_value:
+        example: true
+        type: boolean
+      clause_id:
+        example: 1
+        type: integer
+      integer_value:
+        example: 2
+        type: integer
+      max_value:
+        example: 3
+        type: number
+      min_value:
+        example: 1
+        type: number
+    type: object
+  properties.CreatePropertyInput:
+    properties:
+      category:
+        example: residential
+        type: string
+      clauses:
+        items:
+          $ref: '#/definitions/properties.CreatePropertyClauseInput'
+        type: array
+      commercial:
+        $ref: '#/definitions/properties.CreateCommercialInput'
+      description:
+        example: Spacious residential property near downtown
+        type: string
+      is_featured:
+        example: false
+        type: boolean
+      location:
+        $ref: '#/definitions/properties.CreateLocationInput'
+      lot_area:
+        example: 200
+        type: number
+      modality_id:
+        example: 1
+        type: integer
+      owner_id:
+        example: 1
+        type: integer
+      property_type_id:
+        example: 1
+        type: integer
+      rent_prices:
+        items:
+          $ref: '#/definitions/properties.CreateRentPriceInput'
+        type: array
+      residential:
+        $ref: '#/definitions/properties.CreateResidentialInput'
+      sale_price:
+        $ref: '#/definitions/properties.CreateSalePriceInput'
+      services:
+        example:
+        - 1
+        - 3
+        - 7
+        items:
+          type: integer
+        type: array
+      title:
+        example: Casa en Xalapa
+        type: string
+    type: object
+  properties.CreatePropertyResult:
+    properties:
+      data:
+        $ref: '#/definitions/properties.CreatePropertyResultData'
+    type: object
+  properties.CreatePropertyResultData:
+    properties:
+      property_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+    type: object
+  properties.CreateRentPriceInput:
+    properties:
+      currency:
+        example: MXN
+        type: string
+      deposit:
+        example: 16000
+        type: number
+      is_negotiable:
+        example: false
+        type: boolean
+      period_id:
+        example: 3
+        type: integer
+      rent_price:
+        example: 8000
+        type: number
+    type: object
+  properties.CreateResidentialInput:
+    properties:
+      bathrooms:
+        example: 2
+        type: integer
+      bedrooms:
+        example: 3
+        type: integer
+      beds:
+        example: 4
+        type: integer
+      built_area:
+        example: 120
+        type: number
+      construction_year:
+        example: 2010
+        type: integer
+      floors:
+        example: 2
+        type: integer
+      is_furnished:
+        example: false
+        type: boolean
+      orientation_id:
+        example: 2
+        type: integer
+      parking_spots:
+        example: 1
+        type: integer
+    type: object
+  properties.CreateSalePriceInput:
+    properties:
+      currency:
+        example: MXN
+        type: string
+      is_negotiable:
+        example: true
+        type: boolean
+      sale_price:
+        example: 1500000
+        type: number
+    type: object
   shared.ErrorResponse:
     properties:
       code:
@@ -220,6 +408,38 @@ paths:
       summary: List rent periods
       tags:
       - Catalogs
+  /api/v1/properties:
+    post:
+      consumes:
+      - application/json
+      description: Registers a property and all related records in a single database
+        transaction. The backend generates the property UUID and stores subtype, location,
+        pricing, services, and clauses atomically.
+      parameters:
+      - description: Property payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/properties.CreatePropertyInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Property created
+          schema:
+            $ref: '#/definitions/properties.CreatePropertyResult'
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Register a new property
+      tags:
+      - Properties
   /properties/{id}/availability:
     get:
       consumes:

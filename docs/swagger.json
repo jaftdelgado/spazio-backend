@@ -128,6 +128,52 @@
                 }
             }
         },
+        "/api/v1/properties": {
+            "post": {
+                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Register a new property",
+                "parameters": [
+                    {
+                        "description": "Property payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.CreatePropertyInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Property created",
+                        "schema": {
+                            "$ref": "#/definitions/properties.CreatePropertyResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/properties/{id}/availability": {
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
@@ -623,6 +669,269 @@
                 "period_id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "properties.CreateCommercialInput": {
+            "type": "object",
+            "properties": {
+                "ceiling_height": {
+                    "type": "number",
+                    "example": 4.5
+                },
+                "internal_offices": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "land_use": {
+                    "type": "string",
+                    "example": "Retail"
+                },
+                "loading_docks": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "three_phase_power": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "properties.CreateLocationInput": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "exterior_number": {
+                    "type": "string",
+                    "example": "45"
+                },
+                "interior_number": {
+                    "type": "string",
+                    "example": "A"
+                },
+                "is_public_address": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 19.5438
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": -96.9102
+                },
+                "neighborhood": {
+                    "type": "string",
+                    "example": "Centro"
+                },
+                "postal_code": {
+                    "type": "string",
+                    "example": "91000"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "Av. Principal"
+                }
+            }
+        },
+        "properties.CreatePropertyClauseInput": {
+            "type": "object",
+            "properties": {
+                "boolean_value": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "integer_value": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "max_value": {
+                    "type": "number",
+                    "example": 3
+                },
+                "min_value": {
+                    "type": "number",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreatePropertyInput": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "residential"
+                },
+                "clauses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreatePropertyClauseInput"
+                    }
+                },
+                "commercial": {
+                    "$ref": "#/definitions/properties.CreateCommercialInput"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Spacious residential property near downtown"
+                },
+                "is_featured": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.CreateLocationInput"
+                },
+                "lot_area": {
+                    "type": "number",
+                    "example": 200
+                },
+                "modality_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "owner_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "property_type_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "rent_prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreateRentPriceInput"
+                    }
+                },
+                "residential": {
+                    "$ref": "#/definitions/properties.CreateResidentialInput"
+                },
+                "sale_price": {
+                    "$ref": "#/definitions/properties.CreateSalePriceInput"
+                },
+                "services": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        3,
+                        7
+                    ]
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Casa en Xalapa"
+                }
+            }
+        },
+        "properties.CreatePropertyResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.CreatePropertyResultData"
+                }
+            }
+        },
+        "properties.CreatePropertyResultData": {
+            "type": "object",
+            "properties": {
+                "property_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            }
+        },
+        "properties.CreateRentPriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "number",
+                    "example": 16000
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "rent_price": {
+                    "type": "number",
+                    "example": 8000
+                }
+            }
+        },
+        "properties.CreateResidentialInput": {
+            "type": "object",
+            "properties": {
+                "bathrooms": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "bedrooms": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "beds": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "built_area": {
+                    "type": "number",
+                    "example": 120
+                },
+                "construction_year": {
+                    "type": "integer",
+                    "example": 2010
+                },
+                "floors": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "is_furnished": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "parking_spots": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreateSalePriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "sale_price": {
+                    "type": "number",
+                    "example": 1500000
                 }
             }
         },
