@@ -67,6 +67,7 @@ definitions:
         example: 1
         type: integer
     type: object
+<<<<<<< HEAD
   clauses.Clause:
     properties:
       clause_id:
@@ -109,6 +110,8 @@ definitions:
       meta:
         $ref: '#/definitions/clauses.ListClausesMeta'
     type: object
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
   properties.CreateCommercialInput:
     properties:
       ceiling_height:
@@ -297,6 +300,7 @@ definitions:
         example: 1500000
         type: number
     type: object
+<<<<<<< HEAD
   services.ListServicesMeta:
     properties:
       query:
@@ -330,6 +334,8 @@ definitions:
         example: 1
         type: integer
     type: object
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
   shared.ErrorResponse:
     properties:
       code:
@@ -499,6 +505,7 @@ paths:
       summary: List rent periods
       tags:
       - Catalogs
+<<<<<<< HEAD
   /api/v1/clauses:
     get:
       description: Returns clauses available for the provided modality. When q is
@@ -541,6 +548,8 @@ paths:
       summary: List clauses
       tags:
       - Clauses
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
   /api/v1/properties:
     post:
       consumes:
@@ -573,7 +582,11 @@ paths:
       summary: Register a new property
       tags:
       - Properties
+<<<<<<< HEAD
   /api/v1/properties/{id}/availability:
+=======
+  /properties/{id}/availability:
+>>>>>>> 190dacb (feat(properties): add property creation)
     get:
       consumes:
       - application/json

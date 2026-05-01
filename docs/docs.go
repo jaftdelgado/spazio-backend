@@ -150,6 +150,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "/api/v1/clauses": {
             "get": {
                 "description": "Returns clauses available for the provided modality. When q is present, the endpoint performs a filtered search. Results are paginated.",
@@ -211,6 +212,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
         "/api/v1/properties": {
             "post": {
                 "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
@@ -257,7 +260,11 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "/api/v1/properties/{id}/availability": {
+=======
+        "/properties/{id}/availability": {
+>>>>>>> 190dacb (feat(properties): add property creation)
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
                 "consumes": [
@@ -819,6 +826,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "clauses.Clause": {
             "type": "object",
             "properties": {
@@ -882,6 +890,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
         "properties.CreateCommercialInput": {
             "type": "object",
             "properties": {
@@ -1145,6 +1155,7 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "services.ListServicesMeta": {
             "type": "object",
             "properties": {
@@ -1194,6 +1205,8 @@ const docTemplate = `{
                 }
             }
         },
+=======
+>>>>>>> 190dacb (feat(properties): add property creation)
         "shared.ErrorResponse": {
             "type": "object",
             "properties": {

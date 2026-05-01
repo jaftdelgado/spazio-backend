@@ -11,18 +11,18 @@ CREATE TABLE IF NOT EXISTS user_status (
 
 CREATE TABLE users (
 	user_id serial PRIMARY KEY,
-    user_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-    role_id int NOT NULL REFERENCES roles(role_id),
-    first_name varchar(80) NOT NULL,
-    last_name varchar(80) NOT NULL,
-    email varchar(150) NOT NULL UNIQUE,
-    --password_hash varchar(255) NOT NULL,
-    phone varchar(20) NOT NULL,
-    profile_picture_url varchar(255) NOT NULL,
-    status_id int NOT NULL REFERENCES user_status(status_id),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    deleted_at timestamptz
+	user_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+	role_id int NOT NULL REFERENCES roles(role_id),
+	first_name varchar(80) NOT NULL,
+	last_name varchar(80) NOT NULL,
+	email varchar(150) NOT NULL UNIQUE,
+	--password_hash varchar(255) NOT NULL,
+	phone varchar(20) NOT NULL,
+	profile_picture_url varchar(255) NOT NULL,
+	status_id int NOT NULL REFERENCES user_status(status_id),
+	created_at timestamptz NOT NULL DEFAULT now(),
+	updated_at timestamptz NOT NULL DEFAULT now(),
+	deleted_at timestamptz
 );
 
 CREATE FUNCTION ST_MakePoint(double precision, double precision) RETURNS bytea
@@ -60,10 +60,6 @@ CREATE TABLE rent_periods (
 	name varchar(50) NOT NULL
 );
 
-<<<<<<< HEAD
-
-=======
->>>>>>> fa39902 (feat(catalogs): implement property type-specific rent periods retrieval and update API documentation)
 CREATE TABLE property_type_periods (
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
 	period_id int NOT NULL REFERENCES rent_periods(period_id),
@@ -309,4 +305,8 @@ CREATE TABLE visit_status_history (
 	new_status_id integer NOT NULL REFERENCES visit_status(status_id),
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
+<<<<<<< HEAD
 );
+=======
+);
+>>>>>>> 190dacb (feat(properties): add property creation)
