@@ -36,9 +36,20 @@ CREATE TABLE orientations (
 	name varchar(30) NOT NULL
 );
 
+CREATE TABLE orientations (
+	orientation_id serial PRIMARY KEY,
+	name varchar(30) NOT NULL
+);
+
 CREATE TABLE rent_periods (
 	period_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL
+);
+
+CREATE TABLE property_type_periods (
+	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
+	period_id int NOT NULL REFERENCES rent_periods(period_id),
+	PRIMARY KEY (property_type_id, period_id)
 );
 
 CREATE TABLE property_type_periods (
@@ -287,3 +298,4 @@ CREATE TABLE visit_status_history (
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
