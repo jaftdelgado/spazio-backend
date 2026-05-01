@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -40,30 +39,53 @@ func TestCreateProperty(t *testing.T) {
 			name: "creates property",
 			payload: gin.H{
 				"owner_id":         1,
-				"title":            "Casa demo",
+				"category":         "land",
+				"title":            "Terreno demo",
 				"description":      "Una propiedad de prueba",
 				"property_type_id": 2,
 				"modality_id":      3,
-				"status_id":        4,
-				"cover_photo_url":  "https://example.com/cover.jpg",
+				"lot_area":         200,
+				"is_featured":      false,
+				"location": gin.H{
+					"city_id":           1,
+					"street":            "Av. Principal",
+					"exterior_number":   "45",
+					"postal_code":       "91000",
+					"latitude":          19.5438,
+					"longitude":         -96.9102,
+					"is_public_address": true,
+				},
 			},
 			mock: &mockService{
 				result: CreatePropertyResult{
-					PropertyID: 7,
-					Title:      "Casa demo",
-					CreatedAt:  time.Date(2026, time.April, 23, 12, 0, 0, 0, time.UTC),
+					Data: CreatePropertyResultData{
+						PropertyUUID: "123e4567-e89b-12d3-a456-426614174000",
+					},
 				},
 			},
 			wantStatusCode:   http.StatusCreated,
-			wantBodyContains: "\"property_id\":7",
+			wantBodyContains: "\"property_uuid\":\"123e4567-e89b-12d3-a456-426614174000\"",
 			wantCalled:       true,
 		},
 		{
-			name:             "rejects invalid payload",
-			payload:          gin.H{"title": ""},
+			name: "rejects invalid payload",
+			payload: gin.H{
+				"category":         "land",
+				"title":            "Terreno demo",
+				"property_type_id": 2,
+				"modality_id":      3,
+				"location": gin.H{
+					"city_id":           1,
+					"street":            "Av. Principal",
+					"exterior_number":   "45",
+					"latitude":          19.5438,
+					"longitude":         -96.9102,
+					"is_public_address": true,
+				},
+			},
 			mock:             &mockService{},
 			wantStatusCode:   http.StatusBadRequest,
-			wantBodyContains: "owner_id is required",
+			wantBodyContains: "owner_id must be greater than 0",
 			wantCalled:       false,
 		},
 	}
@@ -77,7 +99,7 @@ func TestCreateProperty(t *testing.T) {
 				t.Fatalf("marshal payload: %v", err)
 			}
 
-			ctx.Request = httptest.NewRequest(http.MethodPost, "/properties", bytes.NewReader(body))
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/properties", bytes.NewReader(body))
 			ctx.Request.Header.Set("Content-Type", "application/json")
 
 			handler := NewHandler(tt.mock)
@@ -99,6 +121,10 @@ func TestCreateProperty(t *testing.T) {
 }
 
 func TestValidateCreatePropertyRequest(t *testing.T) {
+	isPublicAddress := true
+	latitude := 19.5438
+	longitude := -96.9102
+
 	tests := []struct {
 		name    string
 		req     CreatePropertyInput
@@ -108,18 +134,38 @@ func TestValidateCreatePropertyRequest(t *testing.T) {
 			name: "valid request",
 			req: CreatePropertyInput{
 				OwnerID:        1,
-				Title:          "Casa demo",
+				Category:       CategoryLand,
+				Title:          "Terreno demo",
 				Description:    "Descripcion",
 				PropertyTypeID: 2,
 				ModalityID:     3,
-				StatusID:       4,
-				CoverPhotoURL:  "https://example.com/cover.jpg",
+				Location: &CreateLocationInput{
+					CityID:          1,
+					Street:          "Av. Principal",
+					ExteriorNumber:  "45",
+					Latitude:        &latitude,
+					Longitude:       &longitude,
+					IsPublicAddress: &isPublicAddress,
+				},
 			},
 		},
 		{
-			name:    "missing owner",
-			req:     CreatePropertyInput{Title: "Casa demo"},
-			wantErr: "owner_id is required",
+			name: "missing owner",
+			req: CreatePropertyInput{
+				Category:       CategoryLand,
+				Title:          "Terreno demo",
+				PropertyTypeID: 2,
+				ModalityID:     3,
+				Location: &CreateLocationInput{
+					CityID:          1,
+					Street:          "Av. Principal",
+					ExteriorNumber:  "45",
+					Latitude:        &latitude,
+					Longitude:       &longitude,
+					IsPublicAddress: &isPublicAddress,
+				},
+			},
+			wantErr: "owner_id must be greater than 0",
 		},
 	}
 

@@ -4,10 +4,10 @@ import "context"
 
 // Service is a catalog item exposed by the services endpoint.
 type Service struct {
-	ServiceID    int32  `json:"service_id"`
-	Code         string `json:"code"`
-	Icon         string `json:"icon"`
-	CategoryCode string `json:"category_code"`
+	ServiceID    int32  `json:"service_id" example:"1"`
+	Code         string `json:"code" example:"wifi"`
+	Icon         string `json:"icon" example:"wifi"`
+	CategoryCode string `json:"category_code" example:"basic"`
 }
 
 // ListPopularInput defines filters for listing popular services.

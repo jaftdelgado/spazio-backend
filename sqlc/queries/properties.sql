@@ -1,13 +1,67 @@
+-- name: GetModalityName :one
+SELECT name
+FROM modalities
+WHERE modality_id = $1;
+
 -- name: CreateProperty :one
 INSERT INTO properties (
-    owner_id,
-    title,
-    description,
-    property_type_id,
-    modality_id,
-    status_id,
-    cover_photo_url
+  property_uuid, owner_id, category, title, description,
+  property_type_id, modality_id, status_id, lot_area, is_featured,
+  created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
-)
-RETURNING property_id, title, created_at;
+  $1, $2, $3, $4, $5, $6, $7, 2, $8, $9, NOW(), NOW()
+) RETURNING property_id, property_uuid;
+
+-- name: CreateResidentialProperty :exec
+INSERT INTO residential_properties (
+  property_id, bedrooms, bathrooms, beds, floors, parking_spots,
+  built_area, construction_year, orientation_id, is_furnished
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+
+-- name: CreateCommercialProperty :exec
+INSERT INTO commercial_properties (
+  property_id, ceiling_height, loading_docks, internal_offices,
+  three_phase_power, land_use
+) VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: CreateLocation :exec
+INSERT INTO locations (
+  property_id, city_id, neighborhood, street, exterior_number,
+  interior_number, postal_code, coordinates, is_public_address
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7,
+  ST_SetSRID(ST_MakePoint($8, $9), 4326),
+  $10
+);
+
+-- name: CreateSalePrice :exec
+INSERT INTO sale_prices (
+  property_id, sale_price, currency, is_negotiable,
+  is_current, valid_from, changed_by_user_id
+) VALUES ($1, $2, $3, $4, true, NOW(), $5);
+
+-- name: CreateRentPrice :exec
+INSERT INTO rent_prices (
+  property_id, period_id, rent_price, deposit, currency,
+  is_negotiable, is_current, valid_from, changed_by_user_id
+) VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), $7);
+
+-- name: CreatePropertyService :exec
+INSERT INTO property_services (property_id, service_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
+
+-- name: CreatePropertyClause :exec
+INSERT INTO property_clauses (
+  property_id, clause_id, boolean_value, integer_value, min_value, max_value
+) VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: GetClauseValueTypes :many
+SELECT clause_id, value_type_id
+FROM clauses
+WHERE clause_id = ANY($1::int[]);
+
+-- name: GetAllowedPeriods :many
+SELECT period_id
+FROM property_type_periods
+WHERE property_type_id = $1;
