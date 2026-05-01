@@ -14,6 +14,8 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joho/godotenv v1.5.1
 	github.com/nickalie/go-webpbin v0.0.0-20260302110202-4584fd694f25
+	github.com/swaggo/files v1.0.1
+	github.com/swaggo/gin-swagger v1.6.1
 	github.com/swaggo/swag v1.16.6
 )
 
@@ -68,8 +70,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.3.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/swaggo/files v1.0.1 // indirect
-	github.com/swaggo/gin-swagger v1.6.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect

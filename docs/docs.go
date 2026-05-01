@@ -41,7 +41,11 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "/api/v1/catalogs/orientations": {
+=======
+        "/catalogs/orientations": {
+>>>>>>> 4920b6b (feat(catalogs): add orientations endpoint and related database schema)
             "get": {
                 "description": "Returns all orientations ordered by name ascending.",
                 "produces": [
@@ -67,7 +71,11 @@ const docTemplate = `{
                 }
             }
         },
+<<<<<<< HEAD
         "/api/v1/catalogs/property-types": {
+=======
+        "/catalogs/property-types": {
+>>>>>>> 4920b6b (feat(catalogs): add orientations endpoint and related database schema)
             "get": {
                 "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
                 "produces": [

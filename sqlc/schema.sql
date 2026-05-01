@@ -307,4 +307,3 @@ CREATE TABLE visit_status_history (
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
-
