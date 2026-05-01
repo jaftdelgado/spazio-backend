@@ -1,101 +1,138 @@
 # Spazio Data Model (PostgreSQL)
 
----
+## 1. Módulo de Seguridad y Usuarios (RBAC)
 
-## 1. USERS, SECURITY & RBAC
+**Clase: roles**
+- `role_id` (SERIAL, PK)
+- `name` (VARCHAR 50, UNIQUE)
 
-Granular access control and user profile management.
+**Clase: user_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 30)
 
-### [Users]
+**Clase: permissions**
+- `permission_id` (SERIAL, PK)
+- `code` (VARCHAR 60, UNIQUE)
+- `description` (TEXT)
 
+**Clase: role_permissions**
+- `role_id` (INT, PK, FK -> roles)
+- `permission_id` (INT, PK, FK -> permissions)
+
+**Clase: users**
 - `user_id` (SERIAL, PK)
-- `user_uuid` (UUID, UNIQUE) -- default generation removed (no DEFAULT)
-- `role_id` (INT, FK → Roles)
+- `user_uuid` (UUID, UNIQUE) -- UID Sincronizado con Supabase
+- `role_id` (INT, FK -> roles)
 - `first_name` (VARCHAR 80)
 - `last_name` (VARCHAR 80)
 - `email` (VARCHAR 150, UNIQUE)
 - `phone` (VARCHAR 20)
-- `profile_picture_url` (VARCHAR 255, Nullable)
-- `status_id` (INT, FK → UserStatus)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-- `updated_at` (TIMESTAMPTZ, DEFAULT NOW())
-- `deleted_at` (TIMESTAMPTZ, Nullable)
-
-**Notes:** `password_hash` was removed (authentication handled externally). `user_uuid` no longer has a DEFAULT in DB migrations and `profile_picture_url` is nullable.
-
-### [Roles]
-
-- `role_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Admin', 'Agent', 'Client'
-
-### [UserStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 30) -- e.g., 'Active', 'Inactive', 'Suspended'
-
-### [Permissions]
-
-- `permission_id` (SERIAL, PK)
-- `code` (VARCHAR 60, UNIQUE) -- e.g., 'PROPERTIES_EDIT', 'CONTRACTS_SIGN'
-- `description` (TEXT)
-
-### [RolePermissions]
-
-- `role_id` (INT, FK → Roles)
-- `permission_id` (INT, FK → Permissions)
-- PRIMARY KEY (`role_id`, `permission_id`)
+- `profile_picture_url` (VARCHAR 255, NULL)
+- `status_id` (INT, FK -> user_status)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+- `deleted_at` (TIMESTAMPTZ, NULL)
 
 ---
 
-## 2. PROPERTIES (CORE)
+## 2. Módulo Geográfico Normalizado
 
-Base entities for real estate management.
+**Clase: countries**
+- `country_id` (SERIAL, PK)
+- `iso2_code` (CHAR 2, UNIQUE)
+- `name` (VARCHAR 60)
+- `is_active` (BOOLEAN)
 
-### [Properties]
+**Clase: states**
+- `state_id` (SERIAL, PK)
+- `country_id` (INT, FK -> countries)
+- `iso_code` (VARCHAR 10)
+- `name` (VARCHAR 60)
+- `is_active` (BOOLEAN)
 
+**Clase: cities**
+- `city_id` (SERIAL, PK)
+- `state_id` (INT, FK -> states)
+- `name` (VARCHAR 80)
+
+**Clase: postal_codes**
+- `postal_code_id` (SERIAL, PK)
+- `code` (VARCHAR 10)
+- `city_id` (INT, FK -> cities)
+- `state_id` (INT, FK -> states)
+- `source` (VARCHAR 30) -- seed, zippopotam, manual
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Clase: zones**
+- `zone_id` (SERIAL, PK)
+- `state_id` (INT, FK -> states)
+- `parent_zone_id` (INT, FK -> zones, NULL)
+- `zone_type` (VARCHAR 30)
+- `name` (VARCHAR 60)
+- `is_active` (BOOLEAN)
+- `postal_code_id` (INT, FK -> postal_codes, NULL)
+
+**Clase: postal_code_zones**
+- `postal_code_id` (INT, PK, FK -> postal_codes)
+- `zone_id` (INT, PK, FK -> zones)
+
+---
+
+## 3. Módulo de Propiedades (Core y Herencia)
+
+**Clase: property_types**
+- `property_type_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
+- `icon` (VARCHAR 80)
+- `is_deprecated` (BOOLEAN)
+
+**Clase: modalities**
+- `modality_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
+
+**Clase: property_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
+
+**Clase: properties**
 - `property_id` (SERIAL, PK)
-- `property_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `owner_id` (INT, FK → Users) -- The legal owner/landlord
+- `property_uuid` (UUID, UNIQUE)
+- `owner_id` (INT, FK -> users)
+- `category` (ENUM: residential, commercial, land, other)
 - `title` (VARCHAR 128)
 - `description` (TEXT)
-- `property_type_id` (INT, FK → PropertyTypes)
-- `modality_id` (INT, FK → Modalities)
-- `status_id` (INT, FK → PropertyStatus)
-- `cover_photo_url` (VARCHAR 255, Nullable)
-- `is_featured` (BOOLEAN, DEFAULT false)
-- `published_at` (TIMESTAMPTZ, Nullable)
-- `updated_at` (TIMESTAMPTZ, Nullable)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-- `deleted_at` (TIMESTAMPTZ, Nullable)
-- `lot_area` (DECIMAL 12,2, Nullable)
-- `category` (property_category NOT NULL) -- enum: ('residential','commercial','land','other')
+- `property_type_id` (INT, FK -> property_types)
+- `modality_id` (INT, FK -> modalities)
+- `status_id` (INT, FK -> property_status)
+- `cover_photo_url` (VARCHAR 255, NULL)
+- `lot_area` (DECIMAL 12,2)
+- `is_featured` (BOOLEAN)
+- `published_at` (TIMESTAMPTZ, NULL)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+- `deleted_at` (TIMESTAMPTZ, NULL)
 
-### [PropertyTypes]
+**Clase: locations**
+- `location_id` (SERIAL, PK)
+- `property_id` (INT, UNIQUE, FK -> properties)
+- `city_id` (INT, FK -> cities)
+- `zone_id` (INT, FK -> zones, NULL)
+- `postal_code_id` (INT, FK -> postal_codes, NULL)
+- `neighborhood` (VARCHAR 60)
+- `street` (VARCHAR 120)
+- `exterior_number` (VARCHAR 20)
+- `interior_number` (VARCHAR 20, NULL)
+- `postal_code` (VARCHAR 10) -- Texto redundante para compatibilidad
+- `coordinates` (GEOMETRY Point)
+- `is_public_address` (BOOLEAN)
 
-- `property_type_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'House', 'Apartment', 'Commercial'
-- `icon` (VARCHAR 80)
-- `is_deprecated` (BOOLEAN, DEFAULT false)
+**Clase: orientations**
+- `orientation_id` (SERIAL, PK)
+- `name` (VARCHAR 30)
 
-### [Modalities]
-
-- `modality_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Sale', 'Rent', 'Both'
-
-### [PropertyStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Available', 'Reserved', 'Sold', 'Rented'
-
----
-
-## 3. SPECIALIZATION (INHERITANCE)
-
-Specific attributes for different property types.
-
-### [ResidentialProperties]
-
-- `property_id` (INT, PK, FK → Properties)
+**Clase: residential_properties**
+- `property_id` (INT, PK, FK -> properties)
 - `bedrooms` (SMALLINT)
 - `bathrooms` (SMALLINT)
 - `beds` (SMALLINT)
@@ -103,392 +140,206 @@ Specific attributes for different property types.
 - `parking_spots` (SMALLINT)
 - `built_area` (DECIMAL 12,2)
 - `construction_year` (SMALLINT)
-- `orientation_id` (INT, FK → Orientations)
-- `is_furnished` (BOOLEAN, DEFAULT false)
+- `orientation_id` (INT, FK -> orientations)
+- `is_furnished` (BOOLEAN)
 
-### [CommercialProperties]
-
-- `property_id` (INT, PK, FK → Properties)
+**Clase: commercial_properties**
+- `property_id` (INT, PK, FK -> properties)
 - `ceiling_height` (DECIMAL 5,2)
 - `loading_docks` (SMALLINT)
 - `internal_offices` (SMALLINT)
 - `three_phase_power` (BOOLEAN)
 - `land_use` (VARCHAR 100)
 
-### [Orientations]
-
-- `orientation_id` (SERIAL, PK)
-- `name` (VARCHAR 30) -- e.g., 'North', 'South', 'East', 'West'
-
 ---
 
-## 4. LOCATION & GEOGRAPHY
+## 4. Módulo Financiero y Multimedia
 
-Hierarchical geo-management with PostGIS integration.
-
-### [Cities]
-
-- `city_id` (SERIAL, PK)
-- `state_id` (INT NOT NULL, FK → States)
-- `name` (VARCHAR 80) NOT NULL
-
-### [Locations]
-
-- `location_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
-- `city_id` (INT NOT NULL, FK → Cities)
-- `zone_id` (INT, FK → Zones, Nullable)
-- `neighborhood` (VARCHAR 60)
-- `street` (VARCHAR 120)
-- `exterior_number` (VARCHAR 20)
-- `interior_number` (VARCHAR 20, Nullable)
-- `postal_code` (VARCHAR 10)
-- `coordinates` (GEOMETRY(Point, 4326), NOT NULL)
-- `is_public_address` (BOOLEAN, DEFAULT true)
-
-### [Countries]
-
-- `country_id` (SERIAL, PK)
-- `iso2_code` (CHAR 2, UNIQUE)
-- `name` (VARCHAR 60)
-- `is_active` (BOOLEAN, DEFAULT true)
-
-### [States]
-
-- `state_id` (SERIAL, PK)
-- `country_id` (INT, FK → Countries)
-- `iso_code` (VARCHAR 10)
-- `name` (VARCHAR 60)
-- `is_active` (BOOLEAN, DEFAULT true)
-
-### [Zones]
-
-- `zone_id` (SERIAL, PK)
-- `state_id` (INT, FK → States)
-- `parent_zone_id` (INT, FK → Zones, Nullable)
-- `zone_type` (VARCHAR 30) -- e.g., 'County', 'District', 'Sector'
-- `name` (VARCHAR 60)
-- `description` (VARCHAR 255, Nullable)
-- `is_active` (BOOLEAN, DEFAULT true)
-
----
-
-## 5. FINANCIALS (APPEND-ONLY PRICES)
-
-Immutable snapshots for property pricing.
-
-### [Prices]
-
-- `price_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
-- `sale_price` (DECIMAL 15,2, Nullable)
-- `rent_price` (DECIMAL 15,2, Nullable)
-- `deposit` (DECIMAL 15,2, Nullable)
-- `currency` (CHAR 3, DEFAULT 'MXN')
-- `period_id` (INT, FK → RentPeriods, Nullable)
-- `is_negotiable` (BOOLEAN, DEFAULT false)
-- `is_current` (BOOLEAN, DEFAULT true)
-- `valid_from` (TIMESTAMPTZ, DEFAULT NOW())
-- `valid_until` (TIMESTAMPTZ, Nullable) -- NULL means 'currently active'
-- `change_reason` (VARCHAR 100, Nullable)
-- `changed_by_user_id` (INT, FK → Users)
-
-**Constraints added:**
-
-- Price positivity: either `sale_price > 0` OR `rent_price > 0`.
-- Sale vs rent period rule: if `sale_price` is set then `period_id` must be NULL; if `rent_price` is set then `period_id` must be NOT NULL.
-
-### [RentPeriods]
-
+**Clase: rent_periods**
 - `period_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Monthly', 'Weekly'
+- `name` (VARCHAR 50)
 
----
+**Clase: prices**
+- `price_id` (SERIAL, PK)
+- `property_id` (INT, FK -> properties)
+- `night_price` (DECIMAL 15,2) -- OBLIGATORIO
+- `sale_price` (DECIMAL 15,2, NULL)
+- `rent_price` (DECIMAL 15,2, NULL)
+- `deposit` (DECIMAL 15,2, NULL)
+- `currency` (CHAR 3)
+- `period_id` (INT, FK -> rent_periods, NULL)
+- `is_negotiable` (BOOLEAN)
+- `valid_from` (TIMESTAMPTZ)
+- `valid_until` (TIMESTAMPTZ, NULL)
+- `changed_by_user_id` (INT, FK -> users)
+- `is_current` (BOOLEAN)
 
-## 6. MULTIMEDIA & ANALYTICS
-
-High-volume tracking optimized for performance with partitioning.
-
-### [PropertyPhotos]
-
+**Clase: property_photos**
 - `photo_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
-- `storage_key` (VARCHAR 255, NOT NULL)
+- `property_id` (INT, FK -> properties)
+- `storage_key` (VARCHAR 255)
 - `mime_type` (VARCHAR 30)
-- `sort_order` (SMALLINT, DEFAULT 0)
-- `is_cover` (BOOLEAN, DEFAULT false)
-- `label` (VARCHAR 60, Nullable)
-- `alt_text` (VARCHAR 255, Nullable) -- Accessibility Requirement (WCAG)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-**Indexes/constraints:** Unique partial index `idx_single_property_cover` enforces que solo una foto por `property_id` pueda tener `is_cover = true`.
-
-### [PropertyEvents]
-
-- `event_id` (BIGSERIAL)
-- `property_id` (INT, FK → Properties)
-- `user_id` (INT, FK → Users, Nullable)
-- `event_type` (VARCHAR 30) -- e.g., 'View', 'Save', 'Call'
-- `occurred_at` (TIMESTAMPTZ, DEFAULT NOW())
-- PRIMARY KEY (`event_id`, `occurred_at`)
-- **Note:** Partitioned by range (occurred_at) monthly.
+- `sort_order` (SMALLINT)
+- `is_cover` (BOOLEAN)
+- `label` (VARCHAR 60, NULL)
+- `alt_text` (VARCHAR 255, NULL)
 
 ---
 
-## 7. SERVICES & CLAUSES (METADATA)
+## 5. Módulo de Servicios y Cláusulas
 
-Dynamic property features with versioning.
-
-### [Services]
-
-- `service_id` (SERIAL, PK)
-- `code` (VARCHAR 40, UNIQUE)
-- `icon` (VARCHAR 80)
-- `category_id` (INT, FK → ServiceCategories)
-- `is_active` (BOOLEAN, DEFAULT true)
-- `is_deprecated` (BOOLEAN, DEFAULT false)
-- `sort_order` (INT)
-
-### [ServiceCategories]
-
+**Clase: service_categories**
 - `category_id` (SERIAL, PK)
-- `code` (VARCHAR 40, UNIQUE)
+- `code` (VARCHAR 40)
 - `name` (VARCHAR 80)
 
-### [PropertyServices]
-
-- `property_id` (INT, FK → Properties)
-- `service_id` (INT, FK → Services)
-- `assigned_at` (TIMESTAMPTZ, DEFAULT NOW())
-- PRIMARY KEY (`property_id`, `service_id`)
-
-### [Clauses]
-
-- `clause_id` (SERIAL, PK)
-- `code` (VARCHAR 40, UNIQUE)
-- `name` (VARCHAR 100)
-- `value_type_id` (INT, FK → ClauseValueTypes)
-- `is_active` (BOOLEAN, DEFAULT true)
-- `is_deprecated` (BOOLEAN, DEFAULT false)
+**Clase: services**
+- `service_id` (SERIAL, PK)
+- `code` (VARCHAR 40)
+- `icon` (VARCHAR 80)
+- `category_id` (INT, FK -> service_categories)
+- `is_active` (BOOLEAN)
+- `is_deprecated` (BOOLEAN)
 - `sort_order` (INT)
 
-### [ClauseValueTypes]
-
+**Clase: clause_value_types**
 - `value_type_id` (SERIAL, PK)
-- `code` (VARCHAR 40) -- boolean, integer, range
+- `code` (VARCHAR 40)
 - `name` (VARCHAR 80)
 
-### [PropertyClauses]
+**Clase: clauses**
+- `clause_id` (SERIAL, PK)
+- `code` (VARCHAR 40)
+- `name` (VARCHAR 100)
+- `description` (TEXT)
+- `value_type_id` (INT, FK -> clause_value_types)
+- `icon` (VARCHAR 80)
+- `is_active` (BOOLEAN)
 
+**Clase: clause_modalities**
+- `clause_id` (INT, PK, FK -> clauses)
+- `modality_id` (INT, PK, FK -> modalities)
+
+**Clase: property_services**
+- `property_id` (INT, PK, FK -> properties)
+- `service_id` (INT, PK, FK -> services)
+
+**Clase: property_clauses**
 - `property_clause_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
-- `clause_id` (INT, FK → Clauses)
-- `boolean_value` (BOOLEAN, Nullable)
-- `integer_value` (INT, Nullable)
-- `min_value` (DECIMAL 12,2, Nullable)
-- `max_value` (DECIMAL 12,2, Nullable)
-- `assigned_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [ClauseModalities]
-
-- `clause_id` (INT, FK → Clauses)
-- `modality_id` (INT, FK → Modalities)
-- PRIMARY KEY (`clause_id`, `modality_id`)
-
-**Notes:** `Clauses.description` and `Clauses.icon` were removed; a many-to-many `clause_modalities` table was introduced.
+- `property_id` (INT, FK -> properties)
+- `clause_id` (INT, FK -> clauses)
+- `boolean_value` (BOOLEAN, NULL)
+- `integer_value` (INT, NULL)
+- `min_value` (DECIMAL 12,2, NULL)
+- `max_value` (DECIMAL 12,2, NULL)
 
 ---
 
-## 8. CRM & LOGISTICS
+## 6. Módulo CRM y Logística
 
-Lead management, agent assignments, and visit scheduling.
-
-### [Inquiries]
-
-- `inquiry_id` (SERIAL, PK)
-- `inquiry_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `property_id` (INT, FK → Properties)
-- `user_id` (INT, FK → Users, Nullable)
-- `message` (TEXT)
-- `follow_up_status_id` (INT, FK → FollowUpStatus)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [FollowUpStatus]
-
+**Clase: follow_up_status**
 - `status_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'New', 'Interested', 'Closed'
+- `name` (VARCHAR 50)
 
-### [PropertyAgents]
+**Clase: visit_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
 
-- `property_id` (INT, FK → Properties)
-- `agent_id` (INT, FK → Users)
-- `is_primary` (BOOLEAN, DEFAULT true)
-- `assigned_at` (TIMESTAMPTZ, DEFAULT NOW())
-- PRIMARY KEY (`property_id`, `agent_id`)
+**Clase: inquiries**
+- `inquiry_id` (SERIAL, PK)
+- `property_id` (INT, FK -> properties)
+- `user_id` (INT, FK -> users, NULL)
+- `message` (TEXT)
+- `follow_up_status_id` (INT, FK -> follow_up_status)
 
-### [AgentSchedules]
+**Clase: property_agents**
+- `property_id` (INT, PK, FK -> properties)
+- `agent_id` (INT, PK, FK -> users)
+- `is_primary` (BOOLEAN)
 
+**Clase: agent_schedules**
 - `schedule_id` (SERIAL, PK)
-- `agent_id` (INT, FK → Users)
-- `day_of_week` (SMALLINT) -- 0-6
+- `agent_id` (INT, FK -> users)
+- `day_of_week` (SMALLINT)
 - `start_time` (TIME)
 - `end_time` (TIME)
-- `is_active` (BOOLEAN, DEFAULT true)
+- `is_active` (BOOLEAN)
 
-**Constraints/Notes:** migrations add an exclusion constraint (using `btree_gist` extension and a `tsrange`) to prevent overlapping schedules for the same agent/day.
-
-### [PropertyExceptions]
-
+**Clase: property_exceptions**
 - `exception_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
+- `property_id` (INT, FK -> properties)
 - `exception_date` (DATE)
 - `reason` (VARCHAR 100)
-- `start_time` (TIME, Nullable)
-- `end_time` (TIME, Nullable)
 
-### [Visits]
-
+**Clase: visits**
 - `visit_id` (SERIAL, PK)
-- `visit_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `property_id` (INT, FK → Properties)
-- `client_id` (INT, FK → Users)
-- `agent_id` (INT, FK → Users, Nullable)
+- `property_id` (INT, FK -> properties)
+- `client_id` (INT, FK -> users)
+- `agent_id` (INT, FK -> users, NULL)
 - `visit_date` (TIMESTAMPTZ)
-- `status_id` (INT, FK → VisitStatus)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [VisitStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Pending', 'Completed', 'Canceled'
+- `status_id` (INT, FK -> visit_status)
 
 ---
 
-## 9. OPERATIONS, CONTRACTS & PAYMENTS
+## 7. Módulo de Operaciones y Auditoría
 
-Business logic for deal closing and digital transactions.
+**Clase: transaction_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
 
-### [Transactions]
+**Clase: contract_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
 
+**Clase: payment_gateways**
+- `gateway_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
+
+**Clase: payment_methods**
+- `method_id` (SERIAL, PK)
+- `name` (VARCHAR 50)
+
+**Clase: payment_status**
+- `status_id` (SERIAL, PK)
+- `name` (VARCHAR 30)
+
+**Clase: transactions**
 - `transaction_id` (SERIAL, PK)
-- `transaction_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `property_id` (INT, FK → Properties)
-- `client_id` (INT, FK → Users)
-- `agent_id` (INT, FK → Users)
-- `transaction_type` (ENUM: 'sale', 'rent')
-- `status_id` (INT, FK → TransactionStatus)
+- `property_id` (INT, FK -> properties)
+- `client_id` (INT, FK -> users)
+- `agent_id` (INT, FK -> users)
+- `transaction_type` (ENUM: sale, rent)
+- `status_id` (INT, FK -> transaction_status)
 - `final_amount` (DECIMAL 15,2)
 - `closing_date` (DATE)
 
-### [TransactionStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'In Progress', 'Finalized', 'Canceled'
-
-### [Contracts]
-
+**Clase: contracts**
 - `contract_id` (SERIAL, PK)
-- `contract_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `transaction_id` (INT, FK → Transactions)
+- `transaction_id` (INT, FK -> transactions)
+- `parent_contract_id` (INT, FK -> contracts, NULL)
 - `currency` (CHAR 3)
 - `agreed_amount` (DECIMAL 15,2)
-- `storage_key` (VARCHAR 255, NOT NULL)
+- `storage_key` (VARCHAR 255)
 - `start_date` (DATE)
-- `end_date` (DATE, Nullable)
-- `status_id` (INT, FK → ContractStatus)
-- `created_at` (TIMESTAMPTZ, DEFAULT NOW())
-- `updated_at` (TIMESTAMPTZ, DEFAULT NOW())
-- `deleted_at` (TIMESTAMPTZ, Nullable)
-- `parent_contract_id` (INT, FK → Contracts, Nullable)
+- `end_date` (DATE, NULL)
+- `status_id` (INT, FK -> contract_status)
 
-### [ContractStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Draft', 'Signed', 'Expired'
-
-### [Payments]
-
+**Clase: payments**
 - `payment_id` (SERIAL, PK)
-- `payment_uuid` (UUID, UNIQUE, DEFAULT gen_random_uuid())
-- `contract_id` (INT, FK → Contracts)
-- `billing_period` (DATE) -- CHECK (Day = 1)
+- `contract_id` (INT, FK -> contracts)
+- `billing_period` (DATE)
 - `due_date` (DATE)
 - `amount` (DECIMAL 15,2)
-- `payment_method_id` (INT, FK → PaymentMethods)
-- `gateway_id` (INT, FK → PaymentGateways, Nullable)
-- `gateway_payment_id` (VARCHAR 100, Nullable)
-- `gateway_order_id` (VARCHAR 100, Nullable)
-- `status_id` (INT, FK → PaymentStatus)
-- `gateway_status` (VARCHAR 50, Nullable)
-- `payment_date` (TIMESTAMPTZ, Nullable)
-- `metadata` (JSONB, Nullable)
+- `payment_method_id` (INT, FK -> payment_methods)
+- `gateway_id` (INT, FK -> payment_gateways, NULL)
+- `status_id` (INT, FK -> payment_status)
+- `payment_date` (TIMESTAMPTZ, NULL)
 
-**Notes:** `payments.client_id` column was removed; `gateway_id` is now nullable.
-
-### [PaymentGateways]
-
-- `gateway_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Stripe', 'MercadoPago'
-- `is_active` (BOOLEAN, DEFAULT true)
-
-### [PaymentMethods]
-
-- `method_id` (SERIAL, PK)
-- `name` (VARCHAR 50) -- e.g., 'Credit Card', 'PayPal'
-- `is_active` (BOOLEAN, DEFAULT true)
-
-### [PaymentStatus]
-
-- `status_id` (SERIAL, PK)
-- `name` (VARCHAR 30) -- e.g., 'Paid', 'Pending', 'Overdue'
-- `is_active` (BOOLEAN, DEFAULT true)
-
----
-
-## 10. AUDIT & HISTORY
-
-Consistent status history pattern applied to all operational entities.
-
-### [PropertyStatusHistory]
-
+**Clase: status_history**
 - `history_id` (SERIAL, PK)
-- `property_id` (INT, FK → Properties)
-- `previous_status_id` (INT, FK → PropertyStatus)
-- `new_status_id` (INT, FK → PropertyStatus)
-- `changed_by_user_id` (INT, FK → Users)
-- `changed_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [ContractStatusHistory]
-
-- `history_id` (SERIAL, PK)
-- `contract_id` (INT, FK → Contracts)
-- `previous_status_id` (INT, FK → ContractStatus)
-- `new_status_id` (INT, FK → ContractStatus)
-- `changed_by_user_id` (INT, FK → Users)
-- `changed_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [VisitStatusHistory]
-
-- `history_id` (SERIAL, PK)
-- `visit_id` (INT, FK → Visits)
-- `previous_status_id` (INT, FK → VisitStatus)
-- `new_status_id` (INT, FK → VisitStatus)
-- `changed_by_user_id` (INT, FK → Users)
-- `changed_at` (TIMESTAMPTZ, DEFAULT NOW())
-
-### [TransactionStatusHistory]
-
-- `history_id` (SERIAL, PK)
-- `transaction_id` (INT, FK → Transactions)
-- `previous_status_id` (INT, FK → TransactionStatus)
-- `new_status_id` (INT, FK → TransactionStatus)
-- `changed_by_user_id` (INT, FK → Users)
-- `changed_at` (TIMESTAMPTZ, DEFAULT NOW())
-
----
-
-## Migration / DB-level notes
-
-- `btree_gist` extension is required for exclusion constraints (used by `agent_schedules`).
-- Exclusion constraint added to `agent_schedules` to prevent overlapping time ranges per agent/day (uses `tsrange` and `gist`).
-- Partial unique index `idx_single_property_cover` ensures a single cover photo per property.
+- `property_id` (INT, FK -> properties)
+- `previous_status_id` (INT, FK -> property_status)
+- `new_status_id` (INT, FK -> property_status)
+- `changed_by_user_id` (INT, FK -> users)
+- `changed_at` (TIMESTAMPTZ)
+- `entity_type` (VARCHAR 30) -- property, contract, visit, transaction
