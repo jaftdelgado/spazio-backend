@@ -1,6 +1,19 @@
 -- Minimal schema for sqlc code generation.
 CREATE TABLE users (
-	user_id serial PRIMARY KEY
+	user_id serial PRIMARY KEY,
+    role_id integer NOT NULL,
+    first_name varchar(80) NOT NULL,
+    last_name varchar(80) NOT NULL,
+    phone varchar(20) NOT NULL
+);
+
+CREATE TABLE locations (
+    location_id serial PRIMARY KEY,
+    property_id integer NOT NULL REFERENCES properties(property_id),
+    neighborhood varchar(60) NOT NULL,
+    street varchar(120) NOT NULL,
+    exterior_number varchar(20) NOT NULL,
+    city_id integer NOT NULL REFERENCES cities(city_id)
 );
 
 CREATE TABLE property_types (
@@ -119,4 +132,56 @@ CREATE TABLE property_photos (
 	label varchar(60),
 	alt_text varchar(255),
 	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE property_agents (
+    property_id integer NOT NULL REFERENCES properties(property_id),
+    agent_id integer NOT NULL REFERENCES users(user_id),
+    is_primary boolean DEFAULT true NOT NULL,
+    assigned_at timestamp with time zone DEFAULT now() NOT NULL,
+    PRIMARY KEY (property_id, agent_id)
+);
+
+CREATE TABLE agent_schedules (
+    schedule_id serial PRIMARY KEY,
+    agent_id integer NOT NULL REFERENCES users(user_id),
+    day_of_week smallint NOT NULL,
+    start_time time without time zone NOT NULL,
+    end_time time without time zone NOT NULL,
+    is_active boolean DEFAULT true NOT NULL
+);
+
+CREATE TABLE property_exceptions (
+    exception_id serial PRIMARY KEY,
+    property_id integer NOT NULL REFERENCES properties(property_id),
+    exception_date date NOT NULL,
+    reason character varying(100) NOT NULL,
+    start_time time without time zone,
+    end_time time without time zone
+);
+
+CREATE TABLE visit_status (
+    status_id serial PRIMARY KEY,
+    name character varying(50) NOT NULL
+);
+
+CREATE TABLE visits (
+    visit_id serial PRIMARY KEY,
+    visit_uuid uuid DEFAULT gen_random_uuid() NOT NULL UNIQUE,
+    property_id integer NOT NULL REFERENCES properties(property_id),
+    client_id integer NOT NULL REFERENCES users(user_id),
+    agent_id integer REFERENCES users(user_id),
+    visit_date timestamp with time zone NOT NULL,
+    status_id integer NOT NULL REFERENCES visit_status(status_id),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone
+);
+
+CREATE TABLE visit_status_history (
+    history_id serial PRIMARY KEY,
+    visit_id integer NOT NULL REFERENCES visits(visit_id),
+    previous_status_id integer NOT NULL REFERENCES visit_status(status_id),
+    new_status_id integer NOT NULL REFERENCES visit_status(status_id),
+    changed_by_user_id integer NOT NULL REFERENCES users(user_id),
+    changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
