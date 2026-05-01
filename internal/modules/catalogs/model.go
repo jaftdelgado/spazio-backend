@@ -51,7 +51,7 @@ type ListOrientationsResult struct {
 type CatalogsRepository interface {
 	ListModalities(ctx context.Context) ([]Modality, error)
 	ListPropertyTypes(ctx context.Context) ([]PropertyType, error)
-	ListRentPeriods(ctx context.Context) ([]RentPeriod, error)
+	ListRentPeriodsByPropertyType(ctx context.Context, propertyTypeID int32) ([]RentPeriod, error)
 	ListOrientations(ctx context.Context) ([]Orientation, error)
 }
 
@@ -59,6 +59,6 @@ type CatalogsRepository interface {
 type CatalogsService interface {
 	ListModalities(ctx context.Context) (ListModalitiesResult, error)
 	ListPropertyTypes(ctx context.Context) (ListPropertyTypesResult, error)
-	ListRentPeriods(ctx context.Context) (ListRentPeriodsResult, error)
+	ListRentPeriods(ctx context.Context, propertyTypeID int32) (ListRentPeriodsResult, error)
 	ListOrientations(ctx context.Context) (ListOrientationsResult, error)
 }

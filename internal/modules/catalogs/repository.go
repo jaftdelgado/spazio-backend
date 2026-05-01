@@ -57,10 +57,10 @@ func (r *repository) ListPropertyTypes(ctx context.Context) ([]PropertyType, err
 	return propertyTypes, nil
 }
 
-func (r *repository) ListRentPeriods(ctx context.Context) ([]RentPeriod, error) {
-	rows, err := r.queries.ListRentPeriods(ctx)
+func (r *repository) ListRentPeriodsByPropertyType(ctx context.Context, propertyTypeID int32) ([]RentPeriod, error) {
+	rows, err := r.queries.ListRentPeriodsByPropertyType(ctx, propertyTypeID)
 	if err != nil {
-		return nil, fmt.Errorf("list rent periods: %w", err)
+		return nil, fmt.Errorf("list rent periods by property type: %w", err)
 	}
 
 	rentPeriods := make([]RentPeriod, 0, len(rows))

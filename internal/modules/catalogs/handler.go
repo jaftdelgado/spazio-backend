@@ -1,8 +1,11 @@
 package catalogs
 
 import (
+	"errors"
 	"log"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
@@ -64,20 +67,43 @@ func (h *Handler) listPropertyTypes(c *gin.Context) {
 
 // listRentPeriods godoc
 // @Summary      List rent periods
-// @Description  Returns all rent periods ordered by period_id ascending.
+// @Description  Returns rent periods enabled for the provided property type, ordered by period_id ascending.
 // @Tags         Catalogs
 // @Produce      json
+// @Param        property_type_id  query     int                    true   "Property type ID"
 // @Success      200  {object}  ListRentPeriodsResult  "List of rent periods"
+// @Failure      400  {object}  shared.ErrorResponse   "Invalid query params"
 // @Failure      500  {object}  shared.ErrorResponse   "Internal error"
 // @Router       /api/v1/catalogs/rent-periods [get]
 func (h *Handler) listRentPeriods(c *gin.Context) {
-	result, err := h.service.ListRentPeriods(c.Request.Context())
+	rawPropertyTypeID := strings.TrimSpace(c.Query("property_type_id"))
+	propertyTypeID, err := resolveRequiredInt(rawPropertyTypeID, "property_type_id")
 	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	result, err := h.service.ListRentPeriods(c.Request.Context(), int32(propertyTypeID))
+	if err != nil {
+		log.Printf("list rent periods by property type: %v", err)
 		shared.InternalError(c, "could not list rent periods")
 		return
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func resolveRequiredInt(rawValue string, field string) (int, error) {
+	if rawValue == "" {
+		return 0, errors.New(field + " is required")
+	}
+
+	value, err := strconv.Atoi(rawValue)
+	if err != nil {
+		return 0, errors.New(field + " must be a valid integer")
+	}
+
+	return value, nil
 }
 
 // listOrientations godoc
