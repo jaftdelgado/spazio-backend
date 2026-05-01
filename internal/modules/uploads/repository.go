@@ -35,7 +35,7 @@ func (r *repository) SavePropertyPhoto(ctx context.Context, input SavePhotoInput
 	propertyID, err := q.GetPropertyIDByUUID(ctx, pgUUID)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return 0, fmt.Errorf("property not found")
+			return 0, ErrPropertyNotFound
 		}
 		return 0, fmt.Errorf("get property id: %w", err)
 	}

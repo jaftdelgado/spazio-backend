@@ -2,8 +2,12 @@ package uploads
 
 import (
 	"context"
+	"errors"
 	"io"
 )
+
+// ErrPropertyNotFound is returned when the property UUID does not exist or has been deleted.
+var ErrPropertyNotFound = errors.New("property not found")
 
 type UploadPhotoInput struct {
 	PropertyUUID string
@@ -33,6 +37,12 @@ type SavePhotoInput struct {
 
 type UploadsRepository interface {
 	SavePropertyPhoto(ctx context.Context, input SavePhotoInput) (int32, error)
+}
+
+type photoStorage interface {
+	Upload(ctx context.Context, storageKey string, contentType string, body io.Reader) error
+	Delete(ctx context.Context, storageKey string) error
+	PublicURL(ctx context.Context, storageKey string) (string, error)
 }
 
 type UploadsService interface {
