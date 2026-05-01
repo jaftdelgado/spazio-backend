@@ -134,7 +134,114 @@ const docTemplate = `{
                 }
             }
         },
-        "/properties/{id}/availability": {
+        "/api/v1/clauses": {
+            "get": {
+                "description": "Returns clauses available for the provided modality. When q is present, the endpoint performs a filtered search. Results are paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Clauses"
+                ],
+                "summary": "List clauses",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Modality ID",
+                        "name": "modality_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of clauses",
+                        "schema": {
+                            "$ref": "#/definitions/clauses.ListClausesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties": {
+            "post": {
+                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Register a new property",
+                "parameters": [
+                    {
+                        "description": "Property payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.CreatePropertyInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Property created",
+                        "schema": {
+                            "$ref": "#/definitions/properties.CreatePropertyResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{id}/availability": {
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
                 "consumes": [
@@ -187,7 +294,53 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/properties/{property_uuid}/photos": {
+        "/api/v1/services": {
+            "get": {
+                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Services"
+                ],
+                "summary": "List services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of services",
+                        "schema": {
+                            "$ref": "#/definitions/services.ListServicesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/uploads/properties/{property_uuid}/photos": {
             "post": {
                 "description": "Uploads a photo for a property to R2 and registers it",
                 "consumes": [
@@ -248,11 +401,29 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/uploads.UploadPhotoResult"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
                     }
                 }
             }
         },
-        "/visits": {
+        "/api/v1/visits": {
             "get": {
                 "description": "List visits according to user role (Admin, Agent, Client). Supports filtering by status, property and date. Requires X-User-ID header.",
                 "consumes": [
@@ -362,7 +533,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/complete": {
+        "/api/v1/visits/{uuid}/complete": {
             "patch": {
                 "description": "Mark a confirmed visit as completed. Only for Agents or Admin. Requires X-User-ID header.",
                 "consumes": [
@@ -416,7 +587,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/confirm": {
+        "/api/v1/visits/{uuid}/confirm": {
             "patch": {
                 "description": "Transition a visit status towards 'Confirmed' by Client or Agent. Requires X-User-ID header.",
                 "consumes": [
@@ -470,7 +641,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/reschedule": {
+        "/api/v1/visits/{uuid}/reschedule": {
             "patch": {
                 "description": "Cancels the old visit and creates a new one with the new date. Requires X-User-ID header.",
                 "consumes": [
@@ -627,6 +798,381 @@ const docTemplate = `{
                     "example": "Monthly"
                 },
                 "period_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "clauses.Clause": {
+            "type": "object",
+            "properties": {
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "code": {
+                    "type": "string",
+                    "example": "pets_allowed"
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "value_type": {
+                    "$ref": "#/definitions/clauses.ClauseValueType"
+                }
+            }
+        },
+        "clauses.ClauseValueType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "boolean"
+                }
+            }
+        },
+        "clauses.ListClausesMeta": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "clauses.ListClausesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clauses.Clause"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/clauses.ListClausesMeta"
+                }
+            }
+        },
+        "properties.CreateCommercialInput": {
+            "type": "object",
+            "properties": {
+                "ceiling_height": {
+                    "type": "number",
+                    "example": 4.5
+                },
+                "internal_offices": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "land_use": {
+                    "type": "string",
+                    "example": "Retail"
+                },
+                "loading_docks": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "three_phase_power": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "properties.CreateLocationInput": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "exterior_number": {
+                    "type": "string",
+                    "example": "45"
+                },
+                "interior_number": {
+                    "type": "string",
+                    "example": "A"
+                },
+                "is_public_address": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 19.5438
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": -96.9102
+                },
+                "neighborhood": {
+                    "type": "string",
+                    "example": "Centro"
+                },
+                "postal_code": {
+                    "type": "string",
+                    "example": "91000"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "Av. Principal"
+                }
+            }
+        },
+        "properties.CreatePropertyClauseInput": {
+            "type": "object",
+            "properties": {
+                "boolean_value": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "integer_value": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "max_value": {
+                    "type": "number",
+                    "example": 3
+                },
+                "min_value": {
+                    "type": "number",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreatePropertyInput": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "example": "residential"
+                },
+                "clauses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreatePropertyClauseInput"
+                    }
+                },
+                "commercial": {
+                    "$ref": "#/definitions/properties.CreateCommercialInput"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Spacious residential property near downtown"
+                },
+                "is_featured": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.CreateLocationInput"
+                },
+                "lot_area": {
+                    "type": "number",
+                    "example": 200
+                },
+                "modality_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "owner_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "property_type_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "rent_prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreateRentPriceInput"
+                    }
+                },
+                "residential": {
+                    "$ref": "#/definitions/properties.CreateResidentialInput"
+                },
+                "sale_price": {
+                    "$ref": "#/definitions/properties.CreateSalePriceInput"
+                },
+                "services": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        3,
+                        7
+                    ]
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Casa en Xalapa"
+                }
+            }
+        },
+        "properties.CreatePropertyResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.CreatePropertyResultData"
+                }
+            }
+        },
+        "properties.CreatePropertyResultData": {
+            "type": "object",
+            "properties": {
+                "property_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            }
+        },
+        "properties.CreateRentPriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "number",
+                    "example": 16000
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "rent_price": {
+                    "type": "number",
+                    "example": 8000
+                }
+            }
+        },
+        "properties.CreateResidentialInput": {
+            "type": "object",
+            "properties": {
+                "bathrooms": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "bedrooms": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "beds": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "built_area": {
+                    "type": "number",
+                    "example": 120
+                },
+                "construction_year": {
+                    "type": "integer",
+                    "example": 2010
+                },
+                "floors": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "is_furnished": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "parking_spots": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreateSalePriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "sale_price": {
+                    "type": "number",
+                    "example": 1500000
+                }
+            }
+        },
+        "services.ListServicesMeta": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "shown": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ListServicesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.Service"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/services.ListServicesMeta"
+                }
+            }
+        },
+        "services.Service": {
+            "type": "object",
+            "properties": {
+                "category_code": {
+                    "type": "string",
+                    "example": "basic"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "icon": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "service_id": {
                     "type": "integer",
                     "example": 1
                 }

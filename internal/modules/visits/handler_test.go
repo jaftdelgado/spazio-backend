@@ -71,14 +71,14 @@ func TestScheduleVisitHandler(t *testing.T) {
 			},
 			userIDHeader: "3",
 			mock: &mockService{
-				called: make(map[string]bool),
+				called:         make(map[string]bool),
 				scheduleResult: VisitResponse{VisitUUID: uuid.New(), Status: "Pending"},
 			},
 			wantStatusCode: http.StatusCreated,
 		},
 		{
 			name:           "invalid user id",
-			payload:        CreateVisitRequest{PropertyID: 1, VisitDate:  futureDate},
+			payload:        CreateVisitRequest{PropertyID: 1, VisitDate: futureDate},
 			userIDHeader:   "abc",
 			mock:           &mockService{called: make(map[string]bool)},
 			wantStatusCode: http.StatusBadRequest,
@@ -90,7 +90,7 @@ func TestScheduleVisitHandler(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 			body, _ := json.Marshal(tt.payload)
-			ctx.Request = httptest.NewRequest(http.MethodPost, "/visits", bytes.NewReader(body))
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/visits", bytes.NewReader(body))
 			ctx.Request.Header.Set("X-User-ID", tt.userIDHeader)
 			handler := NewHandler(tt.mock)
 			handler.scheduleVisit(ctx)
@@ -104,10 +104,10 @@ func TestScheduleVisitHandler(t *testing.T) {
 func TestGetAvailabilityHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
-		name       string
-		propertyID string
-		dateQuery  string
-		mock       *mockService
+		name           string
+		propertyID     string
+		dateQuery      string
+		mock           *mockService
 		wantStatusCode int
 	}{
 		{
@@ -115,7 +115,7 @@ func TestGetAvailabilityHandler(t *testing.T) {
 			propertyID: "1",
 			dateQuery:  "2026-05-15",
 			mock: &mockService{
-				called: make(map[string]bool),
+				called:         make(map[string]bool),
 				availableSlots: []TimeSlot{{Available: true}},
 			},
 			wantStatusCode: http.StatusOK,
@@ -125,7 +125,7 @@ func TestGetAvailabilityHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequest(http.MethodGet, "/properties/"+tt.propertyID+"/availability?date="+tt.dateQuery, nil)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.propertyID+"/availability?date="+tt.dateQuery, nil)
 			ctx.Params = []gin.Param{{Key: "id", Value: tt.propertyID}}
 			handler := NewHandler(tt.mock)
 			handler.getAvailability(ctx)
@@ -140,17 +140,17 @@ func TestConfirmVisitHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	visitUUID := uuid.New()
 	tests := []struct {
-		name         string
-		visitUUID    string
-		userIDHeader string
-		mock         *mockService
+		name           string
+		visitUUID      string
+		userIDHeader   string
+		mock           *mockService
 		wantStatusCode int
 	}{
 		{
-			name:         "successful",
-			visitUUID:    visitUUID.String(),
-			userIDHeader: "2",
-			mock:         &mockService{called: make(map[string]bool)},
+			name:           "successful",
+			visitUUID:      visitUUID.String(),
+			userIDHeader:   "2",
+			mock:           &mockService{called: make(map[string]bool)},
 			wantStatusCode: http.StatusOK,
 		},
 	}
@@ -158,7 +158,7 @@ func TestConfirmVisitHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequest(http.MethodPatch, "/visits/"+tt.visitUUID+"/confirm", nil)
+			ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/v1/visits/"+tt.visitUUID+"/confirm", nil)
 			ctx.Request.Header.Set("X-User-ID", tt.userIDHeader)
 			ctx.Params = []gin.Param{{Key: "uuid", Value: tt.visitUUID}}
 			handler := NewHandler(tt.mock)

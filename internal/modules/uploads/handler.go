@@ -33,7 +33,10 @@ func NewHandler(service UploadsService) *Handler {
 // @Param sort_order formData int false "Sort Order" default(0)
 // @Param is_cover formData bool false "Is Cover" default(false)
 // @Success 201 {object} UploadPhotoResult
-// @Router /uploads/properties/{property_uuid}/photos [post]
+// @Failure 400 {object} shared.ErrorResponse
+// @Failure 404 {object} shared.ErrorResponse
+// @Failure 500 {object} shared.ErrorResponse
+// @Router /api/v1/uploads/properties/{property_uuid}/photos [post]
 func (h *Handler) uploadPropertyPhoto(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("property_uuid"))
 	if propertyUUID == "" {

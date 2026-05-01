@@ -33,7 +33,7 @@ func TestUploadPropertyPhotoNotFound(t *testing.T) {
 	handler := NewHandler(&handlerMockService{err: fmt.Errorf("save property photo: %w", ErrPropertyNotFound)})
 
 	body, contentType := newMultipartUploadRequest(t)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/uploads/properties/123e4567-e89b-12d3-a456-426614174000/photos", body)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/uploads/properties/123e4567-e89b-12d3-a456-426614174000/photos", body)
 	ctx.Request.Header.Set("Content-Type", contentType)
 	ctx.Params = gin.Params{{Key: "property_uuid", Value: "123e4567-e89b-12d3-a456-426614174000"}}
 
@@ -56,7 +56,7 @@ func TestUploadPropertyPhotoSuccess(t *testing.T) {
 	handler := NewHandler(mock)
 
 	body, contentType := newMultipartUploadRequest(t)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/uploads/properties/123e4567-e89b-12d3-a456-426614174000/photos", body)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/uploads/properties/123e4567-e89b-12d3-a456-426614174000/photos", body)
 	ctx.Request.Header.Set("Content-Type", contentType)
 	ctx.Params = gin.Params{{Key: "property_uuid", Value: "123e4567-e89b-12d3-a456-426614174000"}}
 
