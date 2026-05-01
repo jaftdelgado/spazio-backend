@@ -1,6 +1,28 @@
 -- Minimal schema for sqlc code generation.
+CREATE TABLE IF NOT EXISTS roles (
+    role_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_status (
+    status_id serial PRIMARY KEY,
+    name varchar(30) NOT NULL
+);
+
 CREATE TABLE users (
-	user_id serial PRIMARY KEY
+	user_id serial PRIMARY KEY,
+    user_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    role_id int NOT NULL REFERENCES roles(role_id),
+    first_name varchar(80) NOT NULL,
+    last_name varchar(80) NOT NULL,
+    email varchar(150) NOT NULL UNIQUE,
+    --password_hash varchar(255) NOT NULL,
+    phone varchar(20) NOT NULL,
+    profile_picture_url varchar(255) NOT NULL,
+    status_id int NOT NULL REFERENCES user_status(status_id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz
 );
 
 CREATE TABLE property_types (

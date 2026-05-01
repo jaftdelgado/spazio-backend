@@ -17,6 +17,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/users"
 
 	_ "github.com/jaftdelgado/spazio-backend/docs"
 )
@@ -41,6 +42,7 @@ func main() {
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
+	usersModule := users.NewModule(database, cfg)
 
 	r := gin.Default()
 	r.SetTrustedProxies(nil)
@@ -55,8 +57,10 @@ func main() {
 	catalogsModule.RegisterRoutes(api)
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
+	usersModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}
+
 }
