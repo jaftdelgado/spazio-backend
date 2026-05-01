@@ -69,8 +69,6 @@ func (s *service) UploadPropertyPhoto(ctx context.Context, input UploadPhotoInpu
 
 // convertToWebP decodes any supported image format and encodes it as WebP.
 // Supported inputs: image/jpeg, image/png, image/webp.
-// Extracted as a standalone function so it can be reused for profile photos
-// or any other upload flow in the future.
 func convertToWebP(input UploadPhotoInput) ([]byte, error) {
 	img, _, err := image.Decode(input.File)
 	if err != nil {
