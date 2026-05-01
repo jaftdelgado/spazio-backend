@@ -67,6 +67,48 @@ definitions:
         example: 1
         type: integer
     type: object
+  clauses.Clause:
+    properties:
+      clause_id:
+        example: 1
+        type: integer
+      code:
+        example: pets_allowed
+        type: string
+      sort_order:
+        example: 10
+        type: integer
+      value_type:
+        $ref: '#/definitions/clauses.ClauseValueType'
+    type: object
+  clauses.ClauseValueType:
+    properties:
+      code:
+        example: boolean
+        type: string
+    type: object
+  clauses.ListClausesMeta:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      query:
+        type: string
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  clauses.ListClausesResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/clauses.Clause'
+        type: array
+      meta:
+        $ref: '#/definitions/clauses.ListClausesMeta'
+    type: object
   properties.CreateCommercialInput:
     properties:
       ceiling_height:
@@ -255,6 +297,39 @@ definitions:
         example: 1500000
         type: number
     type: object
+  services.ListServicesMeta:
+    properties:
+      query:
+        type: string
+      shown:
+        type: integer
+      total:
+        type: integer
+    type: object
+  services.ListServicesResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/services.Service'
+        type: array
+      meta:
+        $ref: '#/definitions/services.ListServicesMeta'
+    type: object
+  services.Service:
+    properties:
+      category_code:
+        example: basic
+        type: string
+      code:
+        example: wifi
+        type: string
+      icon:
+        example: wifi
+        type: string
+      service_id:
+        example: 1
+        type: integer
+    type: object
   shared.ErrorResponse:
     properties:
       code:
@@ -408,6 +483,48 @@ paths:
       summary: List rent periods
       tags:
       - Catalogs
+  /api/v1/clauses:
+    get:
+      description: Returns clauses available for the provided modality. When q is
+        present, the endpoint performs a filtered search. Results are paginated.
+      parameters:
+      - description: Modality ID
+        in: query
+        name: modality_id
+        required: true
+        type: integer
+      - description: Search term
+        in: query
+        name: q
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Results per page
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of clauses
+          schema:
+            $ref: '#/definitions/clauses.ListClausesResult'
+        "400":
+          description: Invalid query params
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List clauses
+      tags:
+      - Clauses
   /api/v1/properties:
     post:
       consumes:
@@ -440,7 +557,7 @@ paths:
       summary: Register a new property
       tags:
       - Properties
-  /properties/{id}/availability:
+  /api/v1/properties/{id}/availability:
     get:
       consumes:
       - application/json
@@ -475,7 +592,39 @@ paths:
       summary: Get property availability
       tags:
       - visits
-  /uploads/properties/{property_uuid}/photos:
+  /api/v1/services:
+    get:
+      description: Returns popular active services when q is empty, or matching active
+        services when q is provided. Results include metadata and honor the optional
+        limit parameter.
+      parameters:
+      - description: Search term
+        in: query
+        name: q
+        type: string
+      - description: Results limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of services
+          schema:
+            $ref: '#/definitions/services.ListServicesResult'
+        "400":
+          description: Invalid query params
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List services
+      tags:
+      - Services
+  /api/v1/uploads/properties/{property_uuid}/photos:
     post:
       consumes:
       - multipart/form-data
@@ -516,10 +665,22 @@ paths:
           description: Created
           schema:
             $ref: '#/definitions/uploads.UploadPhotoResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
       summary: Upload property photo
       tags:
       - uploads
-  /visits:
+  /api/v1/visits:
     get:
       consumes:
       - application/json
@@ -594,7 +755,7 @@ paths:
       summary: Schedule a visit
       tags:
       - visits
-  /visits/{uuid}/complete:
+  /api/v1/visits/{uuid}/complete:
     patch:
       consumes:
       - application/json
@@ -631,7 +792,7 @@ paths:
       summary: Complete a visit
       tags:
       - visits
-  /visits/{uuid}/confirm:
+  /api/v1/visits/{uuid}/confirm:
     patch:
       consumes:
       - application/json
@@ -668,7 +829,7 @@ paths:
       summary: Confirm a visit
       tags:
       - visits
-  /visits/{uuid}/reschedule:
+  /api/v1/visits/{uuid}/reschedule:
     patch:
       consumes:
       - application/json

@@ -77,13 +77,14 @@ func (h *Handler) listPropertyTypes(c *gin.Context) {
 // @Router       /api/v1/catalogs/rent-periods [get]
 func (h *Handler) listRentPeriods(c *gin.Context) {
 	rawPropertyTypeID := strings.TrimSpace(c.Query("property_type_id"))
+
 	propertyTypeID, err := resolveRequiredInt(rawPropertyTypeID, "property_type_id")
 	if err != nil {
 		shared.BadRequest(c, err)
 		return
 	}
 
-	result, err := h.service.ListRentPeriods(c.Request.Context(), int32(propertyTypeID))
+	result, err := h.service.ListRentPeriods(c.Request.Context(), propertyTypeID)
 	if err != nil {
 		log.Printf("list rent periods by property type: %v", err)
 		shared.InternalError(c, "could not list rent periods")
@@ -93,17 +94,21 @@ func (h *Handler) listRentPeriods(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func resolveRequiredInt(rawValue string, field string) (int, error) {
+func resolveRequiredInt(rawValue string, field string) (int32, error) {
 	if rawValue == "" {
 		return 0, errors.New(field + " is required")
 	}
 
-	value, err := strconv.Atoi(rawValue)
+	value, err := strconv.ParseInt(rawValue, 10, 32)
 	if err != nil {
 		return 0, errors.New(field + " must be a valid integer")
 	}
 
-	return value, nil
+	if value <= 0 {
+		return 0, errors.New(field + " must be a positive integer")
+	}
+
+	return int32(value), nil
 }
 
 // listOrientations godoc

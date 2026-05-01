@@ -25,9 +25,22 @@ func NewHandler(service ClausesService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("/clauses", h.listClauses)
+	r.GET("/api/v1/clauses", h.listClauses)
 }
 
+// listClauses godoc
+// @Summary      List clauses
+// @Description  Returns clauses available for the provided modality. When q is present, the endpoint performs a filtered search. Results are paginated.
+// @Tags         Clauses
+// @Produce      json
+// @Param        modality_id  query     int                true   "Modality ID"
+// @Param        q            query     string             false  "Search term"
+// @Param        page         query     int                false  "Page number" default(1)
+// @Param        page_size    query     int                false  "Results per page" default(20)
+// @Success      200          {object}  ListClausesResult  "List of clauses"
+// @Failure      400          {object}  shared.ErrorResponse "Invalid query params"
+// @Failure      500          {object}  shared.ErrorResponse "Internal error"
+// @Router       /api/v1/clauses [get]
 func (h *Handler) listClauses(c *gin.Context) {
 	rawModalityID := strings.TrimSpace(c.Query("modality_id"))
 	query := strings.TrimSpace(c.Query("q"))

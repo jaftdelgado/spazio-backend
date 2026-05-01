@@ -134,6 +134,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/clauses": {
+            "get": {
+                "description": "Returns clauses available for the provided modality. When q is present, the endpoint performs a filtered search. Results are paginated.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Clauses"
+                ],
+                "summary": "List clauses",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Modality ID",
+                        "name": "modality_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of clauses",
+                        "schema": {
+                            "$ref": "#/definitions/clauses.ListClausesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/properties": {
             "post": {
                 "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
@@ -180,7 +241,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/properties/{id}/availability": {
+        "/api/v1/properties/{id}/availability": {
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
                 "consumes": [
@@ -233,7 +294,53 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/properties/{property_uuid}/photos": {
+        "/api/v1/services": {
+            "get": {
+                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Services"
+                ],
+                "summary": "List services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of services",
+                        "schema": {
+                            "$ref": "#/definitions/services.ListServicesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/uploads/properties/{property_uuid}/photos": {
             "post": {
                 "description": "Uploads a photo for a property to R2 and registers it",
                 "consumes": [
@@ -294,11 +401,29 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/uploads.UploadPhotoResult"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
                     }
                 }
             }
         },
-        "/visits": {
+        "/api/v1/visits": {
             "get": {
                 "description": "List visits according to user role (Admin, Agent, Client). Supports filtering by status, property and date. Requires X-User-ID header.",
                 "consumes": [
@@ -408,7 +533,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/complete": {
+        "/api/v1/visits/{uuid}/complete": {
             "patch": {
                 "description": "Mark a confirmed visit as completed. Only for Agents or Admin. Requires X-User-ID header.",
                 "consumes": [
@@ -462,7 +587,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/confirm": {
+        "/api/v1/visits/{uuid}/confirm": {
             "patch": {
                 "description": "Transition a visit status towards 'Confirmed' by Client or Agent. Requires X-User-ID header.",
                 "consumes": [
@@ -516,7 +641,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/reschedule": {
+        "/api/v1/visits/{uuid}/reschedule": {
             "patch": {
                 "description": "Cancels the old visit and creates a new one with the new date. Requires X-User-ID header.",
                 "consumes": [
@@ -675,6 +800,69 @@ const docTemplate = `{
                 "period_id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "clauses.Clause": {
+            "type": "object",
+            "properties": {
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "code": {
+                    "type": "string",
+                    "example": "pets_allowed"
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "value_type": {
+                    "$ref": "#/definitions/clauses.ClauseValueType"
+                }
+            }
+        },
+        "clauses.ClauseValueType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "boolean"
+                }
+            }
+        },
+        "clauses.ListClausesMeta": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "query": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "clauses.ListClausesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clauses.Clause"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/clauses.ListClausesMeta"
                 }
             }
         },
@@ -938,6 +1126,55 @@ const docTemplate = `{
                 "sale_price": {
                     "type": "number",
                     "example": 1500000
+                }
+            }
+        },
+        "services.ListServicesMeta": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "shown": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ListServicesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.Service"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/services.ListServicesMeta"
+                }
+            }
+        },
+        "services.Service": {
+            "type": "object",
+            "properties": {
+                "category_code": {
+                    "type": "string",
+                    "example": "basic"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "icon": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "service_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },

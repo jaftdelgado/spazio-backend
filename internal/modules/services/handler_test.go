@@ -47,7 +47,7 @@ func TestListServices(t *testing.T) {
 	}{
 		{
 			name: "lists popular services by default",
-			url:  "/services",
+			url:  "/api/v1/services",
 			mock: &mockServicesService{
 				result: ListServicesResult{
 					Data: []Service{{ServiceID: 1, Code: "WIFI", Icon: "wifi", CategoryCode: "BASIC"}},
@@ -62,7 +62,7 @@ func TestListServices(t *testing.T) {
 		},
 		{
 			name: "searches services when q is provided",
-			url:  "/services?q=wifi&limit=2",
+			url:  "/api/v1/services?q=wifi&limit=2",
 			mock: &mockServicesService{
 				result: ListServicesResult{
 					Data: []Service{{ServiceID: 1, Code: "WIFI", Icon: "wifi", CategoryCode: "BASIC"}},
@@ -77,7 +77,7 @@ func TestListServices(t *testing.T) {
 		},
 		{
 			name:              "rejects invalid limit",
-			url:               "/services?limit=foo",
+			url:               "/api/v1/services?limit=foo",
 			mock:              &mockServicesService{},
 			wantStatusCode:    http.StatusBadRequest,
 			wantBodyContains:  "limit must be a valid integer",
