@@ -114,6 +114,36 @@ type UpdatePropertyClausesInput struct {
 	Clauses []CreatePropertyClauseInput `json:"clauses,omitempty"`
 }
 
+// GetPropertyPhotosResult is the response returned by the property photos list endpoint.
+type GetPropertyPhotosResult struct {
+	Data []PropertyPhotoData `json:"data"`
+}
+
+// PropertyPhotoData represents the metadata of a linked photo.
+type PropertyPhotoData struct {
+	PhotoID    int32   `json:"photo_id" example:"12"`
+	StorageKey string  `json:"storage_key" example:"properties/123/front.jpg"`
+	MimeType   string  `json:"mime_type" example:"image/jpeg"`
+	SortOrder  int16   `json:"sort_order" example:"0"`
+	IsCover    bool    `json:"is_cover" example:"true"`
+	Label      *string `json:"label,omitempty" example:"Front facade"`
+	AltText    *string `json:"alt_text,omitempty" example:"Front facade of the property"`
+}
+
+// UpdatePropertyPhotosInput is the request payload used to replace the linked photo metadata of a property.
+type UpdatePropertyPhotosInput struct {
+	Photos []UpdatePhotoMetadataInput `json:"photos,omitempty"`
+}
+
+// UpdatePhotoMetadataInput contains the editable fields of a linked photo.
+type UpdatePhotoMetadataInput struct {
+	PhotoID   int32   `json:"photo_id" example:"12"`
+	SortOrder int16   `json:"sort_order" example:"0"`
+	IsCover   bool    `json:"is_cover" example:"true"`
+	Label     *string `json:"label,omitempty" example:"Front facade"`
+	AltText   *string `json:"alt_text,omitempty" example:"Front facade of the property"`
+}
+
 // GetPropertyServicesResult is the response returned by the property services list endpoint.
 type GetPropertyServicesResult struct {
 	Data GetPropertyServicesData `json:"data"`
@@ -206,6 +236,8 @@ type PropertyRepository interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
 	GetPropertyClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdatePropertyClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
+	GetPropertyPhotos(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
+	UpdatePropertyPhotos(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error
 	GetPropertyServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdatePropertyServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPropertyPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
@@ -217,6 +249,8 @@ type PropertyService interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
 	GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
+	GetPhotos(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
+	UpdatePhotos(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error
 	GetServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)

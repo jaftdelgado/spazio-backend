@@ -23,6 +23,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/api/v1/properties", h.createProperty)
 	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
 	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
+	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)
+	r.PUT("/api/v1/properties/:uuid/photos", h.updatePhotos)
 	r.GET("/api/v1/properties/:uuid/services", h.getServices)
 	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
 	r.GET("/api/v1/properties/:uuid/prices", h.getPrices)

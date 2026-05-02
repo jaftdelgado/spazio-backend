@@ -36,6 +36,14 @@ func (m *mockService) GetServices(_ context.Context, _ string) (GetPropertyServi
 	return GetPropertyServicesResult{}, nil
 }
 
+func (m *mockService) GetPhotos(_ context.Context, _ string) (GetPropertyPhotosResult, error) {
+	return GetPropertyPhotosResult{}, nil
+}
+
+func (m *mockService) UpdatePhotos(_ context.Context, _ string, _ UpdatePropertyPhotosInput) error {
+	return nil
+}
+
 func (m *mockService) UpdateServices(_ context.Context, _ string, _ UpdatePropertyServicesInput) error {
 	return nil
 }

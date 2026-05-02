@@ -50,11 +50,6 @@ CREATE TABLE modalities (
 );
 
 
-CREATE TABLE orientations (
-	orientation_id serial PRIMARY KEY,
-	name varchar(30) NOT NULL
-);
-
 CREATE TABLE rent_periods (
 	period_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL

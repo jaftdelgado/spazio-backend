@@ -81,6 +81,52 @@ ORDER BY property_clause_id ASC;
 DELETE FROM property_clauses
 WHERE property_id = $1;
 
+-- name: ListPropertyPhotos :many
+SELECT
+  photo_id,
+  storage_key,
+  mime_type,
+  sort_order,
+  is_cover,
+  label,
+  alt_text
+FROM property_photos
+WHERE property_id = $1
+ORDER BY sort_order ASC, photo_id ASC;
+
+-- name: ListPropertyPhotosByIDs :many
+SELECT
+  photo_id,
+  storage_key,
+  mime_type,
+  sort_order,
+  is_cover,
+  label,
+  alt_text
+FROM property_photos
+WHERE property_id = $1
+  AND photo_id = ANY($2::int[])
+ORDER BY photo_id ASC;
+
+-- name: DeletePropertyPhotos :exec
+DELETE FROM property_photos
+WHERE property_id = $1;
+
+-- name: DeletePropertyPhotosExceptIDs :exec
+DELETE FROM property_photos
+WHERE property_id = $1
+  AND NOT (photo_id = ANY($2::int[]));
+
+-- name: UpdatePropertyPhotoMetadata :exec
+UPDATE property_photos
+SET
+  sort_order = $3,
+  is_cover = $4,
+  label = $5,
+  alt_text = $6
+WHERE property_id = $1
+  AND photo_id = $2;
+
 -- name: ListPropertyServiceIDs :many
 SELECT service_id
 FROM property_services

@@ -28,7 +28,7 @@ func (r *repository) GetPropertyPrices(ctx context.Context, propertyUUID string)
 	}
 
 	var salePrice *ActiveSalePriceData
-	if saleRow != nil {
+	if err == nil {
 		floatValue, err := saleRow.SalePrice.Float64Value()
 		if err != nil {
 			return GetPropertyPricesResult{}, fmt.Errorf("convert sale price: %w", err)
@@ -144,8 +144,12 @@ func (r *repository) getOwnerIDFromProperty(ctx context.Context, queries *sqlcge
 func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sqlcgen.Queries, propertyID, ownerID int32, update UpdateSalePriceInput) error {
 	// Get current active sale price
 	currentRow, err := queries.ListActiveSalePrice(ctx, propertyID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("get current sale price: %w", err)
+	hasActiveSalePrice := true
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("get current sale price: %w", err)
+		}
+		hasActiveSalePrice = false
 	}
 
 	newAmount, err := numericFromFloat64(update.SalePrice)
@@ -154,7 +158,7 @@ func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sq
 	}
 
 	// If there's an active price, check if amount changed
-	if currentRow != nil {
+	if hasActiveSalePrice {
 		currentAmount, err := currentRow.SalePrice.Float64Value()
 		if err != nil {
 			return fmt.Errorf("convert current sale price: %w", err)
@@ -197,8 +201,12 @@ func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sq
 		PropertyID: propertyID,
 		PeriodID:   update.PeriodID,
 	})
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("get current rent price: %w", err)
+	hasActiveRentPrice := true
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("get current rent price: %w", err)
+		}
+		hasActiveRentPrice = false
 	}
 
 	newAmount, err := numericFromFloat64(update.RentPrice)
@@ -212,7 +220,7 @@ func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sq
 	}
 
 	// If there's an active price, check if amount changed
-	if currentRow != nil {
+	if hasActiveRentPrice {
 		currentAmount, err := currentRow.RentPrice.Float64Value()
 		if err != nil {
 			return fmt.Errorf("convert current rent price: %w", err)
