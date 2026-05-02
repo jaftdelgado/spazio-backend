@@ -8,11 +8,12 @@ import (
 )
 
 type Config struct {
-	Port            string
-	DatabaseURL     string
-	MigrateURL      string
-	SupabaseURL     string
-	SupabaseAnonKey string
+	Port              string
+	DatabaseURL       string
+	MigrateURL        string
+	SupabaseURL       string
+	SupabaseAnonKey   string
+	SupabaseJWTSecret string
 }
 
 // Load reads application configuration from the environment.
