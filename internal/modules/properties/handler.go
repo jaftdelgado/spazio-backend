@@ -23,6 +23,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/api/v1/properties", h.createProperty)
 	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
 	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
+	r.GET("/api/v1/properties/:uuid/services", h.getServices)
+	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
 }
 
 // createProperty godoc
@@ -219,16 +221,12 @@ func validateOptionalPrices(req CreatePropertyInput) error {
 }
 
 func validateCollections(req CreatePropertyInput) error {
-	for i, serviceID := range req.Services {
-		if serviceID <= 0 {
-			return errors.New("services[" + indexString(i) + "] must be greater than 0")
-		}
+	if err := validateServiceIDs(req.Services); err != nil {
+		return err
 	}
 
-	for i, clause := range req.Clauses {
-		if clause.ClauseID <= 0 {
-			return errors.New("clauses[" + indexString(i) + "].clause_id must be greater than 0")
-		}
+	if err := validateClauseInputs(req.Clauses); err != nil {
+		return err
 	}
 
 	return nil

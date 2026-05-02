@@ -80,3 +80,13 @@ ORDER BY property_clause_id ASC;
 -- name: DeletePropertyClauses :exec
 DELETE FROM property_clauses
 WHERE property_id = $1;
+
+-- name: ListPropertyServiceIDs :many
+SELECT service_id
+FROM property_services
+WHERE property_id = $1
+ORDER BY service_id ASC;
+
+-- name: DeletePropertyServices :exec
+DELETE FROM property_services
+WHERE property_id = $1;

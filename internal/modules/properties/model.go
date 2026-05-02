@@ -114,6 +114,21 @@ type UpdatePropertyClausesInput struct {
 	Clauses []CreatePropertyClauseInput `json:"clauses,omitempty"`
 }
 
+// GetPropertyServicesResult is the response returned by the property services list endpoint.
+type GetPropertyServicesResult struct {
+	Data GetPropertyServicesData `json:"data"`
+}
+
+// GetPropertyServicesData contains the linked service identifiers.
+type GetPropertyServicesData struct {
+	ServiceIDs []int32 `json:"service_ids" example:"1,3,7"`
+}
+
+// UpdatePropertyServicesInput is the request payload used to replace the linked services of a property.
+type UpdatePropertyServicesInput struct {
+	ServiceIDs []int32 `json:"service_ids"`
+}
+
 // CreatePropertyResult is the response returned after creating a property.
 type CreatePropertyResult struct {
 	Data CreatePropertyResultData `json:"data"`
@@ -144,6 +159,8 @@ type PropertyRepository interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
 	GetPropertyClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdatePropertyClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
+	GetPropertyServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
+	UpdatePropertyServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 }
 
 // PropertyService defines application logic operations for properties.
@@ -151,4 +168,6 @@ type PropertyService interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
 	GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
+	GetServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
+	UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 }
