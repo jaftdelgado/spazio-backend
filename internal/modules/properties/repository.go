@@ -47,6 +47,15 @@ func (r *repository) GetAllowedPeriods(ctx context.Context, propertyTypeID int32
 	return allowedPeriods, nil
 }
 
+func (r *repository) GetPropertySubtype(ctx context.Context, propertyTypeID int32) (string, error) {
+	subtype, err := r.queries.GetPropertySubtype(ctx, propertyTypeID)
+	if err != nil {
+		return "", fmt.Errorf("get property subtype: %w", err)
+	}
+
+	return subtype, nil
+}
+
 func (r *repository) GetClauseValueTypes(ctx context.Context, clauseIDs []int32) (map[int32]int32, error) {
 	rows, err := r.queries.GetClauseValueTypes(ctx, clauseIDs)
 	if err != nil {
@@ -81,7 +90,6 @@ func (r *repository) CreateProperty(ctx context.Context, input CreatePropertyInp
 	propertyRow, err := queries.CreateProperty(ctx, sqlcgen.CreatePropertyParams{
 		PropertyUuid:   pgUUID,
 		OwnerID:        input.OwnerID,
-		Category:       input.Category,
 		Title:          input.Title,
 		Description:    input.Description,
 		PropertyTypeID: input.PropertyTypeID,
@@ -140,8 +148,8 @@ func (r *repository) CreateProperty(ctx context.Context, input CreatePropertyInp
 }
 
 func (r *repository) createSubtype(ctx context.Context, queries *sqlcgen.Queries, propertyID int32, input CreatePropertyInput) error {
-	switch input.Category {
-	case CategoryResidential:
+	switch input.Subtype {
+	case SubtypeResidential:
 		builtArea, err := numericFromFloat64(*input.Residential.BuiltArea)
 		if err != nil {
 			return fmt.Errorf("convert residential built area: %w", err)
@@ -161,7 +169,7 @@ func (r *repository) createSubtype(ctx context.Context, queries *sqlcgen.Queries
 		}); err != nil {
 			return fmt.Errorf("create residential property: %w", err)
 		}
-	case CategoryCommercial:
+	case SubtypeCommercial:
 		ceilingHeight, err := numericFromFloat64(*input.Commercial.CeilingHeight)
 		if err != nil {
 			return fmt.Errorf("convert commercial ceiling height: %w", err)
