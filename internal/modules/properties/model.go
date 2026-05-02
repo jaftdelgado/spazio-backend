@@ -1,6 +1,9 @@
 package properties
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 const (
 	CategoryResidential = "residential"
@@ -92,6 +95,25 @@ type CreatePropertyClauseInput struct {
 	MaxValue     *float64 `json:"max_value,omitempty" example:"3"`
 }
 
+// GetPropertyClausesResult is the response returned by the property clauses list endpoint.
+type GetPropertyClausesResult struct {
+	Data []PropertyClauseData `json:"data"`
+}
+
+// PropertyClauseData represents a linked clause with its stored value payload.
+type PropertyClauseData struct {
+	ClauseID     int32    `json:"clause_id" example:"1"`
+	BooleanValue *bool    `json:"boolean_value,omitempty" example:"true"`
+	IntegerValue *int32   `json:"integer_value,omitempty" example:"2"`
+	MinValue     *float64 `json:"min_value,omitempty" example:"1"`
+	MaxValue     *float64 `json:"max_value,omitempty" example:"3"`
+}
+
+// UpdatePropertyClausesInput is the request payload used to replace the linked clauses of a property.
+type UpdatePropertyClausesInput struct {
+	Clauses []CreatePropertyClauseInput `json:"clauses,omitempty"`
+}
+
 // CreatePropertyResult is the response returned after creating a property.
 type CreatePropertyResult struct {
 	Data CreatePropertyResultData `json:"data"`
@@ -111,15 +133,22 @@ func (e ValidationError) Error() string {
 	return e.Message
 }
 
+// ErrPropertyNotFound is returned when a property UUID does not exist or has been deleted.
+var ErrPropertyNotFound = errors.New("property not found")
+
 // PropertyRepository defines persistence operations for properties.
 type PropertyRepository interface {
 	GetModalityName(ctx context.Context, modalityID int32) (string, error)
 	GetAllowedPeriods(ctx context.Context, propertyTypeID int32) (map[int32]struct{}, error)
 	GetClauseValueTypes(ctx context.Context, clauseIDs []int32) (map[int32]int32, error)
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	GetPropertyClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
+	UpdatePropertyClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 }
 
 // PropertyService defines application logic operations for properties.
 type PropertyService interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
+	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 }

@@ -65,3 +65,18 @@ WHERE clause_id = ANY($1::int[]);
 SELECT period_id
 FROM property_type_periods
 WHERE property_type_id = $1;
+
+-- name: ListPropertyClauses :many
+SELECT
+  clause_id,
+  boolean_value,
+  integer_value,
+  min_value,
+  max_value
+FROM property_clauses
+WHERE property_id = $1
+ORDER BY property_clause_id ASC;
+
+-- name: DeletePropertyClauses :exec
+DELETE FROM property_clauses
+WHERE property_id = $1;

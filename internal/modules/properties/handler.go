@@ -21,6 +21,8 @@ func NewHandler(service PropertyService) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/api/v1/properties", h.createProperty)
+	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
+	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
 }
 
 // createProperty godoc

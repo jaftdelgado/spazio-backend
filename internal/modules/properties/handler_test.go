@@ -24,6 +24,14 @@ func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInpu
 	return m.result, m.err
 }
 
+func (m *mockService) GetClauses(_ context.Context, _ string) (GetPropertyClausesResult, error) {
+	return GetPropertyClausesResult{}, nil
+}
+
+func (m *mockService) UpdateClauses(_ context.Context, _ string, _ UpdatePropertyClausesInput) error {
+	return nil
+}
+
 func TestCreateProperty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
