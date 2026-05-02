@@ -25,6 +25,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
 	r.GET("/api/v1/properties/:uuid/services", h.getServices)
 	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
+	r.GET("/api/v1/properties/:uuid/prices", h.getPrices)
+	r.PUT("/api/v1/properties/:uuid/prices", h.updatePrices)
 }
 
 // createProperty godoc

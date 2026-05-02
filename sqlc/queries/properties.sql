@@ -90,3 +90,68 @@ ORDER BY service_id ASC;
 -- name: DeletePropertyServices :exec
 DELETE FROM property_services
 WHERE property_id = $1;
+
+-- name: GetPropertyOwnerID :one
+SELECT owner_id
+FROM properties
+WHERE property_id = $1;
+
+-- name: ListActiveSalePrice :one
+SELECT
+  sale_price,
+  currency,
+  is_negotiable
+FROM sale_prices
+WHERE property_id = $1 AND is_current = true;
+
+-- name: ListActiveRentPrices :many
+SELECT
+  period_id,
+  rent_price,
+  deposit,
+  currency,
+  is_negotiable
+FROM rent_prices
+WHERE property_id = $1 AND is_current = true
+ORDER BY period_id ASC;
+
+-- name: ListActiveRentPriceByPeriod :one
+SELECT
+  rent_price,
+  deposit,
+  currency,
+  is_negotiable
+FROM rent_prices
+WHERE property_id = $1 AND period_id = $2 AND is_current = true;
+
+-- name: UpdateSalePriceToInactive :exec
+UPDATE sale_prices
+SET is_current = false, valid_until = NOW()
+WHERE property_id = $1 AND is_current = true;
+
+-- name: CreateSalePriceHistoryRecord :exec
+INSERT INTO sale_prices (
+  property_id, sale_price, currency, is_negotiable,
+  is_current, valid_from, changed_by_user_id
+) VALUES ($1, $2, $3, $4, true, NOW(), $5);
+
+-- name: UpdateSalePriceIsNegotiable :exec
+UPDATE sale_prices
+SET is_negotiable = $2
+WHERE property_id = $1 AND is_current = true;
+
+-- name: UpdateRentPriceToInactive :exec
+UPDATE rent_prices
+SET is_current = false, valid_until = NOW()
+WHERE property_id = $1 AND period_id = $2 AND is_current = true;
+
+-- name: CreateRentPriceHistoryRecord :exec
+INSERT INTO rent_prices (
+  property_id, period_id, rent_price, deposit, currency,
+  is_negotiable, is_current, valid_from, changed_by_user_id
+) VALUES ($1, $2, $3, $4, $5, $6, true, NOW(), $7);
+
+-- name: UpdateRentPriceIsNegotiableAndDeposit :exec
+UPDATE rent_prices
+SET is_negotiable = $3, deposit = $4
+WHERE property_id = $1 AND period_id = $2 AND is_current = true;

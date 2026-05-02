@@ -21,3 +21,23 @@ func validateClauseInputs(clauses []CreatePropertyClauseInput) error {
 
 	return nil
 }
+
+func validatePriceInputs(input UpdatePropertyPricesInput) error {
+	if input.SalePrice != nil {
+		if input.SalePrice.SalePrice <= 0 {
+			return errors.New("sale_price.sale_price must be greater than 0")
+		}
+	}
+
+	for i, rentPrice := range input.RentPrices {
+		if rentPrice.PeriodID <= 0 {
+			return errors.New("rent_prices[" + indexString(i) + "].period_id must be greater than 0")
+		}
+
+		if rentPrice.RentPrice <= 0 {
+			return errors.New("rent_prices[" + indexString(i) + "].rent_price must be greater than 0")
+		}
+	}
+
+	return nil
+}

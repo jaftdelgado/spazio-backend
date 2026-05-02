@@ -129,6 +129,53 @@ type UpdatePropertyServicesInput struct {
 	ServiceIDs []int32 `json:"service_ids"`
 }
 
+// GetPropertyPricesResult is the response returned by the property prices list endpoint.
+type GetPropertyPricesResult struct {
+	Data GetPropertyPricesData `json:"data"`
+}
+
+// GetPropertyPricesData contains the active prices of the property.
+type GetPropertyPricesData struct {
+	SalePrice  *ActiveSalePriceData  `json:"sale_price"`
+	RentPrices []ActiveRentPriceData `json:"rent_prices"`
+}
+
+// ActiveSalePriceData represents the active sale price.
+type ActiveSalePriceData struct {
+	SalePrice    float64 `json:"sale_price" example:"1500000"`
+	Currency     string  `json:"currency" example:"MXN"`
+	IsNegotiable bool    `json:"is_negotiable" example:"true"`
+}
+
+// ActiveRentPriceData represents an active rent price.
+type ActiveRentPriceData struct {
+	PeriodID     int32    `json:"period_id" example:"3"`
+	RentPrice    float64  `json:"rent_price" example:"8000"`
+	Deposit      *float64 `json:"deposit" example:"16000"`
+	Currency     string   `json:"currency" example:"MXN"`
+	IsNegotiable bool     `json:"is_negotiable" example:"false"`
+}
+
+// UpdatePropertyPricesInput is the request payload used to update property prices.
+type UpdatePropertyPricesInput struct {
+	SalePrice  *UpdateSalePriceInput  `json:"sale_price,omitempty"`
+	RentPrices []UpdateRentPriceInput `json:"rent_prices,omitempty"`
+}
+
+// UpdateSalePriceInput contains the editable fields of a sale price.
+type UpdateSalePriceInput struct {
+	SalePrice    float64 `json:"sale_price" example:"1500000"`
+	IsNegotiable bool    `json:"is_negotiable" example:"true"`
+}
+
+// UpdateRentPriceInput contains the editable fields of a rent price.
+type UpdateRentPriceInput struct {
+	PeriodID     int32    `json:"period_id" example:"3"`
+	RentPrice    float64  `json:"rent_price" example:"8000"`
+	Deposit      *float64 `json:"deposit,omitempty" example:"16000"`
+	IsNegotiable bool     `json:"is_negotiable" example:"false"`
+}
+
 // CreatePropertyResult is the response returned after creating a property.
 type CreatePropertyResult struct {
 	Data CreatePropertyResultData `json:"data"`
@@ -161,6 +208,8 @@ type PropertyRepository interface {
 	UpdatePropertyClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 	GetPropertyServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdatePropertyServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
+	GetPropertyPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
+	UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 }
 
 // PropertyService defines application logic operations for properties.
@@ -170,4 +219,6 @@ type PropertyService interface {
 	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 	GetServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
+	GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
+	UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 }

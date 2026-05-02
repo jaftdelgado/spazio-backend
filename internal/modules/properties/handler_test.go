@@ -40,6 +40,14 @@ func (m *mockService) UpdateServices(_ context.Context, _ string, _ UpdateProper
 	return nil
 }
 
+func (m *mockService) GetPrices(_ context.Context, _ string) (GetPropertyPricesResult, error) {
+	return GetPropertyPricesResult{}, nil
+}
+
+func (m *mockService) UpdatePrices(_ context.Context, _ string, _ UpdatePropertyPricesInput) error {
+	return nil
+}
+
 func TestCreateProperty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
