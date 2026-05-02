@@ -93,6 +93,174 @@ const docTemplate = `{
                 }
             }
         },
+        "/payment-methods": {
+            "get": {
+                "description": "List supported payment methods (Card, PayPal, OXXO, etc.)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Get available payment methods",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/payments.PaymentMethodResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/payments": {
+            "get": {
+                "description": "History of payments for the authenticated user. Requires X-User-ID header.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "List user payments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/payments.PaymentResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/payments/intent": {
+            "post": {
+                "description": "Start a payment process for a property reservation (Apartado). Requires X-User-ID header.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Create a payment intent",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Payment Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentIntentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/payments/{uuid}/confirm": {
+            "post": {
+                "description": "Simulate the confirmation of a payment from a gateway. Requires X-User-ID header.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Confirm a payment (Mock)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Payment UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Mock Token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/payments.ConfirmPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/properties/{id}/availability": {
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
@@ -564,6 +732,83 @@ const docTemplate = `{
                 "period_id": {
                     "type": "integer",
                     "example": 1
+                }
+            }
+        },
+        "payments.ConfirmPaymentRequest": {
+            "type": "object",
+            "required": [
+                "mock_token"
+            ],
+            "properties": {
+                "mock_token": {
+                    "description": "e.g., \"tok_success\", \"tok_oxxo_pending\"",
+                    "type": "string"
+                }
+            }
+        },
+        "payments.PaymentIntentRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "method_id",
+                "property_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "method_id": {
+                    "type": "integer"
+                },
+                "property_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "payments.PaymentMethodResponse": {
+            "type": "object",
+            "properties": {
+                "method_id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "payments.PaymentResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "payment_date": {
+                    "type": "string"
+                },
+                "payment_uuid": {
+                    "type": "string"
+                },
+                "property_id": {
+                    "type": "integer"
+                },
+                "property_title": {
+                    "type": "string"
+                },
+                "redirect_url": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
                 }
             }
         },

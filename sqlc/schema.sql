@@ -185,3 +185,78 @@ CREATE TABLE visit_status_history (
     changed_by_user_id integer NOT NULL REFERENCES users(user_id),
     changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TYPE transaction_type AS ENUM ('sale', 'rent');
+
+CREATE TABLE transaction_status (
+    status_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL
+);
+
+CREATE TABLE transactions (
+    transaction_id serial PRIMARY KEY,
+    transaction_uuid uuid NOT NULL DEFAULT gen_random_uuid(),
+    property_id int NOT NULL REFERENCES properties(property_id),
+    client_id int NOT NULL REFERENCES users(user_id),
+    agent_id int NOT NULL REFERENCES users(user_id),
+    transaction_type transaction_type NOT NULL,
+    status_id int NOT NULL REFERENCES transaction_status(status_id),
+    final_amount decimal(15,2) NOT NULL,
+    closing_date date NOT NULL
+);
+
+CREATE TABLE contract_status (
+    status_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL
+);
+
+CREATE TABLE contracts (
+    contract_id serial PRIMARY KEY,
+    contract_uuid uuid NOT NULL DEFAULT gen_random_uuid(),
+    transaction_id int NOT NULL REFERENCES transactions(transaction_id),
+    currency char(3) NOT NULL,
+    agreed_amount decimal(15,2) NOT NULL,
+    storage_key varchar(255) NOT NULL,
+    start_date date NOT NULL,
+    end_date date,
+    status_id int NOT NULL REFERENCES contract_status(status_id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz
+);
+
+CREATE TABLE payment_status (
+    status_id serial PRIMARY KEY,
+    name varchar(30) NOT NULL,
+    is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE payment_methods (
+    method_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL,
+    is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE payment_gateways (
+    gateway_id serial PRIMARY KEY,
+    name varchar(50) NOT NULL,
+    is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE payments (
+    payment_id serial PRIMARY KEY,
+    payment_uuid uuid NOT NULL DEFAULT gen_random_uuid(),
+    contract_id int NOT NULL REFERENCES contracts(contract_id),
+    client_id int NOT NULL REFERENCES users(user_id),
+    billing_period date NOT NULL,
+    due_date date NOT NULL,
+    amount decimal(15,2) NOT NULL,
+    payment_method_id int NOT NULL REFERENCES payment_methods(method_id),
+    gateway_id int NOT NULL REFERENCES payment_gateways(gateway_id),
+    gateway_payment_id varchar(100),
+    gateway_order_id varchar(100),
+    status_id int NOT NULL REFERENCES payment_status(status_id),
+    gateway_status varchar(50),
+    payment_date timestamptz,
+    metadata jsonb
+);
