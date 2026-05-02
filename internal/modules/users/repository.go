@@ -64,3 +64,17 @@ func (r *repository) GetUserByEmail(ctx context.Context, email string) (CreateUs
 		CreatedAt: user.CreatedAt.Time,
 	}, nil
 }
+
+func (r *repository) UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error {
+	queries := sqlcgen.New(r.db)
+
+	err := queries.UpdateUserStatus(ctx, sqlcgen.UpdateUserStatusParams{
+		UserID:   userID,
+		StatusID: statusID,
+	})
+	if err != nil {
+		return fmt.Errorf("error updating user status in db: %w", err)
+	}
+
+	return nil
+}

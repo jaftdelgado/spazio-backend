@@ -21,5 +21,7 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 	userGroup := router.Group("/users")
 	{
 		userGroup.POST("/register", m.handler.Register)
+		userGroup.POST("/verify", m.handler.Verify)
+		userGroup.POST("/login", m.handler.Login)
 	}
 }
