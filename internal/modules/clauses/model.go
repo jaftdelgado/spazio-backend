@@ -4,15 +4,15 @@ import "context"
 
 // ClauseValueType defines the value type exposed to clients.
 type ClauseValueType struct {
-	Code string `json:"code"`
+	Code string `json:"code" example:"boolean"`
 }
 
 // Clause is a catalog item exposed by the clauses endpoint.
 type Clause struct {
-	ClauseID  int32           `json:"clause_id"`
-	Code      string          `json:"code"`
+	ClauseID  int32           `json:"clause_id" example:"1"`
+	Code      string          `json:"code" example:"pets_allowed"`
 	ValueType ClauseValueType `json:"value_type"`
-	SortOrder int32           `json:"sort_order"`
+	SortOrder int32           `json:"sort_order" example:"10"`
 }
 
 // ListClausesInput defines filters for listing clauses.

@@ -10,6 +10,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "github.com/jaftdelgado/spazio-backend/docs"
 	"github.com/jaftdelgado/spazio-backend/internal/config"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
@@ -17,9 +18,10 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/uploads"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/users"
-
-	_ "github.com/jaftdelgado/spazio-backend/docs"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/visits"
+	"github.com/jaftdelgado/spazio-backend/internal/storage"
 )
 
 // @title Spazio API
@@ -29,7 +31,6 @@ import (
 // @BasePath /
 func main() {
 	cfg := config.Load()
-	log.Println("DATABASE_URL:", cfg.DatabaseURL)
 
 	database, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
@@ -37,18 +38,26 @@ func main() {
 	}
 	defer database.Close()
 
+	r2, err := storage.NewR2Client(cfg.R2)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	propertiesModule := properties.NewModule(database)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
 	usersModule := users.NewModule(database, cfg)
+	uploadsModule := uploads.NewModule(database, r2)
+	visitsModule := visits.NewModule(database)
 
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.SetTrustedProxies(nil)
 	r.Use(middleware.CORS())
 
-	// Swagger endpoint
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	api := r.Group("")
@@ -58,6 +67,8 @@ func main() {
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
 	usersModule.RegisterRoutes(api)
+	uploadsModule.RegisterRoutes(api)
+	visitsModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
