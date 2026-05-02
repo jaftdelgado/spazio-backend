@@ -20,7 +20,7 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("/api/v1/properties/:id/availability", h.getAvailability)
+	r.GET("/api/v1/properties/:uuid/availability", h.getAvailability)
 	r.POST("/api/v1/visits", h.scheduleVisit)
 	r.GET("/api/v1/visits", h.listVisits)
 	r.PATCH("/api/v1/visits/:uuid/confirm", h.confirmVisit)

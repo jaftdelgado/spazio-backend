@@ -11,18 +11,18 @@ CREATE TABLE IF NOT EXISTS user_status (
 
 CREATE TABLE users (
 	user_id serial PRIMARY KEY,
-    user_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
-    role_id int NOT NULL REFERENCES roles(role_id),
-    first_name varchar(80) NOT NULL,
-    last_name varchar(80) NOT NULL,
-    email varchar(150) NOT NULL UNIQUE,
-    --password_hash varchar(255) NOT NULL,
-    phone varchar(20) NOT NULL,
-    profile_picture_url varchar(255) NOT NULL,
-    status_id int NOT NULL REFERENCES user_status(status_id),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    deleted_at timestamptz
+	user_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+	role_id int NOT NULL REFERENCES roles(role_id),
+	first_name varchar(80) NOT NULL,
+	last_name varchar(80) NOT NULL,
+	email varchar(150) NOT NULL UNIQUE,
+	--password_hash varchar(255) NOT NULL,
+	phone varchar(20) NOT NULL,
+	profile_picture_url varchar(255) NOT NULL,
+	status_id int NOT NULL REFERENCES user_status(status_id),
+	created_at timestamptz NOT NULL DEFAULT now(),
+	updated_at timestamptz NOT NULL DEFAULT now(),
+	deleted_at timestamptz
 );
 
 CREATE FUNCTION ST_MakePoint(double precision, double precision) RETURNS bytea
@@ -41,6 +41,7 @@ CREATE TABLE property_types (
 	property_type_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL,
 	icon varchar(80),
+	subtype varchar(20) NOT NULL DEFAULT 'other',
 	is_deprecated boolean NOT NULL DEFAULT false
 );
 
@@ -50,16 +51,10 @@ CREATE TABLE modalities (
 );
 
 
-CREATE TABLE orientations (
-	orientation_id serial PRIMARY KEY,
-	name varchar(30) NOT NULL
-);
-
 CREATE TABLE rent_periods (
 	period_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL
 );
-
 
 CREATE TABLE property_type_periods (
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
@@ -77,7 +72,6 @@ CREATE TABLE properties (
 	property_uuid uuid NOT NULL UNIQUE,
 	owner_id int NOT NULL REFERENCES users(user_id),
 	current_resident_id int REFERENCES users(user_id),
-	category text NOT NULL,
 	title varchar(128) NOT NULL,
 	description text NOT NULL,
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
@@ -90,6 +84,11 @@ CREATE TABLE properties (
 	updated_at timestamptz,
 	created_at timestamptz NOT NULL DEFAULT now(),
 	deleted_at timestamptz
+);
+
+CREATE TABLE orientations (
+	orientation_id serial PRIMARY KEY,
+	name varchar(30) NOT NULL
 );
 
 CREATE TABLE residential_properties (
@@ -307,4 +306,3 @@ CREATE TABLE visit_status_history (
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
-

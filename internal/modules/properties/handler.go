@@ -1,7 +1,9 @@
 package properties
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -21,6 +23,16 @@ func NewHandler(service PropertyService) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/api/v1/properties", h.createProperty)
+	r.GET("/api/v1/properties/:uuid", h.getProperty)
+	r.PATCH("/api/v1/properties/:uuid", h.updateProperty)
+	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
+	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
+	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)
+	r.PUT("/api/v1/properties/:uuid/photos", h.updatePhotos)
+	r.GET("/api/v1/properties/:uuid/services", h.getServices)
+	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
+	r.GET("/api/v1/properties/:uuid/prices", h.getPrices)
+	r.PUT("/api/v1/properties/:uuid/prices", h.updatePrices)
 }
 
 // createProperty godoc
@@ -35,6 +47,11 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Failure      500      {object}  shared.ErrorResponse  "Internal error"
 // @Router       /api/v1/properties [post]
 func (h *Handler) createProperty(c *gin.Context) {
+	if err := rejectForbiddenPayloadFields(c, "category", "subtype"); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
 	var req CreatePropertyInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		shared.BadRequest(c, err)
@@ -65,7 +82,6 @@ func (h *Handler) createProperty(c *gin.Context) {
 }
 
 func sanitizeCreatePropertyInput(input CreatePropertyInput) CreatePropertyInput {
-	input.Category = strings.TrimSpace(input.Category)
 	input.Title = strings.TrimSpace(input.Title)
 	input.Description = strings.TrimSpace(input.Description)
 
@@ -104,8 +120,6 @@ func trimOptionalString(value *string) *string {
 func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	if err := shared.Validate([]shared.ValidationRule{
 		{Fail: req.OwnerID <= 0, Msg: "owner_id must be greater than 0"},
-		{Fail: req.Category == "", Msg: "category is required"},
-		{Fail: !isAllowedCategory(req.Category), Msg: "category must be one of residential, commercial, land, or other"},
 		{Fail: req.Title == "", Msg: "title is required"},
 		{Fail: req.PropertyTypeID <= 0, Msg: "property_type_id must be greater than 0"},
 		{Fail: req.ModalityID <= 0, Msg: "modality_id must be greater than 0"},
@@ -128,10 +142,6 @@ func validateCreatePropertyRequest(req CreatePropertyInput) error {
 		return err
 	}
 
-	if err := validateCategoryPayload(req); err != nil {
-		return err
-	}
-
 	if err := validateOptionalPrices(req); err != nil {
 		return err
 	}
@@ -143,14 +153,14 @@ func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	return nil
 }
 
-func validateCategoryPayload(req CreatePropertyInput) error {
-	switch req.Category {
-	case CategoryResidential:
+func validateSubtypePayload(req CreatePropertyInput) error {
+	switch req.Subtype {
+	case SubtypeResidential:
 		if req.Residential == nil {
-			return errors.New("residential is required when category is residential")
+			return errors.New("residential is required when subtype is residential")
 		}
 		if req.Commercial != nil {
-			return errors.New("commercial must be omitted when category is residential")
+			return errors.New("commercial must be omitted when subtype is residential")
 		}
 
 		return shared.Validate([]shared.ValidationRule{
@@ -164,12 +174,12 @@ func validateCategoryPayload(req CreatePropertyInput) error {
 			{Fail: req.Residential.OrientationID == nil || *req.Residential.OrientationID <= 0, Msg: "residential.orientation_id must be greater than 0"},
 			{Fail: req.Residential.IsFurnished == nil, Msg: "residential.is_furnished is required"},
 		})
-	case CategoryCommercial:
+	case SubtypeCommercial:
 		if req.Commercial == nil {
-			return errors.New("commercial is required when category is commercial")
+			return errors.New("commercial is required when subtype is commercial")
 		}
 		if req.Residential != nil {
-			return errors.New("residential must be omitted when category is commercial")
+			return errors.New("residential must be omitted when subtype is commercial")
 		}
 
 		return shared.Validate([]shared.ValidationRule{
@@ -179,13 +189,15 @@ func validateCategoryPayload(req CreatePropertyInput) error {
 			{Fail: req.Commercial.ThreePhasePower == nil, Msg: "commercial.three_phase_power is required"},
 			{Fail: req.Commercial.LandUse == nil || *req.Commercial.LandUse == "", Msg: "commercial.land_use is required"},
 		})
-	case CategoryLand, CategoryOther:
+	case SubtypeOther:
 		if req.Residential != nil {
-			return errors.New("residential must be omitted for the selected category")
+			return errors.New("residential must be omitted for the selected subtype")
 		}
 		if req.Commercial != nil {
-			return errors.New("commercial must be omitted for the selected category")
+			return errors.New("commercial must be omitted for the selected subtype")
 		}
+	default:
+		return errors.New("subtype must be one of residential, commercial, or other")
 	}
 
 	return nil
@@ -217,16 +229,12 @@ func validateOptionalPrices(req CreatePropertyInput) error {
 }
 
 func validateCollections(req CreatePropertyInput) error {
-	for i, serviceID := range req.Services {
-		if serviceID <= 0 {
-			return errors.New("services[" + indexString(i) + "] must be greater than 0")
-		}
+	if err := validateServiceIDs(req.Services); err != nil {
+		return err
 	}
 
-	for i, clause := range req.Clauses {
-		if clause.ClauseID <= 0 {
-			return errors.New("clauses[" + indexString(i) + "].clause_id must be greater than 0")
-		}
+	if err := validateClauseInputs(req.Clauses); err != nil {
+		return err
 	}
 
 	return nil
@@ -236,11 +244,28 @@ func indexString(index int) string {
 	return strconv.Itoa(index)
 }
 
-func isAllowedCategory(category string) bool {
-	switch category {
-	case CategoryResidential, CategoryCommercial, CategoryLand, CategoryOther:
-		return true
-	default:
-		return false
+func rejectForbiddenPayloadFields(c *gin.Context, fields ...string) error {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return err
 	}
+
+	c.Request.Body = io.NopCloser(strings.NewReader(string(body)))
+
+	if len(body) == 0 {
+		return nil
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil
+	}
+
+	for _, field := range fields {
+		if _, exists := payload[field]; exists {
+			return errors.New(field + " is not allowed")
+		}
+	}
+
+	return nil
 }

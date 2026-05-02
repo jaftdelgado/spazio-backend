@@ -24,6 +24,46 @@ func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInpu
 	return m.result, m.err
 }
 
+func (m *mockService) GetClauses(_ context.Context, _ string) (GetPropertyClausesResult, error) {
+	return GetPropertyClausesResult{}, nil
+}
+
+func (m *mockService) UpdateClauses(_ context.Context, _ string, _ UpdatePropertyClausesInput) error {
+	return nil
+}
+
+func (m *mockService) GetServices(_ context.Context, _ string) (GetPropertyServicesResult, error) {
+	return GetPropertyServicesResult{}, nil
+}
+
+func (m *mockService) GetPhotos(_ context.Context, _ string) (GetPropertyPhotosResult, error) {
+	return GetPropertyPhotosResult{}, nil
+}
+
+func (m *mockService) UpdatePhotos(_ context.Context, _ string, _ UpdatePropertyPhotosInput) error {
+	return nil
+}
+
+func (m *mockService) UpdateServices(_ context.Context, _ string, _ UpdatePropertyServicesInput) error {
+	return nil
+}
+
+func (m *mockService) GetPrices(_ context.Context, _ string) (GetPropertyPricesResult, error) {
+	return GetPropertyPricesResult{}, nil
+}
+
+func (m *mockService) UpdatePrices(_ context.Context, _ string, _ UpdatePropertyPricesInput) error {
+	return nil
+}
+
+func (m *mockService) GetProperty(_ context.Context, _ string) (GetPropertyResult, error) {
+	return GetPropertyResult{}, nil
+}
+
+func (m *mockService) UpdateProperty(_ context.Context, _ string, _ UpdatePropertyInput) (UpdatePropertyResult, error) {
+	return UpdatePropertyResult{}, nil
+}
+
 func TestCreateProperty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -39,7 +79,6 @@ func TestCreateProperty(t *testing.T) {
 			name: "creates property",
 			payload: gin.H{
 				"owner_id":         1,
-				"category":         "land",
 				"title":            "Terreno demo",
 				"description":      "Una propiedad de prueba",
 				"property_type_id": 2,
@@ -70,7 +109,6 @@ func TestCreateProperty(t *testing.T) {
 		{
 			name: "rejects invalid payload",
 			payload: gin.H{
-				"category":         "land",
 				"title":            "Terreno demo",
 				"property_type_id": 2,
 				"modality_id":      3,
@@ -134,7 +172,7 @@ func TestValidateCreatePropertyRequest(t *testing.T) {
 			name: "valid request",
 			req: CreatePropertyInput{
 				OwnerID:        1,
-				Category:       CategoryLand,
+				Subtype:        SubtypeOther,
 				Title:          "Terreno demo",
 				Description:    "Descripcion",
 				PropertyTypeID: 2,
@@ -152,7 +190,7 @@ func TestValidateCreatePropertyRequest(t *testing.T) {
 		{
 			name: "missing owner",
 			req: CreatePropertyInput{
-				Category:       CategoryLand,
+				Subtype:        SubtypeOther,
 				Title:          "Terreno demo",
 				PropertyTypeID: 2,
 				ModalityID:     3,
@@ -182,6 +220,88 @@ func TestValidateCreatePropertyRequest(t *testing.T) {
 				if err.Error() != tt.wantErr {
 					t.Fatalf("validateCreatePropertyRequest() error = %q, want %q", err.Error(), tt.wantErr)
 				}
+			}
+		})
+	}
+}
+
+func TestCreatePropertyRejectsForbiddenFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+
+	payload := gin.H{
+		"owner_id":         1,
+		"category":         "other",
+		"title":            "Terreno demo",
+		"property_type_id": 2,
+		"modality_id":      3,
+		"location": gin.H{
+			"city_id":           1,
+			"street":            "Av. Principal",
+			"exterior_number":   "45",
+			"latitude":          19.5438,
+			"longitude":         -96.9102,
+			"is_public_address": true,
+		},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/properties", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	mock := &mockService{}
+	handler := NewHandler(mock)
+	handler.createProperty(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
+	}
+
+	if mock.called {
+		t.Fatalf("called = %v, want false", mock.called)
+	}
+}
+
+func TestUpdatePropertyRejectsForbiddenFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name  string
+		field string
+	}{
+		{name: "rejects category", field: "category"},
+		{name: "rejects subtype", field: "subtype"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+
+			payload := gin.H{
+				tt.field: "other",
+			}
+
+			body, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("marshal payload: %v", err)
+			}
+
+			ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+			ctx.Request.Header.Set("Content-Type", "application/json")
+			ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+			handler := NewHandler(&mockService{})
+			handler.updateProperty(ctx)
+
+			if recorder.Code != http.StatusBadRequest {
+				t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
 			}
 		})
 	}

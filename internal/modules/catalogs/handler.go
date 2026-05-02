@@ -70,16 +70,12 @@ func (h *Handler) listPropertyTypes(c *gin.Context) {
 // listRentPeriods godoc
 // @Summary      List rent periods
 // @Description  Returns rent periods enabled for the provided property type, ordered by period_id ascending.
-// @Description  Returns rent periods enabled for the provided property type, ordered by period_id ascending.
 // @Tags         Catalogs
 // @Produce      json
 // @Param        property_type_id  query     int                    true   "Property type ID"
-// @Param        property_type_id  query     int                    true   "Property type ID"
 // @Success      200  {object}  ListRentPeriodsResult  "List of rent periods"
 // @Failure      400  {object}  shared.ErrorResponse   "Invalid query params"
-// @Failure      400  {object}  shared.ErrorResponse   "Invalid query params"
 // @Failure      500  {object}  shared.ErrorResponse   "Internal error"
-// @Router       /api/v1/catalogs/rent-periods [get]
 // @Router       /api/v1/catalogs/rent-periods [get]
 func (h *Handler) listRentPeriods(c *gin.Context) {
 	rawPropertyTypeID := strings.TrimSpace(c.Query("property_type_id"))
@@ -92,7 +88,6 @@ func (h *Handler) listRentPeriods(c *gin.Context) {
 
 	result, err := h.service.ListRentPeriods(c.Request.Context(), propertyTypeID)
 	if err != nil {
-		log.Printf("list rent periods by property type: %v", err)
 		log.Printf("list rent periods by property type: %v", err)
 		shared.InternalError(c, "could not list rent periods")
 		return
