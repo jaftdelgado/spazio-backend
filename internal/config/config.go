@@ -8,10 +8,13 @@ import (
 )
 
 type Config struct {
-	Port        string
-	DatabaseURL string
-	MigrateURL  string
-	R2          R2Config
+	Port              string
+	DatabaseURL       string
+	MigrateURL        string
+	R2                R2Config
+	SupabaseURL       string
+	SupabaseAnonKey   string
+	SupabaseJWTSecret string
 }
 
 type R2Config struct {
@@ -38,6 +41,9 @@ func Load() *Config {
 			BucketName:      getEnv("R2_BUCKET_NAME", ""),
 			PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 		},
+		SupabaseURL:       getEnv("SUPABASE_URL", ""),
+		SupabaseAnonKey:   getEnv("SUPABASE_ANON_KEY", ""),
+		SupabaseJWTSecret: getEnv("SUPABASE_JWT_SECRET", ""),
 	}
 }
 
