@@ -6,10 +6,9 @@ import (
 )
 
 const (
-	CategoryResidential = "residential"
-	CategoryCommercial  = "commercial"
-	CategoryLand        = "land"
-	CategoryOther       = "other"
+	SubtypeResidential = "residential"
+	SubtypeCommercial  = "commercial"
+	SubtypeOther       = "other"
 
 	ClauseValueTypeBoolean = 1
 	ClauseValueTypeRange   = 2
@@ -19,7 +18,7 @@ const (
 // CreatePropertyInput is the request payload required to register a property.
 type CreatePropertyInput struct {
 	OwnerID        int32                       `json:"owner_id" example:"1"`
-	Category       string                      `json:"category" example:"residential"`
+	Subtype        string                      `json:"subtype" example:"residential"`
 	Title          string                      `json:"title" example:"Casa en Xalapa"`
 	Description    string                      `json:"description" example:"Spacious residential property near downtown"`
 	PropertyTypeID int32                       `json:"property_type_id" example:"1"`
@@ -98,6 +97,113 @@ type CreatePropertyClauseInput struct {
 // GetPropertyClausesResult is the response returned by the property clauses list endpoint.
 type GetPropertyClausesResult struct {
 	Data []PropertyClauseData `json:"data"`
+}
+
+// GetPropertyResult es la respuesta del GET /properties/:uuid.
+type GetPropertyResult struct {
+	Data GetPropertyData `json:"data"`
+}
+
+// GetPropertyData contiene los datos base, subtipo y ubicación de la propiedad.
+type GetPropertyData struct {
+	PropertyUUID   string           `json:"property_uuid"`
+	OwnerID        int32            `json:"owner_id"`
+	Subtype        string           `json:"subtype"`
+	Title          string           `json:"title"`
+	Description    string           `json:"description"`
+	PropertyTypeID int32            `json:"property_type_id"`
+	ModalityID     int32            `json:"modality_id"`
+	LotArea        float64          `json:"lot_area"`
+	IsFeatured     bool             `json:"is_featured"`
+	Residential    *ResidentialData `json:"residential"`
+	Commercial     *CommercialData  `json:"commercial"`
+	Location       *LocationData    `json:"location"`
+}
+
+// ResidentialData contiene los campos del subtipo residencial.
+type ResidentialData struct {
+	Bedrooms         int16   `json:"bedrooms"`
+	Bathrooms        int16   `json:"bathrooms"`
+	Beds             int16   `json:"beds"`
+	Floors           int16   `json:"floors"`
+	ParkingSpots     int16   `json:"parking_spots"`
+	BuiltArea        float64 `json:"built_area"`
+	ConstructionYear int16   `json:"construction_year"`
+	OrientationID    int32   `json:"orientation_id"`
+	IsFurnished      bool    `json:"is_furnished"`
+}
+
+// CommercialData contiene los campos del subtipo comercial.
+type CommercialData struct {
+	CeilingHeight   float64 `json:"ceiling_height"`
+	LoadingDocks    int16   `json:"loading_docks"`
+	InternalOffices int16   `json:"internal_offices"`
+	ThreePhasePower bool    `json:"three_phase_power"`
+	LandUse         string  `json:"land_use"`
+}
+
+// LocationData contiene los campos de ubicación de la propiedad.
+type LocationData struct {
+	CityID          int32   `json:"city_id"`
+	Neighborhood    string  `json:"neighborhood"`
+	Street          string  `json:"street"`
+	ExteriorNumber  string  `json:"exterior_number"`
+	InteriorNumber  *string `json:"interior_number"`
+	PostalCode      string  `json:"postal_code"`
+	Latitude        float64 `json:"latitude"`
+	Longitude       float64 `json:"longitude"`
+	IsPublicAddress bool    `json:"is_public_address"`
+}
+
+// UpdatePropertyInput es el payload del PATCH /properties/:uuid.
+type UpdatePropertyInput struct {
+	Title       *string                 `json:"title,omitempty"`
+	Description *string                 `json:"description,omitempty"`
+	LotArea     *float64                `json:"lot_area,omitempty"`
+	IsFeatured  *bool                   `json:"is_featured,omitempty"`
+	Residential *UpdateResidentialInput `json:"residential,omitempty"`
+	Commercial  *UpdateCommercialInput  `json:"commercial,omitempty"`
+	Location    *UpdateLocationInput    `json:"location,omitempty"`
+}
+
+// UpdateResidentialInput contiene los campos editables del subtipo residencial.
+type UpdateResidentialInput struct {
+	Bedrooms         *int16   `json:"bedrooms"`
+	Bathrooms        *int16   `json:"bathrooms"`
+	Beds             *int16   `json:"beds"`
+	Floors           *int16   `json:"floors"`
+	ParkingSpots     *int16   `json:"parking_spots"`
+	BuiltArea        *float64 `json:"built_area"`
+	ConstructionYear *int16   `json:"construction_year"`
+	OrientationID    *int32   `json:"orientation_id"`
+	IsFurnished      *bool    `json:"is_furnished"`
+}
+
+// UpdateCommercialInput contiene los campos editables del subtipo comercial.
+type UpdateCommercialInput struct {
+	CeilingHeight   *float64 `json:"ceiling_height"`
+	LoadingDocks    *int16   `json:"loading_docks"`
+	InternalOffices *int16   `json:"internal_offices"`
+	ThreePhasePower *bool    `json:"three_phase_power"`
+	LandUse         *string  `json:"land_use"`
+}
+
+// UpdateLocationInput contiene los campos editables de ubicación.
+type UpdateLocationInput struct {
+	CityID          *int32   `json:"city_id"`
+	Neighborhood    *string  `json:"neighborhood"`
+	Street          *string  `json:"street"`
+	ExteriorNumber  *string  `json:"exterior_number"`
+	InteriorNumber  *string  `json:"interior_number"`
+	PostalCode      *string  `json:"postal_code"`
+	Latitude        *float64 `json:"latitude"`
+	Longitude       *float64 `json:"longitude"`
+	IsPublicAddress *bool    `json:"is_public_address"`
+}
+
+// UpdatePropertyResult es la respuesta del PATCH /properties/:uuid.
+type UpdatePropertyResult struct {
+	Message string `json:"message"`
 }
 
 // PropertyClauseData represents a linked clause with its stored value payload.
@@ -232,6 +338,7 @@ var ErrPropertyNotFound = errors.New("property not found")
 type PropertyRepository interface {
 	GetModalityName(ctx context.Context, modalityID int32) (string, error)
 	GetAllowedPeriods(ctx context.Context, propertyTypeID int32) (map[int32]struct{}, error)
+	GetPropertySubtype(ctx context.Context, propertyTypeID int32) (string, error)
 	GetClauseValueTypes(ctx context.Context, clauseIDs []int32) (map[int32]int32, error)
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
 	GetPropertyClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
@@ -242,6 +349,10 @@ type PropertyRepository interface {
 	UpdatePropertyServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPropertyPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
 	UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
+
+	// New persistence operations for GET / PATCH
+	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 }
 
 // PropertyService defines application logic operations for properties.
@@ -255,4 +366,7 @@ type PropertyService interface {
 	UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
 	UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
+	// New endpoints
+	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 }

@@ -5,11 +5,11 @@ WHERE modality_id = $1;
 
 -- name: CreateProperty :one
 INSERT INTO properties (
-  property_uuid, owner_id, category, title, description,
+  property_uuid, owner_id, title, description,
   property_type_id, modality_id, status_id, lot_area, is_featured,
   created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, 2, $8, $9, NOW(), NOW()
+  $1, $2, $3, $4, $5, $6, 2, $7, $8, NOW(), NOW()
 ) RETURNING property_id, property_uuid;
 
 -- name: CreateResidentialProperty :exec
@@ -64,6 +64,11 @@ WHERE clause_id = ANY($1::int[]);
 -- name: GetAllowedPeriods :many
 SELECT period_id
 FROM property_type_periods
+WHERE property_type_id = $1;
+
+-- name: GetPropertySubtype :one
+SELECT subtype
+FROM property_types
 WHERE property_type_id = $1;
 
 -- name: ListPropertyClauses :many
@@ -201,3 +206,99 @@ INSERT INTO rent_prices (
 UPDATE rent_prices
 SET is_negotiable = $3, deposit = $4
 WHERE property_id = $1 AND period_id = $2 AND is_current = true;
+
+-- name: GetPropertyBaseByID :one
+SELECT
+  p.property_uuid,
+  p.owner_id,
+  p.title,
+  p.description,
+  p.property_type_id,
+  p.modality_id,
+  p.lot_area,
+  p.is_featured,
+  pt.subtype
+FROM properties p
+JOIN property_types pt ON pt.property_type_id = p.property_type_id
+WHERE p.property_id = $1 AND p.deleted_at IS NULL;
+
+-- name: GetResidentialByPropertyID :one
+SELECT
+  bedrooms,
+  bathrooms,
+  beds,
+  floors,
+  parking_spots,
+  built_area,
+  construction_year,
+  orientation_id,
+  is_furnished
+FROM residential_properties
+WHERE property_id = $1;
+
+-- name: GetCommercialByPropertyID :one
+SELECT
+  ceiling_height,
+  loading_docks,
+  internal_offices,
+  three_phase_power,
+  land_use
+FROM commercial_properties
+WHERE property_id = $1;
+
+-- name: GetLocationByPropertyID :one
+SELECT
+  city_id,
+  neighborhood,
+  street,
+  exterior_number,
+  interior_number,
+  postal_code,
+  ST_Y(coordinates)::float8 AS latitude,
+  ST_X(coordinates)::float8 AS longitude,
+  is_public_address
+FROM locations
+WHERE property_id = $1;
+
+-- name: UpdatePropertyBaseByID :exec
+UPDATE properties
+SET title = $2,
+    description = $3,
+    lot_area = $4,
+    is_featured = $5,
+    updated_at = NOW()
+WHERE property_id = $1;
+
+-- name: UpdateResidentialPropertyByID :exec
+UPDATE residential_properties
+SET bedrooms = $2,
+    bathrooms = $3,
+    beds = $4,
+    floors = $5,
+    parking_spots = $6,
+    built_area = $7,
+    construction_year = $8,
+    orientation_id = $9,
+    is_furnished = $10
+WHERE property_id = $1;
+
+-- name: UpdateCommercialPropertyByID :exec
+UPDATE commercial_properties
+SET ceiling_height = $2,
+    loading_docks = $3,
+    internal_offices = $4,
+    three_phase_power = $5,
+    land_use = $6
+WHERE property_id = $1;
+
+-- name: UpdateLocationByID :exec
+UPDATE locations
+SET city_id = $2,
+    neighborhood = $3,
+    street = $4,
+    exterior_number = $5,
+    interior_number = $6,
+    postal_code = $7,
+    coordinates = ST_SetSRID(ST_MakePoint($9, $8), 4326),
+    is_public_address = $10
+WHERE property_id = $1;

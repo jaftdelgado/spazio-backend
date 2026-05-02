@@ -27,6 +27,16 @@ func NewService(repository PropertyRepository) PropertyService {
 }
 
 func (s *service) CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
+	subtype, err := s.repository.GetPropertySubtype(ctx, input.PropertyTypeID)
+	if err != nil {
+		return CreatePropertyResult{}, fmt.Errorf("get property subtype: %w", err)
+	}
+	input.Subtype = subtype
+
+	if err := validateSubtypePayload(input); err != nil {
+		return CreatePropertyResult{}, ValidationError{Message: err.Error()}
+	}
+
 	requirements, err := resolveModalityRequirements(input.ModalityID)
 	if err != nil {
 		return CreatePropertyResult{}, ValidationError{Message: err.Error()}

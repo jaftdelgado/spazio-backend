@@ -41,6 +41,7 @@ CREATE TABLE property_types (
 	property_type_id serial PRIMARY KEY,
 	name varchar(50) NOT NULL,
 	icon varchar(80),
+	subtype varchar(20) NOT NULL DEFAULT 'other',
 	is_deprecated boolean NOT NULL DEFAULT false
 );
 
@@ -71,7 +72,6 @@ CREATE TABLE properties (
 	property_uuid uuid NOT NULL UNIQUE,
 	owner_id int NOT NULL REFERENCES users(user_id),
 	current_resident_id int REFERENCES users(user_id),
-	category text NOT NULL,
 	title varchar(128) NOT NULL,
 	description text NOT NULL,
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
