@@ -86,6 +86,11 @@ CREATE TABLE properties (
 	deleted_at timestamptz
 );
 
+CREATE TABLE orientations (
+	orientation_id serial PRIMARY KEY,
+	name varchar(30) NOT NULL
+);
+
 CREATE TABLE residential_properties (
 	property_id int PRIMARY KEY REFERENCES properties(property_id),
 	bedrooms smallint NOT NULL,
@@ -300,8 +305,4 @@ CREATE TABLE visit_status_history (
 	new_status_id integer NOT NULL REFERENCES visit_status(status_id),
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
-<<<<<<< HEAD
 );
-=======
-);
->>>>>>> 190dacb (feat(properties): add property creation)
