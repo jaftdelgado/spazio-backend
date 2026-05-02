@@ -15,8 +15,8 @@ import (
 
 const (
 	StatusPending       = 1
-	StatusWaitingAgent   = 2
-	StatusWaitingClient  = 3
+	StatusWaitingAgent  = 2
+	StatusWaitingClient = 3
 	StatusConfirmed     = 4
 	StatusCancelled     = 5
 	StatusCompleted     = 6
@@ -166,7 +166,9 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 			}
 		}
 
-		if !isAvailable { continue }
+		if !isAvailable {
+			continue
+		}
 
 		for _, occ := range occupied {
 			occUTC := occ.UTC()
@@ -243,22 +245,24 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 	}
 
 	return VisitResponse{
-		VisitUUID:     visit.VisitUuid.Bytes,
-		PropertyID:    visit.PropertyID,
-		AgentID:       visit.AgentID.Int32,
-		VisitDate:     visit.VisitDate.Time,
-		Status:        "Pending",
-		CreatedAt:     visit.CreatedAt.Time,
-		ClientName:    "", // Se llena en el listado
+		VisitUUID:  visit.VisitUuid.Bytes,
+		PropertyID: visit.PropertyID,
+		AgentID:    visit.AgentID.Int32,
+		VisitDate:  visit.VisitDate.Time,
+		Status:     "Pending",
+		CreatedAt:  visit.CreatedAt.Time,
+		ClientName: "", // Se llena en el listado
 	}, nil
 }
 
 func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListVisitsFilter) ([]VisitResponse, error) {
 	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	params := sqlcgen.ListVisitsParams{}
-	
+
 	if filter.StatusID != nil {
 		params.StatusID = pgtype.Int4{Int32: *filter.StatusID, Valid: true}
 	}
@@ -271,26 +275,41 @@ func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListV
 
 	switch role {
 	case 1: // Admin
-	case 2: params.AgentID = pgtype.Int4{Int32: userID, Valid: true}
-	case 3: params.ClientID = pgtype.Int4{Int32: userID, Valid: true}
-	default: return nil, errors.New("rol de usuario no reconocido")
+	case 2:
+		params.AgentID = pgtype.Int4{Int32: userID, Valid: true}
+	case 3:
+		params.ClientID = pgtype.Int4{Int32: userID, Valid: true}
+	default:
+		return nil, errors.New("rol de usuario no reconocido")
 	}
 
 	rows, err := s.repo.ListVisits(ctx, params)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 
 	res := make([]VisitResponse, len(rows))
 	for i, r := range rows {
 		clientName := ""
-		if r.ClientName != nil { clientName = r.ClientName.(string) }
+		if r.ClientName != nil {
+			clientName = r.ClientName.(string)
+		}
 		agentName := ""
-		if r.AgentName != nil { agentName = r.AgentName.(string) }
+		if r.AgentName != nil {
+			agentName = r.AgentName.(string)
+		}
 		agentPhone := ""
-		if r.AgentPhone.Valid { agentPhone = r.AgentPhone.String }
+		if r.AgentPhone.Valid {
+			agentPhone = r.AgentPhone.String
+		}
 		cityName := ""
-		if r.CityName.Valid { cityName = r.CityName.String }
+		if r.CityName.Valid {
+			cityName = r.CityName.String
+		}
 		address := ""
-		if r.Address != nil { address = r.Address.(string) }
+		if r.Address != nil {
+			address = r.Address.(string)
+		}
 
 		res[i] = VisitResponse{
 			VisitUUID:     r.VisitUuid.Bytes,
@@ -313,31 +332,49 @@ func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListV
 
 func (s *service) ConfirmVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error {
 	visit, err := s.repo.GetVisitByUUID(ctx, visitUUID)
-	if err != nil { return errors.New("visita no encontrada") }
+	if err != nil {
+		return errors.New("visita no encontrada")
+	}
 
 	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	currentStatus := visit.StatusID
 	newStatus := currentStatus
 
-	if role == 3 { // Cliente
-		if visit.ClientID != userID { return errors.New("no tienes permiso para confirmar esta visita") }
+	if role == 3 {
+		if visit.ClientID != userID {
+			return errors.New("no tienes permiso para confirmar esta visita")
+		}
 		switch currentStatus {
-		case StatusPending: newStatus = StatusWaitingAgent
-		case StatusWaitingClient: newStatus = StatusConfirmed
+		case StatusPending:
+			newStatus = StatusWaitingAgent
+		case StatusWaitingClient:
+			newStatus = StatusConfirmed
 		}
 	} else if role == 2 { // Agente
-		if !visit.AgentID.Valid || visit.AgentID.Int32 != userID { return errors.New("no eres el agente asignado a esta visita") }
-		switch currentStatus {
-		case StatusPending: newStatus = StatusWaitingClient
-		case StatusWaitingAgent: newStatus = StatusConfirmed
+		if !visit.AgentID.Valid || visit.AgentID.Int32 != userID {
+			return errors.New("no eres el agente asignado a esta visita")
 		}
-	} else if role == 1 { newStatus = StatusConfirmed }
+		switch currentStatus {
+		case StatusPending:
+			newStatus = StatusWaitingClient
+		case StatusWaitingAgent:
+			newStatus = StatusConfirmed
+		}
+	} else if role == 1 {
+		newStatus = StatusConfirmed
+	}
 
-	if newStatus == currentStatus { return errors.New("operación no válida o ya confirmada") }
+	if newStatus == currentStatus {
+		return errors.New("operación no válida o ya confirmada")
+	}
 
-	if err := s.repo.UpdateVisitStatus(ctx, visit.VisitID, newStatus); err != nil { return translateError(err) }
+	if err := s.repo.UpdateVisitStatus(ctx, visit.VisitID, newStatus); err != nil {
+		return translateError(err)
+	}
 	return s.repo.CreateVisitStatusHistory(ctx, sqlcgen.CreateVisitStatusHistoryParams{
 		VisitID: visit.VisitID, PreviousStatusID: currentStatus, NewStatusID: newStatus, ChangedByUserID: userID,
 	})
@@ -355,7 +392,9 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 
 	// 1. Obtener cita original
 	oldVisit, err := txRepo.GetVisitByUUID(ctx, visitUUID)
-	if err != nil { return VisitResponse{}, errors.New("visita no encontrada") }
+	if err != nil {
+		return VisitResponse{}, errors.New("visita no encontrada")
+	}
 
 	if oldVisit.StatusID == StatusCancelled {
 		return VisitResponse{}, errors.New("no se puede reagendar una cita ya cancelada")
@@ -363,7 +402,9 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 
 	// 2. Validar permisos
 	role, err := txRepo.GetUserRole(ctx, userID)
-	if err != nil { return VisitResponse{}, err }
+	if err != nil {
+		return VisitResponse{}, err
+	}
 
 	canReschedule := (role == 1) || (role == 3 && oldVisit.ClientID == userID) || (role == 2 && oldVisit.AgentID.Valid && oldVisit.AgentID.Int32 == userID)
 	if !canReschedule {
@@ -401,10 +442,14 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 
 func (s *service) CompleteVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error {
 	visit, err := s.repo.GetVisitByUUID(ctx, visitUUID)
-	if err != nil { return errors.New("visita no encontrada") }
+	if err != nil {
+		return errors.New("visita no encontrada")
+	}
 
 	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 
 	if role != 1 && role != 2 {
 		return errors.New("solo el agente o administrador pueden marcar la visita como completada")
