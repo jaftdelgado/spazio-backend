@@ -18,7 +18,7 @@ func NewModule(db *pgxpool.Pool, r2Client *storage.R2Client) *Module {
 }
 
 func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
-	uploads := router.Group("/uploads")
+	uploads := router.Group("/api/v1/uploads")
 	{
 		uploads.POST("/properties/:property_uuid/photos", m.handler.uploadPropertyPhoto)
 	}

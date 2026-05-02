@@ -10,6 +10,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 
+	_ "github.com/jaftdelgado/spazio-backend/docs"
 	"github.com/jaftdelgado/spazio-backend/internal/config"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
@@ -18,10 +19,9 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/uploads"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/users"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/visits"
 	"github.com/jaftdelgado/spazio-backend/internal/storage"
-
-	_ "github.com/jaftdelgado/spazio-backend/docs"
 )
 
 // @title Spazio API
@@ -48,6 +48,7 @@ func main() {
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
+	usersModule := users.NewModule(database, cfg)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
 
@@ -65,10 +66,12 @@ func main() {
 	catalogsModule.RegisterRoutes(api)
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
+	usersModule.RegisterRoutes(api)
 	uploadsModule.RegisterRoutes(api)
 	visitsModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}
+
 }

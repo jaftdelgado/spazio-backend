@@ -20,12 +20,12 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("/properties/:id/availability", h.getAvailability)
-	r.POST("/visits", h.scheduleVisit)
-	r.GET("/visits", h.listVisits)
-	r.PATCH("/visits/:uuid/confirm", h.confirmVisit)
-	r.PATCH("/visits/:uuid/reschedule", h.rescheduleVisit)
-	r.PATCH("/visits/:uuid/complete", h.completeVisit)
+	r.GET("/api/v1/properties/:id/availability", h.getAvailability)
+	r.POST("/api/v1/visits", h.scheduleVisit)
+	r.GET("/api/v1/visits", h.listVisits)
+	r.PATCH("/api/v1/visits/:uuid/confirm", h.confirmVisit)
+	r.PATCH("/api/v1/visits/:uuid/reschedule", h.rescheduleVisit)
+	r.PATCH("/api/v1/visits/:uuid/complete", h.completeVisit)
 }
 
 // @Summary Get property availability
@@ -38,7 +38,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Success 200 {array} TimeSlot
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /properties/{id}/availability [get]
+// @Router /api/v1/properties/{id}/availability [get]
 func (h *Handler) getAvailability(c *gin.Context) {
 	idStr := c.Param("id")
 	propertyID, err := strconv.Atoi(idStr)
@@ -77,7 +77,7 @@ func (h *Handler) getAvailability(c *gin.Context) {
 // @Success 201 {object} VisitResponse
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /visits [post]
+// @Router /api/v1/visits [post]
 func (h *Handler) scheduleVisit(c *gin.Context) {
 	var req CreateVisitRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -126,7 +126,7 @@ func validateCreateVisitRequest(req CreateVisitRequest) error {
 // @Param date query string false "Date (YYYY-MM-DD)"
 // @Success 200 {array} VisitResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /visits [get]
+// @Router /api/v1/visits [get]
 func (h *Handler) listVisits(c *gin.Context) {
 	userIDStr := c.GetHeader("X-User-ID")
 	userID, err := strconv.Atoi(userIDStr)
@@ -171,7 +171,7 @@ func (h *Handler) listVisits(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /visits/{uuid}/confirm [patch]
+// @Router /api/v1/visits/{uuid}/confirm [patch]
 func (h *Handler) confirmVisit(c *gin.Context) {
 	uuidStr := c.Param("uuid")
 	visitUUID, err := uuid.Parse(uuidStr)
@@ -207,7 +207,7 @@ func (h *Handler) confirmVisit(c *gin.Context) {
 // @Success 201 {object} VisitResponse
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /visits/{uuid}/reschedule [patch]
+// @Router /api/v1/visits/{uuid}/reschedule [patch]
 func (h *Handler) rescheduleVisit(c *gin.Context) {
 	uuidStr := c.Param("uuid")
 	visitUUID, err := uuid.Parse(uuidStr)
@@ -253,7 +253,7 @@ func (h *Handler) rescheduleVisit(c *gin.Context) {
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /visits/{uuid}/complete [patch]
+// @Router /api/v1/visits/{uuid}/complete [patch]
 func (h *Handler) completeVisit(c *gin.Context) {
 	uuidStr := c.Param("uuid")
 	visitUUID, err := uuid.Parse(uuidStr)
