@@ -117,7 +117,7 @@ func (r *repository) UpdatePropertyPhotos(ctx context.Context, propertyUUID stri
 
 	if err := queries.UpdatePropertyCoverPhoto(ctx, sqlcgen.UpdatePropertyCoverPhotoParams{
 		PropertyID:    propertyID,
-		CoverPhotoUrl: coverStorageKey,
+		CoverPhotoUrl: textFromPointer(stringPointer(coverStorageKey)),
 	}); err != nil {
 		return fmt.Errorf("update property cover photo: %w", err)
 	}
@@ -148,4 +148,8 @@ func stringPointerFromText(value pgtype.Text) *string {
 
 	text := value.String
 	return &text
+}
+
+func stringPointer(value string) *string {
+	return &value
 }

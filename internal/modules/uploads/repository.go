@@ -72,7 +72,7 @@ func (r *repository) SavePropertyPhoto(ctx context.Context, input SavePhotoInput
 	if input.IsCover {
 		err = q.UpdatePropertyCoverPhoto(ctx, sqlcgen.UpdatePropertyCoverPhotoParams{
 			PropertyID:    propertyID,
-			CoverPhotoUrl: input.StorageKey,
+			CoverPhotoUrl: pgtype.Text{String: input.StorageKey, Valid: true},
 		})
 		if err != nil {
 			return 0, fmt.Errorf("update cover photo: %w", err)
