@@ -43,7 +43,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	propertiesModule := properties.NewModule(database)
+	propertiesModule := properties.NewModule(database, r2)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)

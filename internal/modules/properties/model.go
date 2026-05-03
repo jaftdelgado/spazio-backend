@@ -14,6 +14,9 @@ const (
 	ClauseValueTypeBoolean = 1
 	ClauseValueTypeRange   = 2
 	ClauseValueTypeInteger = 3
+
+	StatusAvailable int32 = 2
+	StatusDeleted   int32 = 5
 )
 
 // CreatePropertyInput is the request payload required to register a property.
@@ -181,6 +184,7 @@ type GetPropertyFullResult struct {
 
 // GetPropertyData contiene los datos base, subtipo y ubicación de la propiedad.
 type GetPropertyData struct {
+	PropertyID     int32            `json:"-"`
 	PropertyUUID   string           `json:"property_uuid"`
 	OwnerID        int32            `json:"owner_id"`
 	Subtype        string           `json:"subtype"`
@@ -188,6 +192,7 @@ type GetPropertyData struct {
 	Description    string           `json:"description"`
 	PropertyTypeID int32            `json:"property_type_id"`
 	ModalityID     int32            `json:"modality_id"`
+	StatusID       int32            `json:"status_id"`
 	LotArea        float64          `json:"lot_area"`
 	IsFeatured     bool             `json:"is_featured"`
 	Residential    *ResidentialData `json:"residential"`
@@ -348,6 +353,12 @@ type UpdatePropertyResult struct {
 	Message string `json:"message"`
 }
 
+// DeletePropertyInput is the request payload used to soft delete a property.
+type DeletePropertyInput struct {
+	Confirm         bool  `json:"confirm" example:"true"`
+	ChangedByUserID int32 `json:"changed_by_user_id" example:"1"`
+}
+
 // PropertyClauseData represents a linked clause with its stored value payload.
 type PropertyClauseData struct {
 	ClauseID     int32    `json:"clause_id" example:"1"`
@@ -497,6 +508,8 @@ type PropertyRepository interface {
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
+	GetPropertyStorageKeys(ctx context.Context, propertyID int32) ([]string, error)
+	DeleteProperty(ctx context.Context, propertyID int32, changedByUserID int32) error
 }
 
 // PropertyService defines application logic operations for properties.
@@ -515,4 +528,9 @@ type PropertyService interface {
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
+	DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error
+}
+
+type propertyPhotoStorage interface {
+	Delete(ctx context.Context, storageKey string) error
 }

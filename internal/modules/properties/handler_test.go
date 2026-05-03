@@ -26,6 +26,10 @@ type mockService struct {
 	fullPropertyResult GetPropertyFullResult
 	fullPropertyErr    error
 	fullPropertyCalled bool
+	deleteErr          error
+	deleteInput        DeletePropertyInput
+	deleteUUID         string
+	deleteCalled       bool
 }
 
 func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
@@ -84,6 +88,13 @@ func (m *mockService) GetFullProperty(_ context.Context, _ string) (GetPropertyF
 
 func (m *mockService) UpdateProperty(_ context.Context, _ string, _ UpdatePropertyInput) (UpdatePropertyResult, error) {
 	return UpdatePropertyResult{}, nil
+}
+
+func (m *mockService) DeleteProperty(_ context.Context, propertyUUID string, input DeletePropertyInput) error {
+	m.deleteCalled = true
+	m.deleteUUID = propertyUUID
+	m.deleteInput = input
+	return m.deleteErr
 }
 
 func TestCreateProperty(t *testing.T) {
@@ -504,6 +515,111 @@ func TestGetPropertyNotFound(t *testing.T) {
 
 		if !bytes.Contains(recorder.Body.Bytes(), []byte(ErrPropertyNotFound.Error())) {
 			t.Fatalf("body %q does not contain %q", recorder.Body.String(), ErrPropertyNotFound.Error())
+		}
+	})
+}
+
+func TestDeleteProperty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("confirm false", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		body := []byte(`{"confirm":false,"changed_by_user_id":1}`)
+		ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{}
+		handler := NewHandler(mock)
+		handler.deleteProperty(ctx)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+
+		if mock.deleteCalled {
+			t.Fatalf("deleteCalled = true, want false")
+		}
+	})
+
+	t.Run("changed_by_user_id zero", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		body := []byte(`{"confirm":true,"changed_by_user_id":0}`)
+		ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{}
+		handler := NewHandler(mock)
+		handler.deleteProperty(ctx)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+
+		if mock.deleteCalled {
+			t.Fatalf("deleteCalled = true, want false")
+		}
+	})
+
+	t.Run("property not found", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		body := []byte(`{"confirm":true,"changed_by_user_id":1}`)
+		ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{deleteErr: ErrPropertyNotFound}
+		handler := NewHandler(mock)
+		handler.deleteProperty(ctx)
+
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusNotFound)
+		}
+	})
+
+	t.Run("status not available", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		body := []byte(`{"confirm":true,"changed_by_user_id":1}`)
+		ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{deleteErr: ValidationError{Message: "property cannot be deleted: status is not available"}}
+		handler := NewHandler(mock)
+		handler.deleteProperty(ctx)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("deletes property successfully", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		body := []byte(`{"confirm":true,"changed_by_user_id":1}`)
+		ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/properties/test-uuid", bytes.NewReader(body))
+		ctx.Request.Header.Set("Content-Type", "application/json")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{}
+		handler := NewHandler(mock)
+		handler.deleteProperty(ctx)
+
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+		}
+
+		if !mock.deleteCalled {
+			t.Fatalf("deleteCalled = false, want true")
+		}
+
+		if !bytes.Contains(recorder.Body.Bytes(), []byte("property deleted successfully")) {
+			t.Fatalf("body %q does not contain expected message", recorder.Body.String())
 		}
 	})
 }

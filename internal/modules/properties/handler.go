@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/api/v1/properties", h.listProperties)
 	r.GET("/api/v1/properties/:uuid", h.getProperty)
 	r.PATCH("/api/v1/properties/:uuid", h.updateProperty)
+	r.DELETE("/api/v1/properties/:uuid", h.deleteProperty)
 	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
 	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
 	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)

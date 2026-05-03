@@ -255,6 +255,15 @@ CREATE TABLE property_photos (
 	created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE property_status_history (
+	history_id serial PRIMARY KEY,
+	property_id int NOT NULL REFERENCES properties(property_id),
+	previous_status_id int NOT NULL REFERENCES property_status(status_id),
+	new_status_id int NOT NULL REFERENCES property_status(status_id),
+	changed_by_user_id int NOT NULL REFERENCES users(user_id),
+	changed_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE property_agents (
 	property_id integer NOT NULL REFERENCES properties(property_id),
 	agent_id integer NOT NULL REFERENCES users(user_id),

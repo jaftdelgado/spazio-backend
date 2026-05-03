@@ -381,11 +381,13 @@ WHERE property_id = $1 AND period_id = $2 AND is_current = true;
 -- name: GetPropertyBaseByID :one
 SELECT
   p.property_uuid,
+  p.property_id,
   p.owner_id,
   p.title,
   p.description,
   p.property_type_id,
   p.modality_id,
+  p.status_id,
   p.lot_area,
   p.is_featured,
   pt.subtype
@@ -473,3 +475,28 @@ SET city_id = $2,
     coordinates = ST_SetSRID(ST_MakePoint($9, $8), 4326),
     is_public_address = $10
 WHERE property_id = $1;
+
+-- name: GetPropertyStorageKeys :many
+SELECT storage_key
+FROM property_photos
+WHERE property_id = $1
+ORDER BY photo_id ASC;
+
+-- name: SoftDeleteProperty :exec
+UPDATE properties
+SET deleted_at = NOW(),
+    status_id = 5
+WHERE property_id = $1;
+
+-- name: ClearPropertyCoverPhotoURL :exec
+UPDATE properties
+SET cover_photo_url = NULL
+WHERE property_id = $1;
+
+-- name: InsertPropertyStatusHistory :exec
+INSERT INTO property_status_history (
+  property_id,
+  previous_status_id,
+  new_status_id,
+  changed_by_user_id
+) VALUES ($1, $2, $3, $4);
