@@ -71,6 +71,146 @@ SELECT subtype
 FROM property_types
 WHERE property_type_id = $1;
 
+-- name: ListPropertiesCards :many
+WITH sale_current AS (
+  SELECT
+    property_id,
+    sale_price,
+    currency
+  FROM sale_prices
+  WHERE is_current = true
+),
+ranked_rent_prices AS (
+  SELECT
+    rp.property_id,
+    rp.rent_price,
+    rp.currency,
+    rper.name AS period_name,
+    ROW_NUMBER() OVER (
+      PARTITION BY rp.property_id
+      ORDER BY
+        CASE
+          WHEN LOWER(rper.name) LIKE '%month%' OR LOWER(rper.name) LIKE '%mens%' THEN 1
+          WHEN LOWER(rper.name) LIKE '%year%' OR LOWER(rper.name) LIKE '%an%' THEN 2
+          WHEN LOWER(rper.name) LIKE '%week%' OR LOWER(rper.name) LIKE '%seman%' THEN 3
+          WHEN LOWER(rper.name) LIKE '%day%' OR LOWER(rper.name) LIKE '%dia%' THEN 4
+          ELSE 100
+        END,
+        rp.period_id ASC
+    ) AS rent_rank
+  FROM rent_prices rp
+  JOIN rent_periods rper ON rper.period_id = rp.period_id
+  WHERE rp.is_current = true
+),
+selected_rent AS (
+  SELECT
+    property_id,
+    rent_price,
+    currency,
+    period_name
+  FROM ranked_rent_prices
+  WHERE rent_rank = 1
+)
+SELECT
+  p.property_uuid,
+  p.title,
+  p.cover_photo_url,
+  pt.property_type_id,
+  pt.name AS property_type_name,
+  pt.icon AS property_type_icon,
+  m.modality_id,
+  m.name AS modality_name,
+  ps.status_id,
+  ps.name AS status_name,
+  CAST(
+    COALESCE(sc.sale_price, sr.rent_price) AS numeric
+  ) AS display_price_amount,
+  CAST(
+    COALESCE(sc.currency, sr.currency, '') AS text
+  ) AS display_price_currency,
+  CAST(
+    CASE
+      WHEN sc.sale_price IS NOT NULL THEN 'sale'
+      WHEN sr.rent_price IS NOT NULL THEN 'rent'
+      ELSE ''
+    END AS text
+  ) AS display_price_type,
+  CAST(
+    CASE
+      WHEN sc.sale_price IS NULL THEN COALESCE(sr.period_name, '')
+      ELSE ''
+    END AS text
+  ) AS display_period_name,
+  COUNT(*) OVER() AS total_count
+FROM properties p
+JOIN property_types pt ON pt.property_type_id = p.property_type_id
+JOIN modalities m ON m.modality_id = p.modality_id
+JOIN property_status ps ON ps.status_id = p.status_id
+LEFT JOIN locations l ON l.property_id = p.property_id
+LEFT JOIN cities ci ON ci.city_id = l.city_id
+LEFT JOIN states st ON st.state_id = ci.state_id
+LEFT JOIN countries co ON co.country_id = st.country_id
+LEFT JOIN sale_current sc ON sc.property_id = p.property_id
+LEFT JOIN selected_rent sr ON sr.property_id = p.property_id
+WHERE p.deleted_at IS NULL
+  AND (
+    sqlc.arg(search_query)::text = ''
+    OR p.title ILIKE '%' || sqlc.arg(search_query)::text || '%'
+    OR l.street ILIKE '%' || sqlc.arg(search_query)::text || '%'
+    OR l.neighborhood ILIKE '%' || sqlc.arg(search_query)::text || '%'
+    OR ci.name ILIKE '%' || sqlc.arg(search_query)::text || '%'
+    OR st.name ILIKE '%' || sqlc.arg(search_query)::text || '%'
+    OR co.name ILIKE '%' || sqlc.arg(search_query)::text || '%'
+  )
+  AND (
+    cardinality(sqlc.arg(status_ids)::int[]) = 0
+    OR p.status_id = ANY(sqlc.arg(status_ids)::int[])
+  )
+  AND (
+    sqlc.arg(property_type_id)::int = 0
+    OR p.property_type_id = sqlc.arg(property_type_id)::int
+  )
+  AND (
+    sqlc.arg(modality_id)::int = 0
+    OR p.modality_id = sqlc.arg(modality_id)::int
+  )
+  AND (
+    sqlc.arg(country_id)::int = 0
+    OR co.country_id = sqlc.arg(country_id)::int
+  )
+  AND (
+    sqlc.arg(state_id)::int = 0
+    OR st.state_id = sqlc.arg(state_id)::int
+  )
+  AND (
+    sqlc.arg(city_id)::int = 0
+    OR ci.city_id = sqlc.arg(city_id)::int
+  )
+ORDER BY
+  CASE WHEN sqlc.arg(sort_field)::text = '' THEN p.is_featured END DESC,
+  CASE WHEN sqlc.arg(sort_field)::text = '' THEN p.created_at END DESC,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'created_at' AND sqlc.arg(sort_order)::text = 'asc' THEN p.created_at
+  END ASC,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'created_at' AND sqlc.arg(sort_order)::text = 'desc' THEN p.created_at
+  END DESC,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'title' AND sqlc.arg(sort_order)::text = 'asc' THEN p.title
+  END ASC,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'title' AND sqlc.arg(sort_order)::text = 'desc' THEN p.title
+  END DESC,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'price' AND sqlc.arg(sort_order)::text = 'asc' THEN COALESCE(sc.sale_price, sr.rent_price)
+  END ASC NULLS LAST,
+  CASE
+    WHEN sqlc.arg(sort_field)::text = 'price' AND sqlc.arg(sort_order)::text = 'desc' THEN COALESCE(sc.sale_price, sr.rent_price)
+  END DESC NULLS LAST,
+  p.property_id DESC
+LIMIT sqlc.arg(page_size)
+OFFSET sqlc.arg(page_offset);
+
 -- name: ListPropertyClauses :many
 SELECT
   clause_id,
@@ -165,6 +305,37 @@ SELECT
 FROM rent_prices
 WHERE property_id = $1 AND is_current = true
 ORDER BY period_id ASC;
+
+-- name: ListPropertyPriceTimeline :many
+SELECT
+  'sale'::text AS price_type,
+  sp.sale_price AS amount,
+  sp.currency,
+  NULL::text AS period_name,
+  sp.is_negotiable,
+  NULL::numeric AS deposit,
+  sp.valid_from,
+  sp.valid_until,
+  sp.is_current
+FROM sale_prices sp
+WHERE sp.property_id = $1
+
+UNION ALL
+
+SELECT
+  'rent'::text AS price_type,
+  rp.rent_price AS amount,
+  rp.currency,
+  rper.name AS period_name,
+  rp.is_negotiable,
+  rp.deposit,
+  rp.valid_from,
+  rp.valid_until,
+  rp.is_current
+FROM rent_prices rp
+JOIN rent_periods rper ON rper.period_id = rp.period_id
+WHERE rp.property_id = $1
+ORDER BY valid_from DESC, price_type ASC, period_name ASC NULLS LAST;
 
 -- name: ListActiveRentPriceByPeriod :one
 SELECT

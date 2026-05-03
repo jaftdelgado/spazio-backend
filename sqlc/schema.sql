@@ -77,7 +77,7 @@ CREATE TABLE properties (
 	property_type_id int NOT NULL REFERENCES property_types(property_type_id),
 	modality_id int NOT NULL REFERENCES modalities(modality_id),
 	status_id int NOT NULL REFERENCES property_status(status_id),
-	cover_photo_url varchar(255) NOT NULL,
+	cover_photo_url varchar(255),
 	lot_area numeric(12,2) NOT NULL,
 	is_featured boolean NOT NULL DEFAULT false,
 	published_at timestamptz,

@@ -3,6 +3,7 @@ package properties
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 const (
@@ -94,6 +95,75 @@ type CreatePropertyClauseInput struct {
 	MaxValue     *float64 `json:"max_value,omitempty" example:"3"`
 }
 
+// ListPropertiesInput defines filters for listing property cards.
+type ListPropertiesInput struct {
+	Page           int32
+	PageSize       int32
+	Query          string
+	StatusIDs      []int32
+	PropertyTypeID int32
+	ModalityID     int32
+	CountryID      int32
+	StateID        int32
+	CityID         int32
+	Sort           string
+	Order          string
+}
+
+// ListPropertiesResult is the response payload returned by the properties list endpoint.
+type ListPropertiesResult struct {
+	Data []PropertyCardData `json:"data"`
+	Meta ListPropertiesMeta `json:"meta"`
+}
+
+// ListPropertiesMeta contains pagination metadata for property cards.
+type ListPropertiesMeta struct {
+	TotalCount  int64 `json:"total_count"`
+	TotalPages  int32 `json:"total_pages"`
+	CurrentPage int32 `json:"current_page"`
+	PageSize    int32 `json:"page_size"`
+	HasNext     bool  `json:"has_next"`
+	HasPrev     bool  `json:"has_prev"`
+}
+
+// PropertyCardData represents a property in card format.
+type PropertyCardData struct {
+	PropertyUUID  string                   `json:"property_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
+	Title         string                   `json:"title" example:"Apartment in Downtown"`
+	CoverPhotoURL *string                  `json:"cover_photo_url" example:"https://cdn.example.com/properties/cover.jpg"`
+	PropertyType  PropertyCardTypeData     `json:"property_type"`
+	Modality      PropertyCardModalityData `json:"modality"`
+	Status        PropertyCardStatusData   `json:"status"`
+	Price         *PropertyCardPriceData   `json:"price"`
+}
+
+// PropertyCardTypeData contains the serialized property type used in cards.
+type PropertyCardTypeData struct {
+	PropertyTypeID int32   `json:"property_type_id" example:"1"`
+	Name           string  `json:"name" example:"Apartment"`
+	Icon           *string `json:"icon,omitempty" example:"/icons/apartment.svg"`
+}
+
+// PropertyCardModalityData contains the serialized modality used in cards.
+type PropertyCardModalityData struct {
+	ModalityID int32  `json:"modality_id" example:"2"`
+	Name       string `json:"name" example:"Rent"`
+}
+
+// PropertyCardStatusData contains the serialized status used in cards.
+type PropertyCardStatusData struct {
+	StatusID int32  `json:"status_id" example:"2"`
+	Name     string `json:"name" example:"Available"`
+}
+
+// PropertyCardPriceData contains the selected price shown in property cards.
+type PropertyCardPriceData struct {
+	Amount     float64 `json:"amount" example:"25000"`
+	Currency   string  `json:"currency" example:"MXN"`
+	PriceType  string  `json:"price_type" example:"rent"`
+	PeriodName *string `json:"period_name" example:"Monthly"`
+}
+
 // GetPropertyClausesResult is the response returned by the property clauses list endpoint.
 type GetPropertyClausesResult struct {
 	Data []PropertyClauseData `json:"data"`
@@ -102,6 +172,11 @@ type GetPropertyClausesResult struct {
 // GetPropertyResult es la respuesta del GET /properties/:uuid.
 type GetPropertyResult struct {
 	Data GetPropertyData `json:"data"`
+}
+
+// GetPropertyFullResult is the response returned by GET /properties/:uuid?full=true.
+type GetPropertyFullResult struct {
+	Data GetPropertyFullData `json:"data"`
 }
 
 // GetPropertyData contiene los datos base, subtipo y ubicación de la propiedad.
@@ -118,6 +193,73 @@ type GetPropertyData struct {
 	Residential    *ResidentialData `json:"residential"`
 	Commercial     *CommercialData  `json:"commercial"`
 	Location       *LocationData    `json:"location"`
+}
+
+// GetPropertyFullData contains the base property data plus related resources.
+type GetPropertyFullData struct {
+	PropertyUUID   string                 `json:"property_uuid"`
+	OwnerID        int32                  `json:"owner_id"`
+	Subtype        string                 `json:"subtype"`
+	Title          string                 `json:"title"`
+	Description    string                 `json:"description"`
+	PropertyTypeID int32                  `json:"property_type_id"`
+	ModalityID     int32                  `json:"modality_id"`
+	LotArea        float64                `json:"lot_area"`
+	IsFeatured     bool                   `json:"is_featured"`
+	Residential    *ResidentialData       `json:"residential"`
+	Commercial     *CommercialData        `json:"commercial"`
+	Location       *LocationData          `json:"location"`
+	Prices         PropertyFullPricesData `json:"prices"`
+	Photos         []PropertyPhotoData    `json:"photos"`
+	Services       []int32                `json:"services"`
+	Clauses        []PropertyClauseData   `json:"clauses"`
+}
+
+// PropertyFullPricesData contains current prices and timeline entries for the property.
+type PropertyFullPricesData struct {
+	Current PropertyCurrentPricesData  `json:"current"`
+	History []PropertyPriceHistoryData `json:"history"`
+}
+
+// PropertyCurrentPricesData contains the current prices grouped by sale and rent.
+type PropertyCurrentPricesData struct {
+	Sale *CurrentSalePriceDetailData  `json:"sale"`
+	Rent []CurrentRentPriceDetailData `json:"rent"`
+}
+
+// CurrentSalePriceDetailData contains the current sale price details.
+type CurrentSalePriceDetailData struct {
+	Amount       float64    `json:"amount" example:"1500000"`
+	Currency     string     `json:"currency" example:"MXN"`
+	IsNegotiable bool       `json:"is_negotiable" example:"true"`
+	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
+	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
+	IsCurrent    bool       `json:"is_current" example:"true"`
+}
+
+// CurrentRentPriceDetailData contains a current rent price detail.
+type CurrentRentPriceDetailData struct {
+	Amount       float64    `json:"amount" example:"25000"`
+	Currency     string     `json:"currency" example:"MXN"`
+	PeriodName   *string    `json:"period_name" example:"Monthly"`
+	IsNegotiable bool       `json:"is_negotiable" example:"false"`
+	Deposit      *float64   `json:"deposit,omitempty" example:"50000"`
+	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
+	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
+	IsCurrent    bool       `json:"is_current" example:"true"`
+}
+
+// PropertyPriceHistoryData contains one historical price entry.
+type PropertyPriceHistoryData struct {
+	PriceType    string     `json:"price_type" example:"sale"`
+	Amount       float64    `json:"amount" example:"1500000"`
+	Currency     string     `json:"currency" example:"MXN"`
+	PeriodName   *string    `json:"period_name,omitempty" example:"Monthly"`
+	IsNegotiable bool       `json:"is_negotiable" example:"true"`
+	Deposit      *float64   `json:"deposit,omitempty" example:"50000"`
+	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
+	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
+	IsCurrent    bool       `json:"is_current" example:"true"`
 }
 
 // ResidentialData contiene los campos del subtipo residencial.
@@ -341,6 +483,7 @@ type PropertyRepository interface {
 	GetPropertySubtype(ctx context.Context, propertyTypeID int32) (string, error)
 	GetClauseValueTypes(ctx context.Context, clauseIDs []int32) (map[int32]int32, error)
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	ListProperties(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error)
 	GetPropertyClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdatePropertyClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 	GetPropertyPhotos(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
@@ -352,12 +495,14 @@ type PropertyRepository interface {
 
 	// New persistence operations for GET / PATCH
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 }
 
 // PropertyService defines application logic operations for properties.
 type PropertyService interface {
 	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
 	GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
 	GetPhotos(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
@@ -368,5 +513,6 @@ type PropertyService interface {
 	UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 	// New endpoints
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 }

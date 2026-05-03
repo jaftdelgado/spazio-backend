@@ -12,16 +12,32 @@ import (
 )
 
 type mockService struct {
-	result CreatePropertyResult
-	err    error
-	input  CreatePropertyInput
-	called bool
+	result             CreatePropertyResult
+	err                error
+	input              CreatePropertyInput
+	called             bool
+	listResult         ListPropertiesResult
+	listErr            error
+	listInput          ListPropertiesInput
+	listCalled         bool
+	propertyResult     GetPropertyResult
+	propertyErr        error
+	propertyCalled     bool
+	fullPropertyResult GetPropertyFullResult
+	fullPropertyErr    error
+	fullPropertyCalled bool
 }
 
 func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
 	m.called = true
 	m.input = input
 	return m.result, m.err
+}
+
+func (m *mockService) ListProperties(_ context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
+	m.listCalled = true
+	m.listInput = input
+	return m.listResult, m.listErr
 }
 
 func (m *mockService) GetClauses(_ context.Context, _ string) (GetPropertyClausesResult, error) {
@@ -57,7 +73,13 @@ func (m *mockService) UpdatePrices(_ context.Context, _ string, _ UpdateProperty
 }
 
 func (m *mockService) GetProperty(_ context.Context, _ string) (GetPropertyResult, error) {
-	return GetPropertyResult{}, nil
+	m.propertyCalled = true
+	return m.propertyResult, m.propertyErr
+}
+
+func (m *mockService) GetFullProperty(_ context.Context, _ string) (GetPropertyFullResult, error) {
+	m.fullPropertyCalled = true
+	return m.fullPropertyResult, m.fullPropertyErr
 }
 
 func (m *mockService) UpdateProperty(_ context.Context, _ string, _ UpdatePropertyInput) (UpdatePropertyResult, error) {
@@ -305,4 +327,183 @@ func TestUpdatePropertyRejectsForbiddenFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestListProperties(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/properties?page=2&page_size=10&q=downtown&status_id=1&status_id=2&property_type_id=3&modality_id=2&country_id=1&state_id=4&city_id=9&sort=price&order=asc",
+		nil,
+	)
+
+	mock := &mockService{
+		listResult: ListPropertiesResult{
+			Data: []PropertyCardData{
+				{PropertyUUID: "123e4567-e89b-12d3-a456-426614174000", Title: "Apartment in Downtown"},
+			},
+			Meta: ListPropertiesMeta{
+				TotalCount:  1,
+				TotalPages:  1,
+				CurrentPage: 2,
+				PageSize:    10,
+				HasNext:     false,
+				HasPrev:     true,
+			},
+		},
+	}
+
+	handler := NewHandler(mock)
+	handler.listProperties(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !mock.listCalled {
+		t.Fatalf("listCalled = false, want true")
+	}
+
+	if mock.listInput.Page != 2 || mock.listInput.PageSize != 10 {
+		t.Fatalf("unexpected pagination input: %+v", mock.listInput)
+	}
+
+	if mock.listInput.Query != "downtown" {
+		t.Fatalf("query = %q, want %q", mock.listInput.Query, "downtown")
+	}
+
+	if len(mock.listInput.StatusIDs) != 2 || mock.listInput.StatusIDs[0] != 1 || mock.listInput.StatusIDs[1] != 2 {
+		t.Fatalf("status_ids = %+v, want [1 2]", mock.listInput.StatusIDs)
+	}
+
+	if mock.listInput.Sort != "price" || mock.listInput.Order != "asc" {
+		t.Fatalf("sort/order = %q/%q, want price/asc", mock.listInput.Sort, mock.listInput.Order)
+	}
+
+	if !bytes.Contains(recorder.Body.Bytes(), []byte("Apartment in Downtown")) {
+		t.Fatalf("body %q does not contain %q", recorder.Body.String(), "Apartment in Downtown")
+	}
+}
+
+func TestGetPropertyWithFullQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/properties/test-uuid?full=true", nil)
+	ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+	mock := &mockService{
+		fullPropertyResult: GetPropertyFullResult{
+			Data: GetPropertyFullData{
+				PropertyUUID: "test-uuid",
+				Photos:       []PropertyPhotoData{},
+				Services:     []int32{},
+				Clauses:      []PropertyClauseData{},
+				Prices: PropertyFullPricesData{
+					Current: PropertyCurrentPricesData{Rent: []CurrentRentPriceDetailData{}},
+					History: []PropertyPriceHistoryData{},
+				},
+			},
+		},
+	}
+
+	handler := NewHandler(mock)
+	handler.getProperty(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !mock.fullPropertyCalled {
+		t.Fatalf("fullPropertyCalled = false, want true")
+	}
+
+	if mock.propertyCalled {
+		t.Fatalf("propertyCalled = true, want false")
+	}
+}
+
+func TestGetPropertyWithoutFullQuery(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/properties/test-uuid", nil)
+	ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+	mock := &mockService{
+		propertyResult: GetPropertyResult{
+			Data: GetPropertyData{
+				PropertyUUID: "test-uuid",
+				Title:        "Property title",
+			},
+		},
+	}
+
+	handler := NewHandler(mock)
+	handler.getProperty(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	if !mock.propertyCalled {
+		t.Fatalf("propertyCalled = false, want true")
+	}
+
+	if mock.fullPropertyCalled {
+		t.Fatalf("fullPropertyCalled = true, want false")
+	}
+}
+
+func TestGetPropertyNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("not found without full", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/properties/test-uuid", nil)
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{
+			propertyErr: ErrPropertyNotFound,
+		}
+
+		handler := NewHandler(mock)
+		handler.getProperty(ctx)
+
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusNotFound)
+		}
+
+		if !bytes.Contains(recorder.Body.Bytes(), []byte(ErrPropertyNotFound.Error())) {
+			t.Fatalf("body %q does not contain %q", recorder.Body.String(), ErrPropertyNotFound.Error())
+		}
+	})
+
+	t.Run("not found with full", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/properties/test-uuid?full=true", nil)
+		ctx.Params = gin.Params{{Key: "uuid", Value: "test-uuid"}}
+
+		mock := &mockService{
+			fullPropertyErr: ErrPropertyNotFound,
+		}
+
+		handler := NewHandler(mock)
+		handler.getProperty(ctx)
+
+		if recorder.Code != http.StatusNotFound {
+			t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusNotFound)
+		}
+
+		if !bytes.Contains(recorder.Body.Bytes(), []byte(ErrPropertyNotFound.Error())) {
+			t.Fatalf("body %q does not contain %q", recorder.Body.String(), ErrPropertyNotFound.Error())
+		}
+	})
 }
