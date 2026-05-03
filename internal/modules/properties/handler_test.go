@@ -26,10 +26,13 @@ type mockService struct {
 	fullPropertyResult GetPropertyFullResult
 	fullPropertyErr    error
 	fullPropertyCalled bool
+<<<<<<< HEAD
 	deleteErr          error
 	deleteInput        DeletePropertyInput
 	deleteUUID         string
 	deleteCalled       bool
+=======
+>>>>>>> origin/main
 }
 
 func (m *mockService) CreateProperty(_ context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
