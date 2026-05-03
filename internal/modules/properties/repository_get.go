@@ -164,6 +164,7 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 	}
 
 	data := GetPropertyData{
+		PropertyID:     baseRow.PropertyID,
 		PropertyUUID:   baseRow.PropertyUuid.String(),
 		OwnerID:        baseRow.OwnerID,
 		Subtype:        baseRow.Subtype,
@@ -171,6 +172,7 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 		Description:    baseRow.Description,
 		PropertyTypeID: baseRow.PropertyTypeID,
 		ModalityID:     baseRow.ModalityID,
+		StatusID:       baseRow.StatusID,
 		LotArea:        lotValue.Float64,
 		IsFeatured:     baseRow.IsFeatured,
 	}

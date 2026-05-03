@@ -19,11 +19,15 @@ type modalityRequirements struct {
 
 type service struct {
 	repository PropertyRepository
+	r2Client   propertyPhotoStorage
 }
 
 // NewService builds a property service implementation.
-func NewService(repository PropertyRepository) PropertyService {
-	return &service{repository: repository}
+func NewService(repository PropertyRepository, r2Client propertyPhotoStorage) PropertyService {
+	return &service{
+		repository: repository,
+		r2Client:   r2Client,
+	}
 }
 
 func (s *service) CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
