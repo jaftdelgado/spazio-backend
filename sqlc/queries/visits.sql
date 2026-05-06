@@ -68,8 +68,7 @@ WHERE
     (sqlc.narg('agent_id')::int IS NULL OR v.agent_id = sqlc.narg('agent_id')) AND
     (sqlc.narg('status_id')::int IS NULL OR v.status_id = sqlc.narg('status_id')) AND
     (sqlc.narg('property_id')::int IS NULL OR v.property_id = sqlc.narg('property_id')) AND
-    (sqlc.narg('visit_date')::date IS NULL OR v.visit_date::date = sqlc.narg('visit_date')::date) AND
-    (v.deleted_at IS NULL)
+    (sqlc.narg('visit_date')::date IS NULL OR v.visit_date::date = sqlc.narg('visit_date')::date)
 ORDER BY v.visit_date DESC;
 
 -- name: UpdateVisitStatus :exec
