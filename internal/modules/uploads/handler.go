@@ -21,22 +21,23 @@ func NewHandler(service UploadsService) *Handler {
 	}
 }
 
+// uploadPropertyPhoto godoc
 // @Summary Upload property photo
-// @Description Uploads a photo for a property to R2 and registers it
-// @Tags uploads
-// @Accept mpfd
-// @Produce json
-// @Param property_uuid path string true "Property UUID"
-// @Param file formData file true "The image file"
-// @Param label formData string false "Label"
-// @Param alt_text formData string false "Alt Text"
-// @Param sort_order formData int false "Sort Order" default(0)
-// @Param is_cover formData bool false "Is Cover" default(false)
-// @Success 201 {object} UploadPhotoResult
-// @Failure 400 {object} shared.ErrorResponse
-// @Failure 404 {object} shared.ErrorResponse
-// @Failure 500 {object} shared.ErrorResponse
-// @Router /api/v1/uploads/properties/{property_uuid}/photos [post]
+// @Description Uploads a property photo to object storage and registers metadata. Max size is 5MB and allowed types are image/jpeg, image/png, and image/webp.
+// @Tags        Uploads
+// @Accept      multipart/form-data
+// @Produce     json
+// @Param       property_uuid  path      string  true   "Property UUID"
+// @Param       file           formData  file    true   "Image file"
+// @Param       label          formData  string  false  "Optional label"
+// @Param       alt_text       formData  string  false  "Optional alt text"
+// @Param       sort_order     formData  int     false  "Sort order" default(0)
+// @Param       is_cover       formData  bool    false  "Mark as cover" default(false)
+// @Success     201            {object}  UploadPhotoResult  "Photo uploaded"
+// @Failure     400            {object}  shared.ErrorResponse "Invalid input"
+// @Failure     404            {object}  shared.ErrorResponse "Property not found"
+// @Failure     500            {object}  shared.ErrorResponse "Internal error"
+// @Router      /api/v1/uploads/properties/{property_uuid}/photos [post]
 func (h *Handler) uploadPropertyPhoto(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("property_uuid"))
 	if propertyUUID == "" {
