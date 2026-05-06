@@ -13,10 +13,10 @@ import (
 )
 
 type mockCatalogsService struct {
-	listModalitiesFunc      func(ctx context.Context) (ListModalitiesResult, error)
-	listPropertyTypesFunc   func(ctx context.Context) (ListPropertyTypesResult, error)
-	listRentPeriodsFunc     func(ctx context.Context, propertyTypeID int32) (ListRentPeriodsResult, error)
-	listOrientationsFunc    func(ctx context.Context) (ListOrientationsResult, error)
+	listModalitiesFunc    func(ctx context.Context) (ListModalitiesResult, error)
+	listPropertyTypesFunc func(ctx context.Context) (ListPropertyTypesResult, error)
+	listRentPeriodsFunc   func(ctx context.Context, propertyTypeID int32) (ListRentPeriodsResult, error)
+	listOrientationsFunc  func(ctx context.Context) (ListOrientationsResult, error)
 }
 
 func (m *mockCatalogsService) ListModalities(ctx context.Context) (ListModalitiesResult, error) {
@@ -307,11 +307,11 @@ func TestHandler_ListRentPeriods(t *testing.T) {
 
 func TestResolveRequiredInt(t *testing.T) {
 	tests := []struct {
-		name       string
-		rawValue   string
-		field      string
-		wantValue  int32
-		wantErr    bool
+		name      string
+		rawValue  string
+		field     string
+		wantValue int32
+		wantErr   bool
 	}{
 		{name: "empty string", rawValue: "", field: "property_type_id", wantErr: true},
 		{name: "whitespace only", rawValue: "   ", field: "property_type_id", wantErr: true},

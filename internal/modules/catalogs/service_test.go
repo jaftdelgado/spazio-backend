@@ -8,7 +8,7 @@ import (
 )
 
 type mockCatalogsRepository struct {
-	listModalitiesFunc               func(ctx context.Context) ([]Modality, error)
+	listModalitiesFunc                func(ctx context.Context) ([]Modality, error)
 	listPropertyTypesFunc             func(ctx context.Context) ([]PropertyType, error)
 	listRentPeriodsByPropertyTypeFunc func(ctx context.Context, propertyTypeID int32) ([]RentPeriod, error)
 	listOrientationsFunc              func(ctx context.Context) ([]Orientation, error)
