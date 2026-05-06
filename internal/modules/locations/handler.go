@@ -25,6 +25,14 @@ func NewHandler(service LocationsService) *Handler {
 	}
 }
 
+// listCountries godoc
+// @Summary      List countries
+// @Description  Returns all available countries ordered by name.
+// @Tags         Locations
+// @Produce      json
+// @Success      200  {object}  ListCountriesResult  "List of countries"
+// @Failure      500  {object}  shared.ErrorResponse "Internal error"
+// @Router       /api/v1/locations/countries [get]
 func (h *Handler) listCountries(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -37,6 +45,16 @@ func (h *Handler) listCountries(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// listStates godoc
+// @Summary      List states
+// @Description  Returns all states for the selected country ordered by name.
+// @Tags         Locations
+// @Produce      json
+// @Param        country_id  query     int  true  "Country ID"
+// @Success      200         {object}  ListStatesResult    "List of states"
+// @Failure      400         {object}  shared.ErrorResponse "Invalid query params"
+// @Failure      500         {object}  shared.ErrorResponse "Internal error"
+// @Router       /api/v1/locations/states [get]
 func (h *Handler) listStates(c *gin.Context) {
 	countryIDStr := strings.TrimSpace(c.Query("country_id"))
 	if countryIDStr == "" {
@@ -62,6 +80,18 @@ func (h *Handler) listStates(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// listCities godoc
+// @Summary      List cities
+// @Description  Returns cities for the selected state. Results are paginated.
+// @Tags         Locations
+// @Produce      json
+// @Param        state_id   query     int  true   "State ID"
+// @Param        page       query     int  false  "Page number" default(1)
+// @Param        page_size  query     int  false  "Results per page" default(50)
+// @Success      200        {object}  ListCitiesResult     "List of cities"
+// @Failure      400        {object}  shared.ErrorResponse "Invalid query params"
+// @Failure      500        {object}  shared.ErrorResponse "Internal error"
+// @Router       /api/v1/locations/cities [get]
 func (h *Handler) listCities(c *gin.Context) {
 	stateIDStr := strings.TrimSpace(c.Query("state_id"))
 	if stateIDStr == "" {
