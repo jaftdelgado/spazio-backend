@@ -37,7 +37,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Success      200  {object}  ListModalitiesResult  "List of modalities"
 // @Failure      500  {object}  shared.ErrorResponse  "Internal error"
 // @Router       /api/v1/catalogs/modalities [get]
-// @Router       /api/v1/catalogs/modalities [get]
 func (h *Handler) listModalities(c *gin.Context) {
 	result, err := h.service.ListModalities(c.Request.Context())
 	if err != nil {
@@ -55,7 +54,6 @@ func (h *Handler) listModalities(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  ListPropertyTypesResult  "List of property types"
 // @Failure      500  {object}  shared.ErrorResponse     "Internal error"
-// @Router       /api/v1/catalogs/property-types [get]
 // @Router       /api/v1/catalogs/property-types [get]
 func (h *Handler) listPropertyTypes(c *gin.Context) {
 	result, err := h.service.ListPropertyTypes(c.Request.Context())
