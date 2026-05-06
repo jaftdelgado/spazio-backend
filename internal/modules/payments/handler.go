@@ -272,3 +272,4 @@ func validateListPaymentsRequest(limit int, offset int, dateFrom *time.Time, dat
 
 	return nil
 }
+
