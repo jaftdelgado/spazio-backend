@@ -53,7 +53,6 @@ func main() {
 	usersModule := users.NewModule(database, cfg)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
-	paymentsModule := payments.NewModule(database)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -73,7 +72,6 @@ func main() {
 	usersModule.RegisterRoutes(api)
 	uploadsModule.RegisterRoutes(api)
 	visitsModule.RegisterRoutes(api)
-	paymentsModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
