@@ -29,8 +29,6 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
 }
 
-// listPayments godoc
-// @Summary      List payments
 // @Description  Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.
 // @Tags         Payments
 // @Produce      json
@@ -42,11 +40,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Param        limit        query     int                          false  "Maximum number of results to return, default 20, max 100" default(20)
 // @Param        offset       query     int                          false  "Pagination offset, default 0" default(0)
 // @Success      200          {object}  payments.ListPaymentsResult  "Paginated list of payments"
-// @Failure      400          {object}  shared.ErrorResponse "Invalid query params"
-// @Failure      401          {object}  shared.ErrorResponse "Missing authentication"
-// @Failure      403          {object}  shared.ErrorResponse "Forbidden"
-// @Failure      500          {object}  shared.ErrorResponse "Internal error"
-// @Router       /api/v1/payments [get]
+
 func (h *Handler) listPayments(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
 	if !ok {
@@ -272,4 +266,3 @@ func validateListPaymentsRequest(limit int, offset int, dateFrom *time.Time, dat
 
 	return nil
 }
-
