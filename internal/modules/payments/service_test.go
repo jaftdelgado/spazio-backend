@@ -3,177 +3,300 @@ package payments
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
-type serviceMockRepository struct {
-	roleID         int32
-	roleErr        error
-	listItems      []PaymentListItem
-	listErr        error
-	detail         PaymentDetail
-	detailErr      error
-	lastListUserID int32
-	lastListRoleID int32
-	lastListInput  ListPaymentsInput
-	lastDetailID   int32
+type serviceTestRepository struct {
+	roleID             int32
+	roleErr            error
+	listItems          []PaymentListItem
+	listErr            error
+	detail             PaymentDetail
+	detailErr          error
+	getUserRoleCalled  bool
+	listPaymentsCalled bool
+	getPaymentCalled   bool
+	lastListUserID     int32
+	lastListRoleID     int32
+	lastListInput      ListPaymentsInput
+	lastPaymentID      int32
 }
 
-func (m *serviceMockRepository) ListPayments(_ context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error) {
+func (m *serviceTestRepository) ListPayments(_ context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error) {
+	m.listPaymentsCalled = true
 	m.lastListUserID = userID
 	m.lastListRoleID = roleID
 	m.lastListInput = input
 	return m.listItems, m.listErr
 }
 
-func (m *serviceMockRepository) GetPaymentByID(_ context.Context, paymentID int32) (PaymentDetail, error) {
-	m.lastDetailID = paymentID
+func (m *serviceTestRepository) GetPaymentByID(_ context.Context, paymentID int32) (PaymentDetail, error) {
+	m.getPaymentCalled = true
+	m.lastPaymentID = paymentID
 	return m.detail, m.detailErr
 }
 
-func (m *serviceMockRepository) GetUserRole(_ context.Context, userID int32) (int32, error) {
-	_ = userID
+func (m *serviceTestRepository) GetUserRole(_ context.Context, _ int32) (int32, error) {
+	m.getUserRoleCalled = true
 	return m.roleID, m.roleErr
 }
 
-func TestListPaymentsService(t *testing.T) {
-	tests := []struct {
-		name         string
-		userID       int32
-		input        ListPaymentsInput
-		repo         *serviceMockRepository
-		wantErr      error
-		wantTotal    int64
-		wantListRole int32
-	}{
-		{
-			name:         "lists payments as admin",
-			userID:       1,
-			input:        ListPaymentsInput{Limit: 20, Offset: 0},
-			repo:         &serviceMockRepository{roleID: roleAdminID, listItems: []PaymentListItem{{PaymentID: 1, TotalCount: 5}}},
-			wantTotal:    5,
-			wantListRole: roleAdminID,
-		},
-		{
-			name:         "returns zero total on empty page",
-			userID:       2,
-			input:        ListPaymentsInput{Limit: 20, Offset: 40},
-			repo:         &serviceMockRepository{roleID: roleAgentID, listItems: []PaymentListItem{}},
-			wantTotal:    0,
-			wantListRole: roleAgentID,
-		},
-		{
-			name:         "lists payments as client",
-			userID:       3,
-			input:        ListPaymentsInput{Limit: 20, Offset: 0},
-			repo:         &serviceMockRepository{roleID: roleClientID, listItems: []PaymentListItem{{PaymentID: 2, TotalCount: 1}}},
-			wantTotal:    1,
-			wantListRole: roleClientID,
-		},
-		{
-			name:    "rejects unsupported role",
-			userID:  9,
-			input:   ListPaymentsInput{Limit: 20, Offset: 0},
-			repo:    &serviceMockRepository{roleID: 99},
-			wantErr: ErrUnsupportedRole,
-		},
+func TestService_ListPayments_GetUserRoleFails(t *testing.T) {
+	repo := &serviceTestRepository{roleErr: errors.New("role lookup failed")}
+	svc := NewService(repo)
+
+	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo)
-
-			result, err := svc.ListPayments(context.Background(), tt.userID, tt.input)
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("error = %v, want %v", err, tt.wantErr)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("ListPayments() error = %v, want nil", err)
-			}
-
-			if result.Pagination.Total != tt.wantTotal {
-				t.Fatalf("total = %d, want %d", result.Pagination.Total, tt.wantTotal)
-			}
-
-			if tt.repo.lastListRoleID != tt.wantListRole {
-				t.Fatalf("list role = %d, want %d", tt.repo.lastListRoleID, tt.wantListRole)
-			}
-		})
+	if !strings.Contains(err.Error(), "list payments:") {
+		t.Fatalf("error = %q, want wrapped list payments error", err.Error())
+	}
+	if repo.listPaymentsCalled {
+		t.Fatal("did not expect ListPayments repository call")
 	}
 }
 
-func TestGetPaymentByIDService(t *testing.T) {
-	tests := []struct {
-		name    string
-		userID  int32
-		repo    *serviceMockRepository
-		wantErr error
-	}{
-		{
-			name:   "allows admin to read any payment",
-			userID: 1,
-			repo: &serviceMockRepository{
-				roleID: roleAdminID,
-				detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
-			},
-		},
-		{
-			name:   "allows agent to read own payment",
-			userID: 2,
-			repo: &serviceMockRepository{
-				roleID: roleAgentID,
-				detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
-			},
-		},
-		{
-			name:   "allows client to read own payment",
-			userID: 7,
-			repo: &serviceMockRepository{
-				roleID: roleClientID,
-				detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
-			},
-		},
-		{
-			name:   "rejects foreign payment for agent",
-			userID: 2,
-			repo: &serviceMockRepository{
-				roleID: roleAgentID,
-				detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 9},
-			},
-			wantErr: ErrPaymentForbidden,
-		},
-		{
-			name:   "returns not found when payment does not exist",
-			userID: 1,
-			repo: &serviceMockRepository{
-				roleID:    roleAdminID,
-				detailErr: ErrPaymentNotFound,
-			},
-			wantErr: ErrPaymentNotFound,
-		},
+func TestService_ListPayments_UnsupportedRole(t *testing.T) {
+	repo := &serviceTestRepository{roleID: 99}
+	svc := NewService(repo)
+
+	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	if !errors.Is(err, ErrUnsupportedRole) {
+		t.Fatalf("error = %v, want %v", err, ErrUnsupportedRole)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := NewService(tt.repo)
-
-			_, err := svc.GetPaymentByID(context.Background(), tt.userID, 1)
-			if tt.wantErr != nil {
-				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("error = %v, want %v", err, tt.wantErr)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("GetPaymentByID() error = %v, want nil", err)
-			}
-		})
+	if repo.listPaymentsCalled {
+		t.Fatal("did not expect ListPayments repository call")
 	}
 }
 
-var _ PaymentsRepository = (*serviceMockRepository)(nil)
+func TestService_ListPayments_RepositoryListFails(t *testing.T) {
+	repo := &serviceTestRepository{roleID: roleAdminID, listErr: errors.New("db down")}
+	svc := NewService(repo)
+
+	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "list payments:") {
+		t.Fatalf("error = %q, want wrapped list payments error", err.Error())
+	}
+	if !repo.listPaymentsCalled {
+		t.Fatal("expected ListPayments repository call")
+	}
+}
+
+func TestService_ListPayments_EmptyResult(t *testing.T) {
+	repo := &serviceTestRepository{roleID: roleAdminID, listItems: []PaymentListItem{}}
+	svc := NewService(repo)
+
+	result, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListPayments() error = %v, want nil", err)
+	}
+	if len(result.Data) != 0 {
+		t.Fatalf("len(data) = %d, want 0", len(result.Data))
+	}
+	if result.Pagination.Total != 0 {
+		t.Fatalf("pagination.total = %d, want 0", result.Pagination.Total)
+	}
+}
+
+func TestService_ListPayments_TotalFromFirstItem(t *testing.T) {
+	repo := &serviceTestRepository{
+		roleID: roleAdminID,
+		listItems: []PaymentListItem{
+			{PaymentID: 1, TotalCount: 84},
+			{PaymentID: 2, TotalCount: 84},
+		},
+	}
+	svc := NewService(repo)
+
+	result, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListPayments() error = %v, want nil", err)
+	}
+	if result.Pagination.Total != 84 {
+		t.Fatalf("pagination.total = %d, want 84", result.Pagination.Total)
+	}
+}
+
+func TestService_ListPayments_PaginationPropagated(t *testing.T) {
+	repo := &serviceTestRepository{
+		roleID:    roleAdminID,
+		listItems: []PaymentListItem{{PaymentID: 1, TotalCount: 1}},
+	}
+	svc := NewService(repo)
+
+	result, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 10, Offset: 20})
+	if err != nil {
+		t.Fatalf("ListPayments() error = %v, want nil", err)
+	}
+	if result.Pagination.Limit != 10 {
+		t.Fatalf("pagination.limit = %d, want 10", result.Pagination.Limit)
+	}
+	if result.Pagination.Offset != 20 {
+		t.Fatalf("pagination.offset = %d, want 20", result.Pagination.Offset)
+	}
+}
+
+func TestService_ListPayments_AdminReceivesAllPayments(t *testing.T) {
+	repo := &serviceTestRepository{
+		roleID: roleAdminID,
+		listItems: []PaymentListItem{
+			{PaymentID: 1, TotalCount: 3},
+			{PaymentID: 2, TotalCount: 3},
+			{PaymentID: 3, TotalCount: 3},
+		},
+	}
+	svc := NewService(repo)
+
+	result, err := svc.ListPayments(context.Background(), 1, ListPaymentsInput{Limit: 20, Offset: 0})
+	if err != nil {
+		t.Fatalf("ListPayments() error = %v, want nil", err)
+	}
+	if len(result.Data) != 3 {
+		t.Fatalf("len(data) = %d, want 3", len(result.Data))
+	}
+	if repo.lastListRoleID != roleAdminID {
+		t.Fatalf("roleID = %d, want %d", repo.lastListRoleID, roleAdminID)
+	}
+}
+
+func TestService_GetPaymentByID_PaymentNotFound(t *testing.T) {
+	repo := &serviceTestRepository{detailErr: ErrPaymentNotFound}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if !errors.Is(err, ErrPaymentNotFound) {
+		t.Fatalf("error = %v, want %v", err, ErrPaymentNotFound)
+	}
+	if repo.getUserRoleCalled {
+		t.Fatal("did not expect GetUserRole after payment not found")
+	}
+}
+
+func TestService_GetPaymentByID_UnexpectedRepositoryError(t *testing.T) {
+	repo := &serviceTestRepository{detailErr: errors.New("timeout")}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if errors.Is(err, ErrPaymentNotFound) {
+		t.Fatalf("error = %v, did not expect ErrPaymentNotFound", err)
+	}
+	if !strings.Contains(err.Error(), "get payment by id:") {
+		t.Fatalf("error = %q, want wrapped get payment by id error", err.Error())
+	}
+}
+
+func TestService_GetPaymentByID_GetUserRoleFailsAfterPaymentFound(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail:  PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
+		roleErr: errors.New("role lookup failed"),
+	}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "get payment by id:") {
+		t.Fatalf("error = %q, want wrapped get payment by id error", err.Error())
+	}
+	if !repo.getUserRoleCalled {
+		t.Fatal("expected GetUserRole to be called")
+	}
+}
+
+func TestService_GetPaymentByID_AdminAccessesForeignPayment(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 99},
+		roleID: roleAdminID,
+	}
+	svc := NewService(repo)
+
+	result, err := svc.GetPaymentByID(context.Background(), 1, 1)
+	if err != nil {
+		t.Fatalf("GetPaymentByID() error = %v, want nil", err)
+	}
+	if result.PaymentID != 1 {
+		t.Fatalf("payment_id = %d, want 1", result.PaymentID)
+	}
+}
+
+func TestService_GetPaymentByID_AgentAccessesOwnPayment(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 3, AgentID: 7},
+		roleID: roleAgentID,
+	}
+	svc := NewService(repo)
+
+	result, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if err != nil {
+		t.Fatalf("GetPaymentByID() error = %v, want nil", err)
+	}
+	if result.PaymentID != 1 {
+		t.Fatalf("payment_id = %d, want 1", result.PaymentID)
+	}
+}
+
+func TestService_GetPaymentByID_AgentAccessesForeignPayment(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 3, AgentID: 99},
+		roleID: roleAgentID,
+	}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if !errors.Is(err, ErrPaymentForbidden) {
+		t.Fatalf("error = %v, want %v", err, ErrPaymentForbidden)
+	}
+}
+
+func TestService_GetPaymentByID_ClientAccessesOwnPayment(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
+		roleID: roleClientID,
+	}
+	svc := NewService(repo)
+
+	result, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if err != nil {
+		t.Fatalf("GetPaymentByID() error = %v, want nil", err)
+	}
+	if result.PaymentID != 1 {
+		t.Fatalf("payment_id = %d, want 1", result.PaymentID)
+	}
+}
+
+func TestService_GetPaymentByID_ClientAccessesForeignPayment(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 99, AgentID: 2},
+		roleID: roleClientID,
+	}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if !errors.Is(err, ErrPaymentForbidden) {
+		t.Fatalf("error = %v, want %v", err, ErrPaymentForbidden)
+	}
+}
+
+func TestService_GetPaymentByID_UnsupportedRole(t *testing.T) {
+	repo := &serviceTestRepository{
+		detail: PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 2},
+		roleID: 99,
+	}
+	svc := NewService(repo)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	if !errors.Is(err, ErrUnsupportedRole) {
+		t.Fatalf("error = %v, want %v", err, ErrUnsupportedRole)
+	}
+}
+
+var _ PaymentsRepository = (*serviceTestRepository)(nil)

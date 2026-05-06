@@ -2,9 +2,11 @@ package payments
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -12,7 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type handlerMockService struct {
+func TestMain(m *testing.M) {
+	gin.SetMode(gin.TestMode)
+	os.Exit(m.Run())
+}
+
+type handlerTestService struct {
 	listResult      ListPaymentsResult
 	listErr         error
 	detailResult    PaymentDetail
@@ -25,279 +32,415 @@ type handlerMockService struct {
 	detailPaymentID int32
 }
 
-func (m *handlerMockService) ListPayments(_ context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
+func (m *handlerTestService) ListPayments(_ context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
 	m.listCalled = true
 	m.listUserID = userID
 	m.listInput = input
 	return m.listResult, m.listErr
 }
 
-func (m *handlerMockService) GetPaymentByID(_ context.Context, userID int32, paymentID int32) (PaymentDetail, error) {
+func (m *handlerTestService) GetPaymentByID(_ context.Context, userID int32, paymentID int32) (PaymentDetail, error) {
 	m.detailCalled = true
 	m.detailUserID = userID
 	m.detailPaymentID = paymentID
 	return m.detailResult, m.detailErr
 }
 
-func TestListPayments(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+type errorResponseBody struct {
+	Error string `json:"error"`
+}
 
+type listPaymentsResponseBody struct {
+	Data       []PaymentListItem `json:"data"`
+	Pagination struct {
+		Limit  int32 `json:"limit"`
+		Offset int32 `json:"offset"`
+		Total  int64 `json:"total"`
+	} `json:"pagination"`
+}
+
+func TestHandler_ListPayments_MissingUserID(t *testing.T) {
+	runListPaymentsHandlerAuthCase(t, "", http.StatusUnauthorized, "unauthorized")
+}
+
+func TestHandler_ListPayments_EmptyUserID(t *testing.T) {
+	runListPaymentsHandlerAuthCase(t, "   ", http.StatusUnauthorized, "unauthorized")
+}
+
+func TestHandler_ListPayments_ZeroUserID(t *testing.T) {
+	runListPaymentsHandlerAuthCase(t, "0", http.StatusBadRequest, "X-User-ID must be a positive integer")
+}
+
+func TestHandler_ListPayments_NegativeUserID(t *testing.T) {
+	runListPaymentsHandlerAuthCase(t, "-1", http.StatusBadRequest, "X-User-ID must be a positive integer")
+}
+
+func TestHandler_ListPayments_NonNumericUserID(t *testing.T) {
+	runListPaymentsHandlerAuthCase(t, "abc", http.StatusBadRequest, "X-User-ID must be a valid integer")
+}
+
+func TestHandler_ListPayments_LimitZero(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?limit=0", "limit must be greater than 0")
+}
+
+func TestHandler_ListPayments_LimitNegative(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?limit=-5", "limit must be greater than 0")
+}
+
+func TestHandler_ListPayments_LimitExceedsMax(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?limit=101", "limit must be less than or equal to 100")
+}
+
+func TestHandler_ListPayments_LimitNonNumeric(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?limit=abc", "limit must be a valid integer")
+}
+
+func TestHandler_ListPayments_OffsetNegative(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?offset=-1", "offset must be greater than or equal to 0")
+}
+
+func TestHandler_ListPayments_OffsetNonNumeric(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?offset=xyz", "offset must be a valid integer")
+}
+
+func TestHandler_ListPayments_DateFromInvalidFormat(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?date_from=31-12-2024", "date_from must use YYYY-MM-DD format")
+}
+
+func TestHandler_ListPayments_DateToInvalidFormat(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?date_to=2024/12/31", "date_to must use YYYY-MM-DD format")
+}
+
+func TestHandler_ListPayments_DateToBeforeDateFrom(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?date_from=2024-05-01&date_to=2024-01-01", "date_to must be greater than or equal to date_from")
+}
+
+func TestHandler_ListPayments_DateFromEqualsDateTo(t *testing.T) {
+	service := &handlerTestService{
+		listResult: ListPaymentsResult{
+			Data:       []PaymentListItem{},
+			Pagination: PaymentsPagination{Limit: 20, Offset: 0, Total: 0},
+		},
+	}
+
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?date_from=2024-03-01&date_to=2024-03-01")
+	ctx.Request.Header.Set("X-User-ID", "1")
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+	if !service.listCalled {
+		t.Fatal("expected ListPayments to be called")
+	}
+	if service.listInput.DateFrom == nil || service.listInput.DateTo == nil {
+		t.Fatal("expected both date filters to be set")
+	}
+	if !service.listInput.DateFrom.Equal(*service.listInput.DateTo) {
+		t.Fatalf("date filters differ: from=%v to=%v", service.listInput.DateFrom, service.listInput.DateTo)
+	}
+}
+
+func TestHandler_ListPayments_PropertyIDZero(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?property_id=0", "property_id must be a positive integer")
+}
+
+func TestHandler_ListPayments_PropertyIDNegative(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?property_id=-1", "property_id must be a positive integer")
+}
+
+func TestHandler_ListPayments_PropertyIDNonNumeric(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?property_id=abc", "property_id must be a valid integer")
+}
+
+func TestHandler_ListPayments_StatusIDZero(t *testing.T) {
+	runListPaymentsHandlerInvalidQueryCase(t, "/api/v1/payments?status_id=0", "status_id must be a positive integer")
+}
+
+func TestHandler_ListPayments_ServiceReturnsUnsupportedRole(t *testing.T) {
+	service := &handlerTestService{listErr: ErrUnsupportedRole}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+	ctx.Request.Header.Set("X-User-ID", "1")
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	assertErrorResponse(t, recorder, http.StatusForbidden, "forbidden")
+}
+
+func TestHandler_ListPayments_ServiceReturnsEmptyList(t *testing.T) {
+	service := &handlerTestService{
+		listResult: ListPaymentsResult{
+			Data:       []PaymentListItem{},
+			Pagination: PaymentsPagination{Limit: 20, Offset: 0, Total: 0},
+		},
+	}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+	ctx.Request.Header.Set("X-User-ID", "1")
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var body listPaymentsResponseBody
+	decodeJSONBody(t, recorder, &body)
+
+	if len(body.Data) != 0 {
+		t.Fatalf("len(data) = %d, want 0", len(body.Data))
+	}
+	if body.Pagination.Total != 0 {
+		t.Fatalf("pagination.total = %d, want 0", body.Pagination.Total)
+	}
+}
+
+func TestHandler_ListPayments_ServiceReturnsInternalError(t *testing.T) {
+	service := &handlerTestService{listErr: errors.New("db down")}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+	ctx.Request.Header.Set("X-User-ID", "1")
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	assertErrorResponse(t, recorder, http.StatusInternalServerError, "could not list payments")
+}
+
+func TestHandler_ListPayments_ServiceReturnsResults(t *testing.T) {
 	paymentDate := time.Date(2024, time.March, 8, 14, 32, 0, 0, time.UTC)
-
-	tests := []struct {
-		name             string
-		headerUserID     string
-		url              string
-		mock             *handlerMockService
-		wantStatusCode   int
-		wantBodyContains string
-		wantCalled       bool
-		wantUserID       int32
-	}{
-		{
-			name:         "lists payments as admin",
-			headerUserID: "1",
-			url:          "/api/v1/payments",
-			mock: &handlerMockService{
-				listResult: ListPaymentsResult{
-					Data: []PaymentListItem{{
-						PaymentID:     1,
-						ContractID:    10,
-						PropertyID:    5,
-						BillingPeriod: "2024-03-01",
-						DueDate:       "2024-03-10",
-						Amount:        "1500.00",
-						Currency:      "MXN",
-						PaymentMethod: "Transferencia bancaria",
-						Gateway:       stringPointer("Stripe"),
-						Status:        "Pagado",
-						PaymentDate:   &paymentDate,
-					}},
-					Pagination: PaymentsPagination{Limit: 20, Offset: 0, Total: 1},
+	service := &handlerTestService{
+		listResult: ListPaymentsResult{
+			Data: []PaymentListItem{
+				{
+					PaymentID:     1,
+					ContractID:    10,
+					PropertyID:    5,
+					BillingPeriod: "2024-03-01",
+					DueDate:       "2024-03-10",
+					Amount:        "1500.00",
+					Currency:      "MXN",
+					PaymentMethod: "Transferencia bancaria",
+					Gateway:       stringPointer("Stripe"),
+					Status:        "Pagado",
+					PaymentDate:   &paymentDate,
+				},
+				{
+					PaymentID:     2,
+					ContractID:    11,
+					PropertyID:    6,
+					BillingPeriod: "2024-04-01",
+					DueDate:       "2024-04-10",
+					Amount:        "1800.00",
+					Currency:      "MXN",
+					PaymentMethod: "Tarjeta",
+					Status:        "Pendiente",
 				},
 			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"payment_id\":1",
-			wantCalled:       true,
-			wantUserID:       1,
-		},
-		{
-			name:         "lists payments as agent",
-			headerUserID: "2",
-			url:          "/api/v1/payments?property_id=5&limit=10&offset=2",
-			mock: &handlerMockService{
-				listResult: ListPaymentsResult{
-					Data:       []PaymentListItem{},
-					Pagination: PaymentsPagination{Limit: 10, Offset: 2, Total: 0},
-				},
-			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"limit\":10",
-			wantCalled:       true,
-			wantUserID:       2,
-		},
-		{
-			name:         "lists payments as client",
-			headerUserID: "3",
-			url:          "/api/v1/payments?status_id=4",
-			mock: &handlerMockService{
-				listResult: ListPaymentsResult{
-					Data:       []PaymentListItem{},
-					Pagination: PaymentsPagination{Limit: 20, Offset: 0, Total: 0},
-				},
-			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"total\":0",
-			wantCalled:       true,
-			wantUserID:       3,
-		},
-		{
-			name:             "rejects invalid query params",
-			headerUserID:     "1",
-			url:              "/api/v1/payments?limit=-1",
-			mock:             &handlerMockService{},
-			wantStatusCode:   http.StatusBadRequest,
-			wantBodyContains: "limit must be greater than 0",
-			wantCalled:       false,
-		},
-		{
-			name:             "rejects invalid date query params",
-			headerUserID:     "1",
-			url:              "/api/v1/payments?date_from=2024-13-01",
-			mock:             &handlerMockService{},
-			wantStatusCode:   http.StatusBadRequest,
-			wantBodyContains: "date_from must use YYYY-MM-DD format",
-			wantCalled:       false,
-		},
-		{
-			name:             "returns unauthorized when auth is missing",
-			headerUserID:     "",
-			url:              "/api/v1/payments",
-			mock:             &handlerMockService{},
-			wantStatusCode:   http.StatusUnauthorized,
-			wantBodyContains: "unauthorized",
-			wantCalled:       false,
+			Pagination: PaymentsPagination{Limit: 20, Offset: 0, Total: 2},
 		},
 	}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+	ctx.Request.Header.Set("X-User-ID", "1")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequest(http.MethodGet, tt.url, nil)
-			if tt.headerUserID != "" {
-				ctx.Request.Header.Set("X-User-ID", tt.headerUserID)
-			}
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
 
-			handler := NewHandler(tt.mock)
-			handler.listPayments(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
 
-			if recorder.Code != tt.wantStatusCode {
-				t.Fatalf("status code = %d, want %d", recorder.Code, tt.wantStatusCode)
-			}
+	var body listPaymentsResponseBody
+	decodeJSONBody(t, recorder, &body)
 
-			if tt.mock.listCalled != tt.wantCalled {
-				t.Fatalf("listCalled = %v, want %v", tt.mock.listCalled, tt.wantCalled)
-			}
-
-			if tt.wantCalled && tt.mock.listUserID != tt.wantUserID {
-				t.Fatalf("listUserID = %d, want %d", tt.mock.listUserID, tt.wantUserID)
-			}
-
-			if tt.wantBodyContains != "" && !strings.Contains(recorder.Body.String(), tt.wantBodyContains) {
-				t.Fatalf("body %q does not contain %q", recorder.Body.String(), tt.wantBodyContains)
-			}
-		})
+	if len(body.Data) != 2 {
+		t.Fatalf("len(data) = %d, want 2", len(body.Data))
+	}
+	if body.Pagination.Total != 2 {
+		t.Fatalf("pagination.total = %d, want 2", body.Pagination.Total)
 	}
 }
 
-func TestGetPaymentByID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+func TestHandler_GetPaymentByID_MissingUserID(t *testing.T) {
+	service := &handlerTestService{}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+	ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
 
-	tests := []struct {
-		name             string
-		headerUserID     string
-		paymentID        string
-		mock             *handlerMockService
-		wantStatusCode   int
-		wantBodyContains string
-		wantCalled       bool
-	}{
-		{
-			name:         "returns payment detail",
-			headerUserID: "1",
-			paymentID:    "7",
-			mock: &handlerMockService{
-				detailResult: PaymentDetail{
-					PaymentID:       7,
-					ContractID:      10,
-					PropertyID:      5,
-					TransactionID:   3,
-					TransactionType: "rent",
-					BillingPeriod:   "2024-03-01",
-					DueDate:         "2024-03-10",
-					AgreedAmount:    "15000.00",
-					Amount:          "1500.00",
-					Currency:        "MXN",
-					PaymentMethod:   "Transferencia bancaria",
-					Status:          "Pagado",
-					ClientID:        7,
-					AgentID:         2,
-				},
-			},
-			wantStatusCode:   http.StatusOK,
-			wantBodyContains: "\"transaction_type\":\"rent\"",
-			wantCalled:       true,
-		},
-		{
-			name:             "returns forbidden for foreign payment",
-			headerUserID:     "2",
-			paymentID:        "7",
-			mock:             &handlerMockService{detailErr: ErrPaymentForbidden},
-			wantStatusCode:   http.StatusForbidden,
-			wantBodyContains: "forbidden",
-			wantCalled:       true,
-		},
-		{
-			name:             "returns not found for missing payment",
-			headerUserID:     "1",
-			paymentID:        "999",
-			mock:             &handlerMockService{detailErr: ErrPaymentNotFound},
-			wantStatusCode:   http.StatusNotFound,
-			wantBodyContains: ErrPaymentNotFound.Error(),
-			wantCalled:       true,
-		},
-		{
-			name:             "rejects invalid payment id",
-			headerUserID:     "1",
-			paymentID:        "abc",
-			mock:             &handlerMockService{},
-			wantStatusCode:   http.StatusBadRequest,
-			wantBodyContains: "payment_id must be a valid integer",
-			wantCalled:       false,
-		},
-		{
-			name:             "returns unauthorized without auth",
-			headerUserID:     "",
-			paymentID:        "7",
-			mock:             &handlerMockService{},
-			wantStatusCode:   http.StatusUnauthorized,
-			wantBodyContains: "unauthorized",
-			wantCalled:       false,
-		},
-	}
+	handler := NewHandler(service)
+	handler.getPaymentByID(ctx)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/payments/"+tt.paymentID, nil)
-			if tt.headerUserID != "" {
-				ctx.Request.Header.Set("X-User-ID", tt.headerUserID)
-			}
-			ctx.Params = gin.Params{{Key: "payment_id", Value: tt.paymentID}}
-
-			handler := NewHandler(tt.mock)
-			handler.getPaymentByID(ctx)
-
-			if recorder.Code != tt.wantStatusCode {
-				t.Fatalf("status code = %d, want %d", recorder.Code, tt.wantStatusCode)
-			}
-
-			if tt.mock.detailCalled != tt.wantCalled {
-				t.Fatalf("detailCalled = %v, want %v", tt.mock.detailCalled, tt.wantCalled)
-			}
-
-			if tt.wantBodyContains != "" && !strings.Contains(recorder.Body.String(), tt.wantBodyContains) {
-				t.Fatalf("body %q does not contain %q", recorder.Body.String(), tt.wantBodyContains)
-			}
-		})
+	assertErrorResponse(t, recorder, http.StatusUnauthorized, "unauthorized")
+	if service.detailCalled {
+		t.Fatal("did not expect GetPaymentByID to be called")
 	}
 }
 
-func TestResolveListPaymentsInput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+func TestHandler_GetPaymentByID_PaymentIDZero(t *testing.T) {
+	runGetPaymentByIDInvalidPathCase(t, "0", "payment_id must be a positive integer")
+}
 
+func TestHandler_GetPaymentByID_PaymentIDNegative(t *testing.T) {
+	runGetPaymentByIDInvalidPathCase(t, "-1", "payment_id must be a positive integer")
+}
+
+func TestHandler_GetPaymentByID_PaymentIDNonNumeric(t *testing.T) {
+	runGetPaymentByIDInvalidPathCase(t, "abc", "payment_id must be a valid integer")
+}
+
+func TestHandler_GetPaymentByID_PaymentNotFound(t *testing.T) {
+	runGetPaymentByIDServiceErrorCase(t, ErrPaymentNotFound, http.StatusNotFound, "payment not found")
+}
+
+func TestHandler_GetPaymentByID_PaymentForbidden(t *testing.T) {
+	runGetPaymentByIDServiceErrorCase(t, ErrPaymentForbidden, http.StatusForbidden, "forbidden")
+}
+
+func TestHandler_GetPaymentByID_UnsupportedRole(t *testing.T) {
+	runGetPaymentByIDServiceErrorCase(t, ErrUnsupportedRole, http.StatusForbidden, "forbidden")
+}
+
+func TestHandler_GetPaymentByID_InternalError(t *testing.T) {
+	runGetPaymentByIDServiceErrorCase(t, errors.New("db down"), http.StatusInternalServerError, "could not get payment")
+}
+
+func TestHandler_GetPaymentByID_Success(t *testing.T) {
+	service := &handlerTestService{
+		detailResult: PaymentDetail{
+			PaymentID:       1,
+			ContractID:      10,
+			PropertyID:      5,
+			TransactionID:   3,
+			TransactionType: "rent",
+			BillingPeriod:   "2024-03-01",
+			DueDate:         "2024-03-10",
+			AgreedAmount:    "15000.00",
+			Amount:          "1500.00",
+			Currency:        "MXN",
+			PaymentMethod:   "Transferencia bancaria",
+			Status:          "Pagado",
+			ClientID:        7,
+			AgentID:         2,
+		},
+	}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+	ctx.Request.Header.Set("X-User-ID", "1")
+	ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
+
+	handler := NewHandler(service)
+	handler.getPaymentByID(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", recorder.Code, http.StatusOK)
+	}
+
+	var body PaymentDetail
+	decodeJSONBody(t, recorder, &body)
+
+	if body.PaymentID != 1 {
+		t.Fatalf("payment_id = %d, want 1", body.PaymentID)
+	}
+	if !service.detailCalled {
+		t.Fatal("expected GetPaymentByID to be called")
+	}
+}
+
+func runListPaymentsHandlerAuthCase(t *testing.T, headerUserID string, wantStatus int, wantError string) {
+	t.Helper()
+
+	service := &handlerTestService{}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+	if headerUserID != "" {
+		ctx.Request.Header.Set("X-User-ID", headerUserID)
+	}
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	assertErrorResponse(t, recorder, wantStatus, wantError)
+	if service.listCalled {
+		t.Fatal("did not expect ListPayments to be called")
+	}
+}
+
+func runListPaymentsHandlerInvalidQueryCase(t *testing.T, target string, wantError string) {
+	t.Helper()
+
+	service := &handlerTestService{}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, target)
+	ctx.Request.Header.Set("X-User-ID", "1")
+
+	handler := NewHandler(service)
+	handler.listPayments(ctx)
+
+	assertErrorResponse(t, recorder, http.StatusBadRequest, wantError)
+	if service.listCalled {
+		t.Fatal("did not expect ListPayments to be called")
+	}
+}
+
+func runGetPaymentByIDInvalidPathCase(t *testing.T, paymentID string, wantError string) {
+	t.Helper()
+
+	service := &handlerTestService{}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/"+paymentID)
+	ctx.Request.Header.Set("X-User-ID", "1")
+	ctx.Params = gin.Params{{Key: "payment_id", Value: paymentID}}
+
+	handler := NewHandler(service)
+	handler.getPaymentByID(ctx)
+
+	assertErrorResponse(t, recorder, http.StatusBadRequest, wantError)
+	if service.detailCalled {
+		t.Fatal("did not expect GetPaymentByID to be called")
+	}
+}
+
+func runGetPaymentByIDServiceErrorCase(t *testing.T, serviceErr error, wantStatus int, wantError string) {
+	t.Helper()
+
+	service := &handlerTestService{detailErr: serviceErr}
+	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+	ctx.Request.Header.Set("X-User-ID", "1")
+	ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
+
+	handler := NewHandler(service)
+	handler.getPaymentByID(ctx)
+
+	assertErrorResponse(t, recorder, wantStatus, wantError)
+	if !service.detailCalled {
+		t.Fatal("expected GetPaymentByID to be called")
+	}
+}
+
+func newHandlerTestContext(method string, target string) (*httptest.ResponseRecorder, *gin.Context) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/payments?property_id=5&status_id=4&date_from=2024-03-01&date_to=2024-03-31&limit=10&offset=2", nil)
+	ctx.Request = httptest.NewRequest(method, target, nil)
+	return recorder, ctx
+}
 
-	input, err := resolveListPaymentsInput(ctx)
-	if err != nil {
-		t.Fatalf("resolveListPaymentsInput() error = %v, want nil", err)
+func assertErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder, wantStatus int, wantError string) {
+	t.Helper()
+
+	if recorder.Code != wantStatus {
+		t.Fatalf("status code = %d, want %d", recorder.Code, wantStatus)
 	}
 
-	if input.Limit != 10 {
-		t.Fatalf("limit = %d, want 10", input.Limit)
+	var body errorResponseBody
+	decodeJSONBody(t, recorder, &body)
+
+	if body.Error != wantError {
+		t.Fatalf("error = %q, want %q", body.Error, wantError)
 	}
-	if input.Offset != 2 {
-		t.Fatalf("offset = %d, want 2", input.Offset)
-	}
-	if input.PropertyID == nil || *input.PropertyID != 5 {
-		t.Fatalf("property_id = %#v, want 5", input.PropertyID)
-	}
-	if input.StatusID == nil || *input.StatusID != 4 {
-		t.Fatalf("status_id = %#v, want 4", input.StatusID)
+}
+
+func decodeJSONBody(t *testing.T, recorder *httptest.ResponseRecorder, target interface{}) {
+	t.Helper()
+
+	if err := json.Unmarshal(recorder.Body.Bytes(), target); err != nil {
+		t.Fatalf("unmarshal response body: %v; body=%s", err, recorder.Body.String())
 	}
 }
 
@@ -305,5 +448,5 @@ func stringPointer(value string) *string {
 	return &value
 }
 
-var _ PaymentsService = (*handlerMockService)(nil)
-var _ = errors.Is
+var _ PaymentsService = (*handlerTestService)(nil)
+var _ = strings.TrimSpace
