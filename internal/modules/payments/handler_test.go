@@ -61,3 +61,35 @@ func TestHandler_ProcessPayment(t *testing.T) {
 		assert.Equal(t, "Success", resp.Status)
 	})
 }
+
+func TestHandler_ConfirmPendingPayment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mockService := new(MockService)
+	handler := NewHandler(mockService)
+
+	r := gin.New()
+	handler.RegisterRoutes(r.Group(""))
+
+	t.Run("Valid Confirmation", func(t *testing.T) {
+		pUUID := uuid.New()
+		mockService.On("ConfirmPendingPayment", mock.Anything, int32(10), pUUID).Return(nil)
+
+		req, _ := http.NewRequest(http.MethodPatch, "/payments/"+pUUID.String()+"/confirm", nil)
+		req.Header.Set("X-User-ID", "10")
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Contains(t, w.Body.String(), "pago confirmado correctamente")
+	})
+
+	t.Run("Invalid UUID", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPatch, "/payments/invalid-uuid/confirm", nil)
+		w := httptest.NewRecorder()
+
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}

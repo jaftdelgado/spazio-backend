@@ -15,9 +15,8 @@ type Repository interface {
 	CreatePayment(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error)
 	GetContractForPayment(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error)
 	GetContractForPaymentWithLock(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error)
-	GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.Payment, error)
+	GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error)
 	UpdatePaymentStatus(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error
-	// Transaction support
 	WithTx(tx pgx.Tx) Repository
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
@@ -67,7 +66,7 @@ func (r *repository) GetContractForPaymentWithLock(ctx context.Context, contract
 	return r.queries.GetContractForPaymentWithLock(ctx, contractID)
 }
 
-func (r *repository) GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.Payment, error) {
+func (r *repository) GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error) {
 	return r.queries.GetPaymentByUUID(ctx, pgtype.UUID{Bytes: paymentUUID, Valid: true})
 }
 

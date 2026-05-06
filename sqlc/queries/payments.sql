@@ -13,7 +13,6 @@ AND status_id = $2;
 -- name: CreatePayment :one
 INSERT INTO payments (
     contract_id,
-    client_id,
     billing_period,
     due_date,
     amount,
@@ -25,7 +24,7 @@ INSERT INTO payments (
     payment_date,
     metadata
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetContractForPayment :one
@@ -35,7 +34,11 @@ JOIN transactions t ON c.transaction_id = t.transaction_id
 WHERE c.contract_id = $1;
 
 -- name: GetPaymentByUUID :one
-SELECT * FROM payments WHERE payment_uuid = $1;
+SELECT p.*, t.client_id
+FROM payments p
+JOIN contracts c ON p.contract_id = c.contract_id
+JOIN transactions t ON c.transaction_id = t.transaction_id
+WHERE p.payment_uuid = $1;
 
 -- name: UpdatePaymentStatus :exec
 UPDATE payments 

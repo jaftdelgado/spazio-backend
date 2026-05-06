@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockRepository is a mock of the Repository interface
 type MockRepository struct {
 	mock.Mock
 }
@@ -39,9 +38,9 @@ func (m *MockRepository) GetContractForPaymentWithLock(ctx context.Context, cont
 	return args.Get(0).(sqlcgen.GetContractForPaymentWithLockRow), args.Error(1)
 }
 
-func (m *MockRepository) GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.Payment, error) {
+func (m *MockRepository) GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error) {
 	args := m.Called(ctx, paymentUUID)
-	return args.Get(0).(sqlcgen.Payment), args.Error(1)
+	return args.Get(0).(sqlcgen.GetPaymentByUUIDRow), args.Error(1)
 }
 
 func (m *MockRepository) UpdatePaymentStatus(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error {
@@ -135,7 +134,7 @@ func TestConfirmPendingPayment_Success(t *testing.T) {
 	pUUID := uuid.New()
 	clientID := int32(100)
 
-	repo.On("GetPaymentByUUID", ctx, pUUID).Return(sqlcgen.Payment{
+	repo.On("GetPaymentByUUID", ctx, pUUID).Return(sqlcgen.GetPaymentByUUIDRow{
 		PaymentID: 100,
 		ClientID:  clientID,
 		StatusID:  PaymentStatusPending,

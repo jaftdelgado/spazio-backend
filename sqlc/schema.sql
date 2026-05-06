@@ -173,8 +173,7 @@ CREATE TABLE visits (
     agent_id integer REFERENCES users(user_id),
     visit_date timestamp with time zone NOT NULL,
     status_id integer NOT NULL REFERENCES visit_status(status_id),
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    deleted_at timestamp with time zone
+    created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 CREATE TABLE visit_status_history (
@@ -242,12 +241,10 @@ CREATE TABLE payment_gateways (
     name varchar(50) NOT NULL,
     is_active boolean NOT NULL DEFAULT true
 );
-
 CREATE TABLE payments (
     payment_id serial PRIMARY KEY,
-    payment_uuid uuid NOT NULL DEFAULT gen_random_uuid(),
+    payment_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
     contract_id int NOT NULL REFERENCES contracts(contract_id),
-    client_id int NOT NULL REFERENCES users(user_id),
     billing_period date NOT NULL,
     due_date date NOT NULL,
     amount decimal(15,2) NOT NULL,
@@ -258,5 +255,6 @@ CREATE TABLE payments (
     status_id int NOT NULL REFERENCES payment_status(status_id),
     gateway_status varchar(50),
     payment_date timestamptz,
-    metadata jsonb
+    metadata jsonb,
+    CHECK (EXTRACT(DAY FROM billing_period) = 1)
 );
