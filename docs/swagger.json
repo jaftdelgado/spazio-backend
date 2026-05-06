@@ -311,6 +311,163 @@
                 }
             }
         },
+        "/api/v1/payments": {
+            "get": {
+                "description": "Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "List payments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Numeric ID of the authenticated user",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by property ID",
+                        "name": "property_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by payment status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Minimum due date in YYYY-MM-DD format",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Maximum due date in YYYY-MM-DD format",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Maximum number of results to return, default 20, max 100",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Pagination offset, default 0",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list of payments",
+                        "schema": {
+                            "$ref": "#/definitions/payments.ListPaymentsResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/payments/{payment_id}": {
+            "get": {
+                "description": "Returns one payment detail when the payment exists and the authenticated user is allowed to access it. Agent and client users receive 403 Forbidden when the payment belongs to a different transaction.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Get payment detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Numeric ID of the authenticated user",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "payment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Payment detail",
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Payment not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/properties": {
             "get": {
                 "description": "Returns a paginated list of property cards with optional search, status, type, modality, and location filters. Deleted properties are always excluded. The selected card price prefers sale price unless the property modality is rent or no current sale price exists; in that case the best current rent price is used following monthly, annual, weekly, then daily priority.",
@@ -1749,6 +1906,155 @@
                 },
                 "state_id": {
                     "type": "integer"
+                }
+            }
+        },
+        "payments.ListPaymentsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/payments.PaymentListItem"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/payments.PaymentsPagination"
+                }
+            }
+        },
+        "payments.PaymentDetail": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "agreed_amount": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "amount": {
+                    "type": "string",
+                    "example": "1500.00"
+                },
+                "billing_period": {
+                    "type": "string",
+                    "example": "2024-03-01"
+                },
+                "client_id": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "contract_id": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "due_date": {
+                    "type": "string",
+                    "example": "2024-03-10"
+                },
+                "gateway": {
+                    "type": "string",
+                    "example": "Stripe"
+                },
+                "payment_date": {
+                    "type": "string",
+                    "example": "2024-03-08T14:32:00Z"
+                },
+                "payment_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "payment_method": {
+                    "type": "string",
+                    "example": "Transferencia bancaria"
+                },
+                "property_id": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Pagado"
+                },
+                "transaction_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "transaction_type": {
+                    "type": "string",
+                    "example": "rent"
+                }
+            }
+        },
+        "payments.PaymentListItem": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string",
+                    "example": "1500.00"
+                },
+                "billing_period": {
+                    "type": "string",
+                    "example": "2024-03-01"
+                },
+                "contract_id": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "due_date": {
+                    "type": "string",
+                    "example": "2024-03-10"
+                },
+                "gateway": {
+                    "type": "string",
+                    "example": "Stripe"
+                },
+                "payment_date": {
+                    "type": "string",
+                    "example": "2024-03-08T14:32:00Z"
+                },
+                "payment_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "payment_method": {
+                    "type": "string",
+                    "example": "Transferencia bancaria"
+                },
+                "property_id": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Pagado"
+                }
+            }
+        },
+        "payments.PaymentsPagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 84
                 }
             }
         },

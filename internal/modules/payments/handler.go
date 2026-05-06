@@ -31,17 +31,17 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 // listPayments godoc
 // @Summary      List payments
-// @Description  Returns payments visible to the authenticated user. Admin users can view all payments, agents only payments from their transactions, and clients only their own payments. Optional filters are applied only when provided.
+// @Description  Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.
 // @Tags         Payments
 // @Produce      json
-// @Param        X-User-ID    header    int                 true   "User ID"
-// @Param        property_id  query     int                 false  "Property ID"
-// @Param        status_id    query     int                 false  "Payment status ID"
-// @Param        date_from    query     string              false  "Due date from (YYYY-MM-DD)"
-// @Param        date_to      query     string              false  "Due date to (YYYY-MM-DD)"
-// @Param        limit        query     int                 false  "Results limit" default(20)
-// @Param        offset       query     int                 false  "Results offset" default(0)
-// @Success      200          {object}  ListPaymentsResult  "Paginated list of payments"
+// @Param        X-User-ID    header    int                          true   "Numeric ID of the authenticated user"
+// @Param        property_id  query     int                          false  "Filter by property ID"
+// @Param        status_id    query     int                          false  "Filter by payment status ID"
+// @Param        date_from    query     string                       false  "Minimum due date in YYYY-MM-DD format"
+// @Param        date_to      query     string                       false  "Maximum due date in YYYY-MM-DD format"
+// @Param        limit        query     int                          false  "Maximum number of results to return, default 20, max 100" default(20)
+// @Param        offset       query     int                          false  "Pagination offset, default 0" default(0)
+// @Success      200          {object}  payments.ListPaymentsResult  "Paginated list of payments"
 // @Failure      400          {object}  shared.ErrorResponse "Invalid query params"
 // @Failure      401          {object}  shared.ErrorResponse "Missing authentication"
 // @Failure      403          {object}  shared.ErrorResponse "Forbidden"
@@ -75,12 +75,12 @@ func (h *Handler) listPayments(c *gin.Context) {
 
 // getPaymentByID godoc
 // @Summary      Get payment detail
-// @Description  Returns a single payment detail when it exists and the authenticated user is allowed to access it. Agents and clients receive 403 when the payment belongs to another transaction.
+// @Description  Returns one payment detail when the payment exists and the authenticated user is allowed to access it. Agent and client users receive 403 Forbidden when the payment belongs to a different transaction.
 // @Tags         Payments
 // @Produce      json
-// @Param        X-User-ID   header    int            true  "User ID"
-// @Param        payment_id  path      int            true  "Payment ID"
-// @Success      200         {object}  PaymentDetail  "Payment detail"
+// @Param        X-User-ID   header    int                     true  "Numeric ID of the authenticated user"
+// @Param        payment_id  path      int                     true  "Payment ID"
+// @Success      200         {object}  payments.PaymentDetail  "Payment detail"
 // @Failure      400         {object}  shared.ErrorResponse "Invalid path params"
 // @Failure      401         {object}  shared.ErrorResponse "Missing authentication"
 // @Failure      403         {object}  shared.ErrorResponse "Forbidden"
