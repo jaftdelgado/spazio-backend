@@ -21,3 +21,7 @@ tmp/
 
 # Copilot AI skills
 .github/skills/ 
+
+# Test coverage reports
+coverage.out
+coverage/
