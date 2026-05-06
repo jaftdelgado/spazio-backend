@@ -16,6 +16,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/clauses"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/payments"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/services"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/uploads"
@@ -48,6 +49,7 @@ func main() {
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
+	paymentsModule := payments.NewModule(database)
 	usersModule := users.NewModule(database, cfg)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
@@ -66,6 +68,7 @@ func main() {
 	catalogsModule.RegisterRoutes(api)
 	clausesModule.RegisterRoutes(api)
 	locationsModule.RegisterRoutes(api)
+	paymentsModule.RegisterRoutes(api)
 	usersModule.RegisterRoutes(api)
 	uploadsModule.RegisterRoutes(api)
 	visitsModule.RegisterRoutes(api)
