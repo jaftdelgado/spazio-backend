@@ -315,3 +315,44 @@ CREATE TABLE visit_status_history (
 	changed_by_user_id integer NOT NULL REFERENCES users(user_id),
 	changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TYPE transaction_type AS ENUM ('sale', 'rent');
+
+CREATE TABLE IF NOT EXISTS transaction_status (
+    status_id serial PRIMARY KEY,
+    name varchar(30) NOT NULL,
+    is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    transaction_id serial PRIMARY KEY,
+    transaction_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    property_id int NOT NULL REFERENCES properties(property_id),
+    client_id int NOT NULL REFERENCES users(user_id),
+    agent_id int NOT NULL REFERENCES users(user_id),
+    transaction_type transaction_type NOT NULL,
+    status_id int NOT NULL REFERENCES transaction_status(status_id),
+    final_amount decimal(15,2) NOT NULL,
+    closing_date date NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS contract_status (
+    status_id serial PRIMARY KEY,
+    name varchar(30) NOT NULL,
+    is_active boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE IF NOT EXISTS contracts (
+    contract_id serial PRIMARY KEY,
+    contract_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
+    transaction_id int NOT NULL REFERENCES transactions(transaction_id),
+    currency char(3) NOT NULL,
+    agreed_amount decimal(15,2) NOT NULL,
+    storage_key varchar(255) NOT NULL,
+    start_date date NOT NULL,
+    end_date date,
+    status_id int NOT NULL REFERENCES contract_status(status_id),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    deleted_at timestamptz
+);
