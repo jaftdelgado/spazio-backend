@@ -168,6 +168,114 @@ definitions:
       state_id:
         type: integer
     type: object
+  payments.ListPaymentsResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/payments.PaymentListItem'
+        type: array
+      pagination:
+        $ref: '#/definitions/payments.PaymentsPagination'
+    type: object
+  payments.PaymentDetail:
+    properties:
+      agent_id:
+        example: 2
+        type: integer
+      agreed_amount:
+        example: "15000.00"
+        type: string
+      amount:
+        example: "1500.00"
+        type: string
+      billing_period:
+        example: "2024-03-01"
+        type: string
+      client_id:
+        example: 7
+        type: integer
+      contract_id:
+        example: 10
+        type: integer
+      currency:
+        example: MXN
+        type: string
+      due_date:
+        example: "2024-03-10"
+        type: string
+      gateway:
+        example: Stripe
+        type: string
+      payment_date:
+        example: "2024-03-08T14:32:00Z"
+        type: string
+      payment_id:
+        example: 1
+        type: integer
+      payment_method:
+        example: Transferencia bancaria
+        type: string
+      property_id:
+        example: 5
+        type: integer
+      status:
+        example: Pagado
+        type: string
+      transaction_id:
+        example: 3
+        type: integer
+      transaction_type:
+        example: rent
+        type: string
+    type: object
+  payments.PaymentListItem:
+    properties:
+      amount:
+        example: "1500.00"
+        type: string
+      billing_period:
+        example: "2024-03-01"
+        type: string
+      contract_id:
+        example: 10
+        type: integer
+      currency:
+        example: MXN
+        type: string
+      due_date:
+        example: "2024-03-10"
+        type: string
+      gateway:
+        example: Stripe
+        type: string
+      payment_date:
+        example: "2024-03-08T14:32:00Z"
+        type: string
+      payment_id:
+        example: 1
+        type: integer
+      payment_method:
+        example: Transferencia bancaria
+        type: string
+      property_id:
+        example: 5
+        type: integer
+      status:
+        example: Pagado
+        type: string
+    type: object
+  payments.PaymentsPagination:
+    properties:
+      limit:
+        example: 20
+        type: integer
+      offset:
+        example: 0
+        type: integer
+      total:
+        example: 84
+        type: integer
+    type: object
   properties.ActiveRentPriceData:
     properties:
       currency:
@@ -1117,6 +1225,117 @@ paths:
       summary: List states
       tags:
       - Locations
+  /api/v1/payments:
+    get:
+      description: Returns payments visible to the authenticated user. Admin users
+        can view every payment in the system, agent users can only view payments linked
+        to their own transactions, and client users can only view payments linked
+        to their own transactions. Optional filters by property, payment status, and
+        due date range are applied only when provided.
+      parameters:
+      - description: Numeric ID of the authenticated user
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Filter by property ID
+        in: query
+        name: property_id
+        type: integer
+      - description: Filter by payment status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Minimum due date in YYYY-MM-DD format
+        in: query
+        name: date_from
+        type: string
+      - description: Maximum due date in YYYY-MM-DD format
+        in: query
+        name: date_to
+        type: string
+      - default: 20
+        description: Maximum number of results to return, default 20, max 100
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Pagination offset, default 0
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Paginated list of payments
+          schema:
+            $ref: '#/definitions/payments.ListPaymentsResult'
+        "400":
+          description: Invalid query params
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing authentication
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List payments
+      tags:
+      - Payments
+  /api/v1/payments/{payment_id}:
+    get:
+      description: Returns one payment detail when the payment exists and the authenticated
+        user is allowed to access it. Agent and client users receive 403 Forbidden
+        when the payment belongs to a different transaction.
+      parameters:
+      - description: Numeric ID of the authenticated user
+        in: header
+        name: X-User-ID
+        required: true
+        type: integer
+      - description: Payment ID
+        in: path
+        name: payment_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Payment detail
+          schema:
+            $ref: '#/definitions/payments.PaymentDetail'
+        "400":
+          description: Invalid path params
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing authentication
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Payment not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get payment detail
+      tags:
+      - Payments
   /api/v1/properties:
     get:
       description: Returns a paginated list of property cards with optional search,
