@@ -91,6 +91,15 @@ func TestHandler_GetSomething(t *testing.T) {
         param      string
         mockResult *SomethingResult
         mockErr    error
+
+## Spazio Customizations
+
+- `sqlc` config: SQL files live in `sqlc/`, schema at `sqlc/schema.sql`, queries in `sqlc/queries/`, generator output in `internal/sqlcgen/`.
+- Entrypoint for the API server (and for `swag init`) is `cmd/api/main.go`.
+- Swagger generation command: `swag init -g cmd/api/main.go --output docs`.
+- Auth: JWT tokens are used (Supabase). Tests involving protected endpoints should mock middleware by injecting a `context` with expected claims or by bypassing middleware and calling handlers directly with a mock `Service`.
+- Storage: Cloudflare R2 (S3-compatible). For upload tests, mock the storage client or test failure/success response shaping — avoid hitting external R2 in unit tests.
+- Database: use `pgx/v5` interfaces; repository tests are skipped unless non-trivial logic exists — prefer service-level tests with mocked repository interfaces.
         wantStatus int
     }{
         {"valid id", "123", &SomethingResult{...}, nil, http.StatusOK},
