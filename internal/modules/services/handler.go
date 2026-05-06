@@ -24,9 +24,20 @@ func NewHandler(service ServicesService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.GET("/services", h.listServices)
+	r.GET("/api/v1/services", h.listServices)
 }
 
+// listServices godoc
+// @Summary      List services
+// @Description  Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.
+// @Tags         Services
+// @Produce      json
+// @Param        q      query     string              false  "Search term"
+// @Param        limit  query     int                 false  "Results limit"
+// @Success      200    {object}  ListServicesResult  "List of services"
+// @Failure      400    {object}  shared.ErrorResponse "Invalid query params"
+// @Failure      500    {object}  shared.ErrorResponse "Internal error"
+// @Router       /api/v1/services [get]
 func (h *Handler) listServices(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
 	limit, err := resolveLimit(c.Query("limit"), resolveDefaultLimit(query))

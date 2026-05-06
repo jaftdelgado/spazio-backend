@@ -22,11 +22,20 @@ const (
 
 	ContractStatusCancelled = 3
 	ContractStatusFinished  = 4
+
+	roleAdminID  int32 = 1
+	roleAgentID  int32 = 2
+	roleClientID int32 = 3
 )
 
 type Service interface {
+	// UC-16 & UC-17: Process and Confirm
 	ProcessPayment(ctx context.Context, userID int32, req RegisterPaymentRequest) (PaymentResponse, error)
 	ConfirmPendingPayment(ctx context.Context, userID int32, paymentUUID uuid.UUID) error
+
+	// UC-17: List and Get
+	ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error)
+	GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error)
 }
 
 type service struct {
@@ -132,7 +141,7 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		DueDate:          pgtype.Date{Time: now.Add(24 * time.Hour), Valid: true},
 		Amount:           pgtype.Numeric{Int: big.NewInt(int64(req.Amount * 100)), Exp: -2, Valid: true},
 		PaymentMethodID:  req.PaymentMethodID,
-		GatewayID:        req.GatewayID,
+		GatewayID:        pgtype.Int4{Int32: req.GatewayID, Valid: true},
 		StatusID:         statusID,
 		GatewayPaymentID: pgtype.Text{String: "MOCK-" + uuid.New().String()[:8], Valid: true},
 		GatewayStatus:    pgtype.Text{String: gatewayStatus, Valid: true},
@@ -196,4 +205,70 @@ func (s *service) ConfirmPendingPayment(ctx context.Context, userID int32, payme
 		GatewayStatus:    pgtype.Text{String: "confirmed", Valid: true},
 		PaymentDate:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	})
+}
+
+func (s *service) ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
+	roleID, err := s.repo.GetUserRole(ctx, userID)
+	if err != nil {
+		return ListPaymentsResult{}, fmt.Errorf("list payments: %w", err)
+	}
+
+	if !isSupportedRole(roleID) {
+		return ListPaymentsResult{}, ErrUnsupportedRole
+	}
+
+	items, err := s.repo.ListPayments(ctx, userID, roleID, input)
+	if err != nil {
+		return ListPaymentsResult{}, fmt.Errorf("list payments: %w", err)
+	}
+
+	var total int64
+	if len(items) > 0 {
+		total = items[0].TotalCount
+	}
+
+	return ListPaymentsResult{
+		Data: items,
+		Pagination: PaymentsPagination{
+			Limit:  input.Limit,
+			Offset: input.Offset,
+			Total:  total,
+		},
+	}, nil
+}
+
+func (s *service) GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error) {
+	payment, err := s.repo.GetPaymentByID(ctx, paymentID)
+	if err != nil {
+		if errors.Is(err, ErrPaymentNotFound) {
+			return PaymentDetail{}, ErrPaymentNotFound
+		}
+		return PaymentDetail{}, fmt.Errorf("get payment by id: %w", err)
+	}
+
+	roleID, err := s.repo.GetUserRole(ctx, userID)
+	if err != nil {
+		return PaymentDetail{}, fmt.Errorf("get payment by id: %w", err)
+	}
+
+	switch roleID {
+	case roleAdminID:
+		return payment, nil
+	case roleAgentID:
+		if payment.AgentID != userID {
+			return PaymentDetail{}, ErrPaymentForbidden
+		}
+	case roleClientID:
+		if payment.ClientID != userID {
+			return PaymentDetail{}, ErrPaymentForbidden
+		}
+	default:
+		return PaymentDetail{}, ErrUnsupportedRole
+	}
+
+	return payment, nil
+}
+
+func isSupportedRole(roleID int32) bool {
+	return roleID == roleAdminID || roleID == roleAgentID || roleID == roleClientID
 }

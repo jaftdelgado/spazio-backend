@@ -2,6 +2,7 @@ package payments
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -48,6 +49,24 @@ func (m *MockRepository) UpdatePaymentStatus(ctx context.Context, arg sqlcgen.Up
 	return args.Error(0)
 }
 
+func (m *MockRepository) ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error) {
+	args := m.Called(ctx, userID, roleID, input)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]PaymentListItem), args.Error(1)
+}
+
+func (m *MockRepository) GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error) {
+	args := m.Called(ctx, paymentID)
+	return args.Get(0).(PaymentDetail), args.Error(1)
+}
+
+func (m *MockRepository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
+	args := m.Called(ctx, userID)
+	return int32(args.Int(0)), args.Error(1)
+}
+
 func (m *MockRepository) WithTx(tx pgx.Tx) Repository {
 	return m
 }
@@ -68,6 +87,8 @@ type MockTx struct {
 func (m *MockTx) Rollback(ctx context.Context) error { return nil }
 func (m *MockTx) Commit(ctx context.Context) error   { return nil }
 
+// --- UC-16 & UC-17 Tests (Processing) ---
+
 func TestProcessPayment_Success(t *testing.T) {
 	repo := new(MockRepository)
 	service := NewService(repo)
@@ -85,7 +106,7 @@ func TestProcessPayment_Success(t *testing.T) {
 	repo.On("GetContractForPaymentWithLock", mock.Anything, int32(1)).Return(sqlcgen.GetContractForPaymentWithLockRow{
 		ContractID:   1,
 		ClientID:     clientID,
-		AgreedAmount: pgtype.Numeric{Int: bigNewInt(150000), Exp: -2, Valid: true},
+		AgreedAmount: pgtype.Numeric{Int: big.NewInt(150000), Exp: -2, Valid: true},
 		StatusID:     1,
 	}, nil)
 
@@ -146,4 +167,103 @@ func TestConfirmPendingPayment_Success(t *testing.T) {
 	err := service.ConfirmPendingPayment(ctx, clientID, pUUID)
 
 	assert.NoError(t, err)
+}
+
+// --- UC-17 Tests (Consulting) ---
+
+func TestService_ListPayments_GetUserRoleFails(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(0, errors.New("role lookup failed"))
+
+	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "list payments:")
+}
+
+func TestService_ListPayments_UnsupportedRole(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(99, nil)
+
+	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	assert.ErrorIs(t, err, ErrUnsupportedRole)
+}
+
+func TestService_ListPayments_RepositoryListFails(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+	input := ListPaymentsInput{Limit: 20, Offset: 0}
+
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int(roleAdminID), nil)
+	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return(nil, errors.New("db down"))
+
+	_, err := svc.ListPayments(context.Background(), 7, input)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "list payments:")
+}
+
+func TestService_ListPayments_EmptyResult(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+	input := ListPaymentsInput{Limit: 20, Offset: 0}
+
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int(roleAdminID), nil)
+	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return([]PaymentListItem{}, nil)
+
+	result, err := svc.ListPayments(context.Background(), 7, input)
+	assert.NoError(t, err)
+	assert.Empty(t, result.Data)
+	assert.Equal(t, int64(0), result.Pagination.Total)
+}
+
+func TestService_ListPayments_TotalFromFirstItem(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+	input := ListPaymentsInput{Limit: 20, Offset: 0}
+
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int(roleAdminID), nil)
+	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return([]PaymentListItem{
+		{PaymentID: 1, TotalCount: 84},
+		{PaymentID: 2, TotalCount: 84},
+	}, nil)
+
+	result, err := svc.ListPayments(context.Background(), 7, input)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(84), result.Pagination.Total)
+}
+
+func TestService_GetPaymentByID_PaymentNotFound(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+
+	repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{}, ErrPaymentNotFound)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	assert.ErrorIs(t, err, ErrPaymentNotFound)
+}
+
+func TestService_GetPaymentByID_AdminAccessesForeignPayment(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+
+	repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 99}, nil)
+	repo.On("GetUserRole", mock.Anything, int32(1)).Return(int(roleAdminID), nil)
+
+	result, err := svc.GetPaymentByID(context.Background(), 1, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, int32(1), result.PaymentID)
+}
+
+func TestService_GetPaymentByID_AgentAccessesForeignPayment(t *testing.T) {
+	repo := new(MockRepository)
+	svc := NewService(repo)
+
+	repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1, ClientID: 3, AgentID: 99}, nil)
+	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int(roleAgentID), nil)
+
+	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	assert.ErrorIs(t, err, ErrPaymentForbidden)
 }

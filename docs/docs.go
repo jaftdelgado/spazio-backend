@@ -15,7 +15,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/catalogs/modalities": {
+        "/api/v1/catalogs/modalities": {
             "get": {
                 "description": "Returns all modalities ordered by modality_id ascending.",
                 "produces": [
@@ -41,7 +41,33 @@ const docTemplate = `{
                 }
             }
         },
-        "/catalogs/property-types": {
+        "/api/v1/catalogs/orientations": {
+            "get": {
+                "description": "Returns all orientations ordered by name ascending.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Catalogs"
+                ],
+                "summary": "List orientations",
+                "responses": {
+                    "200": {
+                        "description": "List of orientations",
+                        "schema": {
+                            "$ref": "#/definitions/catalogs.ListOrientationsResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/catalogs/property-types": {
             "get": {
                 "description": "Returns all non-deprecated property types ordered by property_type_id ascending.",
                 "produces": [
@@ -67,9 +93,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/catalogs/rent-periods": {
+        "/api/v1/catalogs/rent-periods": {
             "get": {
-                "description": "Returns all rent periods ordered by period_id ascending.",
+                "description": "Returns rent periods enabled for the provided property type, ordered by period_id ascending.",
                 "produces": [
                     "application/json"
                 ],
@@ -77,11 +103,26 @@ const docTemplate = `{
                     "Catalogs"
                 ],
                 "summary": "List rent periods",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Property type ID",
+                        "name": "property_type_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "List of rent periods",
                         "schema": {
                             "$ref": "#/definitions/catalogs.ListRentPeriodsResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
@@ -93,28 +134,60 @@ const docTemplate = `{
                 }
             }
         },
-        "/payment-methods": {
+        "/api/v1/clauses": {
             "get": {
-                "description": "List supported payment methods (Card, PayPal, OXXO, etc.)",
+                "description": "Returns clauses available for the provided modality. When q is present, the endpoint performs a filtered search. Results are paginated.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "payments"
+                    "Clauses"
                 ],
-                "summary": "Get available payment methods",
+                "summary": "List clauses",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Modality ID",
+                        "name": "modality_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "List of clauses",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/payments.PaymentMethodResponse"
-                            }
+                            "$ref": "#/definitions/clauses.ListClausesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -122,37 +195,121 @@ const docTemplate = `{
                 }
             }
         },
-        "/payments": {
+        "/api/v1/locations/cities": {
             "get": {
-                "description": "History of payments for the authenticated user. Requires X-User-ID header.",
+                "description": "Returns cities for the selected state. Results are paginated.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "payments"
+                    "Locations"
                 ],
-                "summary": "List user payments",
+                "summary": "List cities",
                 "parameters": [
                     {
                         "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
-                        "in": "header",
+                        "description": "State ID",
+                        "name": "state_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of cities",
+                        "schema": {
+                            "$ref": "#/definitions/locations.ListCitiesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/locations/countries": {
+            "get": {
+                "description": "Returns all available countries ordered by name.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "List countries",
+                "responses": {
+                    "200": {
+                        "description": "List of countries",
+                        "schema": {
+                            "$ref": "#/definitions/locations.ListCountriesResult"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/locations/states": {
+            "get": {
+                "description": "Returns all states for the selected country ordered by name.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Locations"
+                ],
+                "summary": "List states",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Country ID",
+                        "name": "country_id",
+                        "in": "query",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "List of states",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/payments.PaymentResponse"
-                            }
+                            "$ref": "#/definitions/locations.ListStatesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -160,9 +317,270 @@ const docTemplate = `{
                 }
             }
         },
-        "/payments/intent": {
+        "/api/v1/payments": {
+            "get": {
+                "description": "Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "List payments",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Numeric ID of the authenticated user",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by property ID",
+                        "name": "property_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by payment status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Minimum due date in YYYY-MM-DD format",
+                        "name": "date_from",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Maximum due date in YYYY-MM-DD format",
+                        "name": "date_to",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Maximum number of results to return, default 20, max 100",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Pagination offset, default 0",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated list of payments",
+                        "schema": {
+                            "$ref": "#/definitions/payments.ListPaymentsResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/payments/{payment_id}": {
+            "get": {
+                "description": "Returns one payment detail when the payment exists and the authenticated user is allowed to access it. Agent and client users receive 403 Forbidden when the payment belongs to a different transaction.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Get payment detail",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Numeric ID of the authenticated user",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Payment ID",
+                        "name": "payment_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Payment detail",
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentDetail"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Payment not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties": {
+            "get": {
+                "description": "Returns a paginated list of property cards with optional search, status, type, modality, and location filters. Deleted properties are always excluded. The selected card price prefers sale price unless the property modality is rent or no current sale price exists; in that case the best current rent price is used following monthly, annual, weekly, then daily priority.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "List properties",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search term across title, street, neighborhood, city, state, and country",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by property status. Repeat the parameter to send multiple values.",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by property type ID",
+                        "name": "property_type_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by modality ID",
+                        "name": "modality_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by country ID",
+                        "name": "country_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by state ID",
+                        "name": "state_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by city ID",
+                        "name": "city_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field: created_at, title, or price",
+                        "name": "sort",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order: asc or desc",
+                        "name": "order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated property cards",
+                        "schema": {
+                            "$ref": "#/definitions/properties.ListPropertiesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
             "post": {
-                "description": "Start a payment process for a property reservation (Apartado). Requires X-User-ID header.",
+                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
                 "consumes": [
                     "application/json"
                 ],
@@ -170,36 +588,35 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "payments"
+                    "Properties"
                 ],
-                "summary": "Create a payment intent",
+                "summary": "Register a new property",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Payment Details",
+                        "description": "Property payload",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/payments.PaymentIntentRequest"
+                            "$ref": "#/definitions/properties.CreatePropertyInput"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Property created",
                         "schema": {
-                            "$ref": "#/definitions/payments.PaymentResponse"
+                            "$ref": "#/definitions/properties.CreatePropertyResult"
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -207,61 +624,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/payments/{uuid}/confirm": {
-            "post": {
-                "description": "Simulate the confirmation of a payment from a gateway. Requires X-User-ID header.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "payments"
-                ],
-                "summary": "Confirm a payment (Mock)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Payment UUID",
-                        "name": "uuid",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "Mock Token",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/payments.ConfirmPaymentRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/payments.PaymentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/properties/{id}/availability": {
+        "/api/v1/properties/{id}/availability": {
             "get": {
                 "description": "Get available 1-hour slots for a property on a specific date",
                 "consumes": [
@@ -314,9 +677,629 @@ const docTemplate = `{
                 }
             }
         },
-        "/uploads/properties/{property_uuid}/photos": {
+        "/api/v1/properties/{uuid}": {
+            "get": {
+                "description": "Returns property base data, subtype, and location for the given UUID. When full=true, the response also includes consolidated prices, price history, photos, services, and clauses. Deleted properties are treated as not found.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Get property by UUID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include prices, history, photos, services, and clauses",
+                        "name": "full",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property data",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Soft deletes a property by UUID. The request must include confirm=true and a valid changed_by_user_id. The operation deletes linked photo objects from storage before applying database updates. Only properties with available status can be deleted.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Delete property",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Delete payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.DeletePropertyInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property deleted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "description": "Update property base data, subtype and location. Only editable fields are allowed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Update property",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/clauses": {
+            "get": {
+                "description": "Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "List property clauses",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property clauses",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyClausesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Replaces all clauses linked to a property by UUID. When the payload omits clauses or sends an empty array, all linked clauses are removed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Replace property clauses",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Property clauses payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyClausesInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/photos": {
+            "get": {
+                "description": "Returns the photo metadata linked to a property by UUID ordered by sort_order ascending. When the property has no photos, the response contains an empty data array.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "List property photos",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property photos",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyPhotosResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Replaces the stored metadata of the photos linked to a property by UUID. Exactly one photo must be marked as cover when the payload contains photos. When the payload omits photos or sends an empty array, all linked photos are removed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Replace property photos",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Property photos payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyPhotosInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/prices": {
+            "get": {
+                "description": "Returns the active prices of a property by UUID. Sale price and rent prices include only currently active records (is_current=true). If no active sale price exists, sale_price is null. If no active rent prices exist, rent_prices is an empty array.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Get property prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property prices",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyPricesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates property prices by UUID. Only processes prices in the payload; unmodified prices remain unchanged. When the amount of a price changes, a new price record is created and the old one is marked as inactive. Amounts must be greater than 0. Currency is not editable.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Update property prices",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Property prices payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyPricesInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/services": {
+            "get": {
+                "description": "Returns the service IDs linked to a property by UUID. When the property has no services, the response contains an empty service_ids array.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "List property services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property services",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyServicesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Replaces all services linked to a property by UUID. When the payload omits service_ids or sends an empty array, all linked services are removed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Replace property services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Property services payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/properties.UpdatePropertyServicesInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/services": {
+            "get": {
+                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Services"
+                ],
+                "summary": "List services",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Search term",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results limit",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of services",
+                        "schema": {
+                            "$ref": "#/definitions/services.ListServicesResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/uploads/properties/{property_uuid}/photos": {
             "post": {
-                "description": "Uploads a photo for a property to R2 and registers it",
+                "description": "Uploads a property photo to object storage and registers metadata. Max size is 5MB and allowed types are image/jpeg, image/png, and image/webp.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -324,7 +1307,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "uploads"
+                    "Uploads"
                 ],
                 "summary": "Upload property photo",
                 "parameters": [
@@ -337,49 +1320,67 @@ const docTemplate = `{
                     },
                     {
                         "type": "file",
-                        "description": "The image file",
+                        "description": "Image file",
                         "name": "file",
                         "in": "formData",
                         "required": true
                     },
                     {
                         "type": "string",
-                        "description": "Label",
+                        "description": "Optional label",
                         "name": "label",
                         "in": "formData"
                     },
                     {
                         "type": "string",
-                        "description": "Alt Text",
+                        "description": "Optional alt text",
                         "name": "alt_text",
                         "in": "formData"
                     },
                     {
                         "type": "integer",
                         "default": 0,
-                        "description": "Sort Order",
+                        "description": "Sort order",
                         "name": "sort_order",
                         "in": "formData"
                     },
                     {
                         "type": "boolean",
                         "default": false,
-                        "description": "Is Cover",
+                        "description": "Mark as cover",
                         "name": "is_cover",
                         "in": "formData"
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "Photo uploaded",
                         "schema": {
                             "$ref": "#/definitions/uploads.UploadPhotoResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/visits": {
+        "/api/v1/visits": {
             "get": {
                 "description": "List visits according to user role (Admin, Agent, Client). Supports filtering by status, property and date. Requires X-User-ID header.",
                 "consumes": [
@@ -489,7 +1490,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/complete": {
+        "/api/v1/visits/{uuid}/complete": {
             "patch": {
                 "description": "Mark a confirmed visit as completed. Only for Agents or Admin. Requires X-User-ID header.",
                 "consumes": [
@@ -543,7 +1544,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/confirm": {
+        "/api/v1/visits/{uuid}/confirm": {
             "patch": {
                 "description": "Transition a visit status towards 'Confirmed' by Client or Agent. Requires X-User-ID header.",
                 "consumes": [
@@ -597,7 +1598,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/visits/{uuid}/reschedule": {
+        "/api/v1/visits/{uuid}/reschedule": {
             "patch": {
                 "description": "Cancels the old visit and creates a new one with the new date. Requires X-User-ID header.",
                 "consumes": [
@@ -670,6 +1671,17 @@ const docTemplate = `{
                 }
             }
         },
+        "catalogs.ListOrientationsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/catalogs.Orientation"
+                    }
+                }
+            }
+        },
         "catalogs.ListPropertyTypesResult": {
             "type": "object",
             "properties": {
@@ -705,6 +1717,19 @@ const docTemplate = `{
                 }
             }
         },
+        "catalogs.Orientation": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "North"
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
         "catalogs.PropertyType": {
             "type": "object",
             "properties": {
@@ -735,41 +1760,73 @@ const docTemplate = `{
                 }
             }
         },
-        "payments.ConfirmPaymentRequest": {
+        "clauses.Clause": {
             "type": "object",
-            "required": [
-                "mock_token"
-            ],
             "properties": {
-                "mock_token": {
-                    "description": "e.g., \"tok_success\", \"tok_oxxo_pending\"",
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "code": {
+                    "type": "string",
+                    "example": "pets_allowed"
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "value_type": {
+                    "$ref": "#/definitions/clauses.ClauseValueType"
+                }
+            }
+        },
+        "clauses.ClauseValueType": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "example": "boolean"
+                }
+            }
+        },
+        "clauses.ListClausesMeta": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "query": {
                     "type": "string"
-                }
-            }
-        },
-        "payments.PaymentIntentRequest": {
-            "type": "object",
-            "required": [
-                "amount",
-                "method_id",
-                "property_id"
-            ],
-            "properties": {
-                "amount": {
-                    "type": "number"
                 },
-                "method_id": {
+                "total": {
                     "type": "integer"
                 },
-                "property_id": {
+                "total_pages": {
                     "type": "integer"
                 }
             }
         },
-        "payments.PaymentMethodResponse": {
+        "clauses.ListClausesResult": {
             "type": "object",
             "properties": {
-                "method_id": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/clauses.Clause"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/clauses.ListClausesMeta"
+                }
+            }
+        },
+        "locations.City": {
+            "type": "object",
+            "properties": {
+                "city_id": {
                     "type": "integer"
                 },
                 "name": {
@@ -777,38 +1834,1216 @@ const docTemplate = `{
                 }
             }
         },
-        "payments.PaymentResponse": {
+        "locations.Country": {
+            "type": "object",
+            "properties": {
+                "country_id": {
+                    "type": "integer"
+                },
+                "iso2_code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "locations.ListCitiesMeta": {
+            "type": "object",
+            "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "locations.ListCitiesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/locations.City"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/locations.ListCitiesMeta"
+                }
+            }
+        },
+        "locations.ListCountriesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/locations.Country"
+                    }
+                }
+            }
+        },
+        "locations.ListStatesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/locations.State"
+                    }
+                }
+            }
+        },
+        "locations.State": {
+            "type": "object",
+            "properties": {
+                "iso_code": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "payments.ListPaymentsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/payments.PaymentListItem"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/payments.PaymentsPagination"
+                }
+            }
+        },
+        "payments.PaymentDetail": {
+            "type": "object",
+            "properties": {
+                "agent_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "agreed_amount": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "amount": {
+                    "type": "string",
+                    "example": "1500.00"
+                },
+                "billing_period": {
+                    "type": "string",
+                    "example": "2024-03-01"
+                },
+                "client_id": {
+                    "type": "integer",
+                    "example": 7
+                },
+                "contract_id": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "due_date": {
+                    "type": "string",
+                    "example": "2024-03-10"
+                },
+                "gateway": {
+                    "type": "string",
+                    "example": "Stripe"
+                },
+                "payment_date": {
+                    "type": "string",
+                    "example": "2024-03-08T14:32:00Z"
+                },
+                "payment_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "payment_method": {
+                    "type": "string",
+                    "example": "Transferencia bancaria"
+                },
+                "property_id": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Pagado"
+                },
+                "transaction_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "transaction_type": {
+                    "type": "string",
+                    "example": "rent"
+                }
+            }
+        },
+        "payments.PaymentListItem": {
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "type": "string",
+                    "example": "1500.00"
                 },
-                "created_at": {
-                    "type": "string"
+                "billing_period": {
+                    "type": "string",
+                    "example": "2024-03-01"
                 },
-                "instructions": {
-                    "type": "string"
+                "contract_id": {
+                    "type": "integer",
+                    "example": 10
                 },
-                "method": {
-                    "type": "string"
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "due_date": {
+                    "type": "string",
+                    "example": "2024-03-10"
+                },
+                "gateway": {
+                    "type": "string",
+                    "example": "Stripe"
                 },
                 "payment_date": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-03-08T14:32:00Z"
                 },
-                "payment_uuid": {
-                    "type": "string"
+                "payment_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "payment_method": {
+                    "type": "string",
+                    "example": "Transferencia bancaria"
                 },
                 "property_id": {
-                    "type": "integer"
-                },
-                "property_title": {
-                    "type": "string"
-                },
-                "redirect_url": {
-                    "type": "string"
+                    "type": "integer",
+                    "example": 5
                 },
                 "status": {
+                    "type": "string",
+                    "example": "Pagado"
+                }
+            }
+        },
+        "payments.PaymentsPagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 84
+                }
+            }
+        },
+        "properties.ActiveRentPriceData": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "number",
+                    "example": 16000
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "rent_price": {
+                    "type": "number",
+                    "example": 8000
+                }
+            }
+        },
+        "properties.ActiveSalePriceData": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "sale_price": {
+                    "type": "number",
+                    "example": 1500000
+                }
+            }
+        },
+        "properties.CommercialData": {
+            "type": "object",
+            "properties": {
+                "ceiling_height": {
+                    "type": "number"
+                },
+                "internal_offices": {
+                    "type": "integer"
+                },
+                "land_use": {
                     "type": "string"
+                },
+                "loading_docks": {
+                    "type": "integer"
+                },
+                "three_phase_power": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "properties.CreateCommercialInput": {
+            "type": "object",
+            "properties": {
+                "ceiling_height": {
+                    "type": "number",
+                    "example": 4.5
+                },
+                "internal_offices": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "land_use": {
+                    "type": "string",
+                    "example": "Retail"
+                },
+                "loading_docks": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "three_phase_power": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "properties.CreateLocationInput": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "exterior_number": {
+                    "type": "string",
+                    "example": "45"
+                },
+                "interior_number": {
+                    "type": "string",
+                    "example": "A"
+                },
+                "is_public_address": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": 19.5438
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": -96.9102
+                },
+                "neighborhood": {
+                    "type": "string",
+                    "example": "Centro"
+                },
+                "postal_code": {
+                    "type": "string",
+                    "example": "91000"
+                },
+                "street": {
+                    "type": "string",
+                    "example": "Av. Principal"
+                }
+            }
+        },
+        "properties.CreatePropertyClauseInput": {
+            "type": "object",
+            "properties": {
+                "boolean_value": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "integer_value": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "max_value": {
+                    "type": "number",
+                    "example": 3
+                },
+                "min_value": {
+                    "type": "number",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreatePropertyInput": {
+            "type": "object",
+            "properties": {
+                "clauses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreatePropertyClauseInput"
+                    }
+                },
+                "commercial": {
+                    "$ref": "#/definitions/properties.CreateCommercialInput"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Spacious residential property near downtown"
+                },
+                "is_featured": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.CreateLocationInput"
+                },
+                "lot_area": {
+                    "type": "number",
+                    "example": 200
+                },
+                "modality_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "owner_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "property_type_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "rent_prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreateRentPriceInput"
+                    }
+                },
+                "residential": {
+                    "$ref": "#/definitions/properties.CreateResidentialInput"
+                },
+                "sale_price": {
+                    "$ref": "#/definitions/properties.CreateSalePriceInput"
+                },
+                "services": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        3,
+                        7
+                    ]
+                },
+                "subtype": {
+                    "type": "string",
+                    "example": "residential"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Casa en Xalapa"
+                }
+            }
+        },
+        "properties.CreatePropertyResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.CreatePropertyResultData"
+                }
+            }
+        },
+        "properties.CreatePropertyResultData": {
+            "type": "object",
+            "properties": {
+                "property_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            }
+        },
+        "properties.CreateRentPriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "number",
+                    "example": 16000
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "rent_price": {
+                    "type": "number",
+                    "example": 8000
+                }
+            }
+        },
+        "properties.CreateResidentialInput": {
+            "type": "object",
+            "properties": {
+                "bathrooms": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "bedrooms": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "beds": {
+                    "type": "integer",
+                    "example": 4
+                },
+                "built_area": {
+                    "type": "number",
+                    "example": 120
+                },
+                "construction_year": {
+                    "type": "integer",
+                    "example": 2010
+                },
+                "floors": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "is_furnished": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "orientation_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "parking_spots": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "properties.CreateSalePriceInput": {
+            "type": "object",
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "sale_price": {
+                    "type": "number",
+                    "example": 1500000
+                }
+            }
+        },
+        "properties.DeletePropertyInput": {
+            "type": "object",
+            "properties": {
+                "changed_by_user_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "confirm": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "properties.GetPropertyClausesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyClauseData"
+                    }
+                }
+            }
+        },
+        "properties.GetPropertyData": {
+            "type": "object",
+            "properties": {
+                "commercial": {
+                    "$ref": "#/definitions/properties.CommercialData"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_featured": {
+                    "type": "boolean"
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.LocationData"
+                },
+                "lot_area": {
+                    "type": "number"
+                },
+                "modality_id": {
+                    "type": "integer"
+                },
+                "owner_id": {
+                    "type": "integer"
+                },
+                "property_type_id": {
+                    "type": "integer"
+                },
+                "property_uuid": {
+                    "type": "string"
+                },
+                "residential": {
+                    "$ref": "#/definitions/properties.ResidentialData"
+                },
+                "status_id": {
+                    "type": "integer"
+                },
+                "subtype": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "properties.GetPropertyPhotosResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyPhotoData"
+                    }
+                }
+            }
+        },
+        "properties.GetPropertyPricesData": {
+            "type": "object",
+            "properties": {
+                "rent_prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.ActiveRentPriceData"
+                    }
+                },
+                "sale_price": {
+                    "$ref": "#/definitions/properties.ActiveSalePriceData"
+                }
+            }
+        },
+        "properties.GetPropertyPricesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.GetPropertyPricesData"
+                }
+            }
+        },
+        "properties.GetPropertyResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.GetPropertyData"
+                }
+            }
+        },
+        "properties.GetPropertyServicesData": {
+            "type": "object",
+            "properties": {
+                "service_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    },
+                    "example": [
+                        1,
+                        3,
+                        7
+                    ]
+                }
+            }
+        },
+        "properties.GetPropertyServicesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/properties.GetPropertyServicesData"
+                }
+            }
+        },
+        "properties.ListPropertiesMeta": {
+            "type": "object",
+            "properties": {
+                "current_page": {
+                    "type": "integer"
+                },
+                "has_next": {
+                    "type": "boolean"
+                },
+                "has_prev": {
+                    "type": "boolean"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "properties.ListPropertiesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyCardData"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/properties.ListPropertiesMeta"
+                }
+            }
+        },
+        "properties.LocationData": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer"
+                },
+                "exterior_number": {
+                    "type": "string"
+                },
+                "interior_number": {
+                    "type": "string"
+                },
+                "is_public_address": {
+                    "type": "boolean"
+                },
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "neighborhood": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "street": {
+                    "type": "string"
+                }
+            }
+        },
+        "properties.PropertyCardData": {
+            "type": "object",
+            "properties": {
+                "cover_photo_url": {
+                    "type": "string",
+                    "example": "https://cdn.example.com/properties/cover.jpg"
+                },
+                "modality": {
+                    "$ref": "#/definitions/properties.PropertyCardModalityData"
+                },
+                "price": {
+                    "$ref": "#/definitions/properties.PropertyCardPriceData"
+                },
+                "property_type": {
+                    "$ref": "#/definitions/properties.PropertyCardTypeData"
+                },
+                "property_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                },
+                "status": {
+                    "$ref": "#/definitions/properties.PropertyCardStatusData"
+                },
+                "title": {
+                    "type": "string",
+                    "example": "Apartment in Downtown"
+                }
+            }
+        },
+        "properties.PropertyCardModalityData": {
+            "type": "object",
+            "properties": {
+                "modality_id": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Rent"
+                }
+            }
+        },
+        "properties.PropertyCardPriceData": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 25000
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "period_name": {
+                    "type": "string",
+                    "example": "Monthly"
+                },
+                "price_type": {
+                    "type": "string",
+                    "example": "rent"
+                }
+            }
+        },
+        "properties.PropertyCardStatusData": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "example": "Available"
+                },
+                "status_id": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "properties.PropertyCardTypeData": {
+            "type": "object",
+            "properties": {
+                "icon": {
+                    "type": "string",
+                    "example": "/icons/apartment.svg"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Apartment"
+                },
+                "property_type_id": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "properties.PropertyClauseData": {
+            "type": "object",
+            "properties": {
+                "boolean_value": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "clause_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "integer_value": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "max_value": {
+                    "type": "number",
+                    "example": 3
+                },
+                "min_value": {
+                    "type": "number",
+                    "example": 1
+                }
+            }
+        },
+        "properties.PropertyPhotoData": {
+            "type": "object",
+            "properties": {
+                "alt_text": {
+                    "type": "string",
+                    "example": "Front facade of the property"
+                },
+                "is_cover": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Front facade"
+                },
+                "mime_type": {
+                    "type": "string",
+                    "example": "image/jpeg"
+                },
+                "photo_id": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "storage_key": {
+                    "type": "string",
+                    "example": "properties/123/front.jpg"
+                }
+            }
+        },
+        "properties.ResidentialData": {
+            "type": "object",
+            "properties": {
+                "bathrooms": {
+                    "type": "integer"
+                },
+                "bedrooms": {
+                    "type": "integer"
+                },
+                "beds": {
+                    "type": "integer"
+                },
+                "built_area": {
+                    "type": "number"
+                },
+                "construction_year": {
+                    "type": "integer"
+                },
+                "floors": {
+                    "type": "integer"
+                },
+                "is_furnished": {
+                    "type": "boolean"
+                },
+                "orientation_id": {
+                    "type": "integer"
+                },
+                "parking_spots": {
+                    "type": "integer"
+                }
+            }
+        },
+        "properties.UpdateCommercialInput": {
+            "type": "object",
+            "properties": {
+                "ceiling_height": {
+                    "type": "number"
+                },
+                "internal_offices": {
+                    "type": "integer"
+                },
+                "land_use": {
+                    "type": "string"
+                },
+                "loading_docks": {
+                    "type": "integer"
+                },
+                "three_phase_power": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "properties.UpdateLocationInput": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer"
+                },
+                "exterior_number": {
+                    "type": "string"
+                },
+                "interior_number": {
+                    "type": "string"
+                },
+                "is_public_address": {
+                    "type": "boolean"
+                },
+                "latitude": {
+                    "type": "number"
+                },
+                "longitude": {
+                    "type": "number"
+                },
+                "neighborhood": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "street": {
+                    "type": "string"
+                }
+            }
+        },
+        "properties.UpdatePhotoMetadataInput": {
+            "type": "object",
+            "properties": {
+                "alt_text": {
+                    "type": "string",
+                    "example": "Front facade of the property"
+                },
+                "is_cover": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "label": {
+                    "type": "string",
+                    "example": "Front facade"
+                },
+                "photo_id": {
+                    "type": "integer",
+                    "example": 12
+                },
+                "sort_order": {
+                    "type": "integer",
+                    "example": 0
+                }
+            }
+        },
+        "properties.UpdatePropertyClausesInput": {
+            "type": "object",
+            "properties": {
+                "clauses": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.CreatePropertyClauseInput"
+                    }
+                }
+            }
+        },
+        "properties.UpdatePropertyInput": {
+            "type": "object",
+            "properties": {
+                "commercial": {
+                    "$ref": "#/definitions/properties.UpdateCommercialInput"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "is_featured": {
+                    "type": "boolean"
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.UpdateLocationInput"
+                },
+                "lot_area": {
+                    "type": "number"
+                },
+                "residential": {
+                    "$ref": "#/definitions/properties.UpdateResidentialInput"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "properties.UpdatePropertyPhotosInput": {
+            "type": "object",
+            "properties": {
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.UpdatePhotoMetadataInput"
+                    }
+                }
+            }
+        },
+        "properties.UpdatePropertyPricesInput": {
+            "type": "object",
+            "properties": {
+                "rent_prices": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.UpdateRentPriceInput"
+                    }
+                },
+                "sale_price": {
+                    "$ref": "#/definitions/properties.UpdateSalePriceInput"
+                }
+            }
+        },
+        "properties.UpdatePropertyResult": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "properties.UpdatePropertyServicesInput": {
+            "type": "object",
+            "properties": {
+                "service_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "properties.UpdateRentPriceInput": {
+            "type": "object",
+            "properties": {
+                "deposit": {
+                    "type": "number",
+                    "example": 16000
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "rent_price": {
+                    "type": "number",
+                    "example": 8000
+                }
+            }
+        },
+        "properties.UpdateResidentialInput": {
+            "type": "object",
+            "properties": {
+                "bathrooms": {
+                    "type": "integer"
+                },
+                "bedrooms": {
+                    "type": "integer"
+                },
+                "beds": {
+                    "type": "integer"
+                },
+                "built_area": {
+                    "type": "number"
+                },
+                "construction_year": {
+                    "type": "integer"
+                },
+                "floors": {
+                    "type": "integer"
+                },
+                "is_furnished": {
+                    "type": "boolean"
+                },
+                "orientation_id": {
+                    "type": "integer"
+                },
+                "parking_spots": {
+                    "type": "integer"
+                }
+            }
+        },
+        "properties.UpdateSalePriceInput": {
+            "type": "object",
+            "properties": {
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "sale_price": {
+                    "type": "number",
+                    "example": 1500000
+                }
+            }
+        },
+        "services.ListServicesMeta": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                },
+                "shown": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "services.ListServicesResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.Service"
+                    }
+                },
+                "meta": {
+                    "$ref": "#/definitions/services.ListServicesMeta"
+                }
+            }
+        },
+        "services.Service": {
+            "type": "object",
+            "properties": {
+                "category_code": {
+                    "type": "string",
+                    "example": "basic"
+                },
+                "code": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "icon": {
+                    "type": "string",
+                    "example": "wifi"
+                },
+                "service_id": {
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
