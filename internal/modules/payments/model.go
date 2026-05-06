@@ -1,9 +1,10 @@
 package payments
 
 import (
-	"context"
 	"errors"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -14,6 +15,28 @@ var (
 	// ErrUnsupportedRole is returned when the user role is not supported by this module.
 	ErrUnsupportedRole = errors.New("unsupported user role")
 )
+
+// --- UC-16 & UC-17 ---
+
+type RegisterPaymentRequest struct {
+	ContractID      int32   `json:"contract_id" binding:"required"`
+	PaymentMethodID int32   `json:"payment_method_id" binding:"required"`
+	GatewayID       int32   `json:"gateway_id" binding:"required"`
+	Amount          float64 `json:"amount" binding:"required"`
+	CardNumber      string  `json:"card_number"` // Para simulación
+}
+
+type PaymentResponse struct {
+	PaymentUUID     uuid.UUID `json:"payment_uuid"`
+	Status          string    `json:"status"`
+	StatusID        int32     `json:"status_id"`
+	Amount          float64   `json:"amount"`
+	PaymentDate     *time.Time `json:"payment_date,omitempty"`
+	GatewayID       string    `json:"gateway_payment_id,omitempty"`
+	ReferenceNumber *string    `json:"reference_number,omitempty"`
+}
+
+// --- UC-17: Consulting Payments ---
 
 // ListPaymentsInput defines filters for listing payments.
 type ListPaymentsInput struct {
@@ -72,17 +95,4 @@ type PaymentDetail struct {
 	PaymentDate     *time.Time `json:"payment_date" example:"2024-03-08T14:32:00Z"`
 	ClientID        int32      `json:"client_id" example:"7"`
 	AgentID         int32      `json:"agent_id" example:"2"`
-}
-
-// PaymentsRepository defines persistence operations for the payments module.
-type PaymentsRepository interface {
-	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
-	GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error)
-	GetUserRole(ctx context.Context, userID int32) (int32, error)
-}
-
-// PaymentsService defines business operations for the payments module.
-type PaymentsService interface {
-	ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error)
-	GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error)
 }
