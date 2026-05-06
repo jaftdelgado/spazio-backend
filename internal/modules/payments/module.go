@@ -7,19 +7,21 @@ import (
 
 // Module wires dependencies and routes for the payments vertical slice.
 type Module struct {
-	handler *Handler
+	Handler *Handler
 }
 
 // NewModule constructs a payments module with manual dependency wiring.
 func NewModule(db *pgxpool.Pool) *Module {
-	repository := NewRepository(db)
-	service := NewService(repository)
+	repo := NewRepository(db)
+	service := NewService(repo)
 	handler := NewHandler(service)
 
-	return &Module{handler: handler}
+	return &Module{
+		Handler: handler,
+	}
 }
 
 // RegisterRoutes registers module routes in the provided router group.
 func (m *Module) RegisterRoutes(r *gin.RouterGroup) {
-	m.handler.RegisterRoutes(r)
+	m.Handler.RegisterRoutes(r)
 }

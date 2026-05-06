@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -17,19 +18,98 @@ const (
 )
 
 type Handler struct {
-	service PaymentsService
+	service Service
 }
 
-func NewHandler(service PaymentsService) *Handler {
+func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	// UC-16 & UC-17: Process and Confirm
+	r.POST("/payments", h.processPayment)
+	r.PATCH("/payments/:uuid/confirm", h.confirmPendingPayment)
+
+	// UC-17: Consulting Payments (Legacy/Compatibility with origin)
 	r.GET("/api/v1/payments", h.listPayments)
 	r.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
 }
 
-// @Description  Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.
+// --- Handlers: UC-16 & UC-17 (Processing) ---
+
+// @Summary Confirm a pending payment
+// @Description Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param uuid path string true "Payment UUID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} shared.ErrorResponse
+// @Failure 500 {object} shared.ErrorResponse
+// @Router /payments/{uuid}/confirm [patch]
+func (h *Handler) confirmPendingPayment(c *gin.Context) {
+	userID, ok := resolveAuthenticatedUserID(c)
+	if !ok {
+		return
+	}
+
+	uuidStr := c.Param("uuid")
+	paymentUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	err = h.service.ConfirmPendingPayment(c.Request.Context(), userID, paymentUUID)
+	if err != nil {
+		shared.InternalError(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "pago confirmado correctamente"})
+}
+
+// @Summary Process a payment (Simulated)
+// @Description Register a payment for a contract with simulation logic (terminates in 0000 for failure).
+// @Tags payments
+// @Accept json
+// @Produce json
+// @Param request body RegisterPaymentRequest true "Payment Details"
+// @Success 201 {object} PaymentResponse
+// @Failure 400 {object} shared.ErrorResponse
+// @Failure 500 {object} shared.ErrorResponse
+// @Router /payments [post]
+func (h *Handler) processPayment(c *gin.Context) {
+	userID, ok := resolveAuthenticatedUserID(c)
+	if !ok {
+		return
+	}
+
+	var req RegisterPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	if err := validatePaymentRequest(req); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	payment, err := h.service.ProcessPayment(c.Request.Context(), userID, req)
+	if err != nil {
+		shared.InternalError(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusCreated, payment)
+}
+
+// --- Handlers: UC-17 (Consulting) ---
+
+// listPayments godoc
+// @Summary      List payments
+// @Description  Returns payments visible to the authenticated user.
 // @Tags         Payments
 // @Produce      json
 // @Param        X-User-ID    header    int                          true   "Numeric ID of the authenticated user"
@@ -37,10 +117,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Param        status_id    query     int                          false  "Filter by payment status ID"
 // @Param        date_from    query     string                       false  "Minimum due date in YYYY-MM-DD format"
 // @Param        date_to      query     string                       false  "Maximum due date in YYYY-MM-DD format"
-// @Param        limit        query     int                          false  "Maximum number of results to return, default 20, max 100" default(20)
-// @Param        offset       query     int                          false  "Pagination offset, default 0" default(0)
-// @Success      200          {object}  payments.ListPaymentsResult  "Paginated list of payments"
-
+// @Param        limit        query     int                          false  "Maximum number of results to return"
+// @Param        offset       query     int                          false  "Pagination offset"
+// @Success      200          {object}  ListPaymentsResult
+// @Router       /api/v1/payments [get]
 func (h *Handler) listPayments(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
 	if !ok {
@@ -69,17 +149,12 @@ func (h *Handler) listPayments(c *gin.Context) {
 
 // getPaymentByID godoc
 // @Summary      Get payment detail
-// @Description  Returns one payment detail when the payment exists and the authenticated user is allowed to access it. Agent and client users receive 403 Forbidden when the payment belongs to a different transaction.
+// @Description  Returns one payment detail.
 // @Tags         Payments
 // @Produce      json
 // @Param        X-User-ID   header    int                     true  "Numeric ID of the authenticated user"
 // @Param        payment_id  path      int                     true  "Payment ID"
-// @Success      200         {object}  payments.PaymentDetail  "Payment detail"
-// @Failure      400         {object}  shared.ErrorResponse "Invalid path params"
-// @Failure      401         {object}  shared.ErrorResponse "Missing authentication"
-// @Failure      403         {object}  shared.ErrorResponse "Forbidden"
-// @Failure      404         {object}  shared.ErrorResponse "Payment not found"
-// @Failure      500         {object}  shared.ErrorResponse "Internal error"
+// @Success      200         {object}  PaymentDetail
 // @Router       /api/v1/payments/{payment_id} [get]
 func (h *Handler) getPaymentByID(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
@@ -109,6 +184,8 @@ func (h *Handler) getPaymentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// --- Helpers ---
+
 func resolveAuthenticatedUserID(c *gin.Context) (int32, bool) {
 	rawUserID := strings.TrimSpace(c.GetHeader("X-User-ID"))
 	if rawUserID == "" {
@@ -116,8 +193,6 @@ func resolveAuthenticatedUserID(c *gin.Context) (int32, bool) {
 		return 0, false
 	}
 
-	// TODO: connect claims extraction when auth middleware stores a numeric user_id in Gin context.
-	// The current codebase only exposes user_uuid from JWT middleware, so this module follows the existing X-User-ID header pattern.
 	userID, err := strconv.ParseInt(rawUserID, 10, 32)
 	if err != nil {
 		shared.BadRequest(c, errors.New("X-User-ID must be a valid integer"))
@@ -130,6 +205,15 @@ func resolveAuthenticatedUserID(c *gin.Context) (int32, bool) {
 	}
 
 	return int32(userID), true
+}
+
+func validatePaymentRequest(req RegisterPaymentRequest) error {
+	return shared.Validate([]shared.ValidationRule{
+		{Fail: req.ContractID <= 0, Msg: "contract_id is required"},
+		{Fail: req.PaymentMethodID <= 0, Msg: "payment_method_id is required"},
+		{Fail: req.GatewayID <= 0, Msg: "gateway_id is required"},
+		{Fail: req.Amount <= 0, Msg: "amount must be greater than 0"},
+	})
 }
 
 func resolveListPaymentsInput(c *gin.Context) (ListPaymentsInput, error) {
