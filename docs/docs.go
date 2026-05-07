@@ -195,6 +195,209 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/contracts": {
+            "get": {
+                "description": "Returns a paginated list of contracts. Admins and Agents see all, Owners see only their own. Supports filtering by type, status, date range, and text search.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "List contracts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authenticated user ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number (default 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default 10)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by type (sale/rent)",
+                        "name": "transaction_type",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by status ID",
+                        "name": "status_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Filter by owner ID (Admin/Agent only)",
+                        "name": "owner_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by start date (RFC3339)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by end date (RFC3339)",
+                        "name": "end_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by property title or client name",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/contracts.ContractListItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint. Supports multiple contracts per transaction.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "Generate digital contract",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authenticated user ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Contract generation data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/contracts.CreateContractInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Contract generated and stored successfully",
+                        "schema": {
+                            "$ref": "#/definitions/contracts.CreateContractResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or logical date error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized user (not the owner)",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error in PDF generation or storage",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/contracts/{uuid}": {
+            "get": {
+                "description": "Returns the full details of a contract, including the PDF URL.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "Get contract detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Authenticated user ID",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Contract UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/contracts.ContractDetail"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/locations/cities": {
             "get": {
                 "description": "Returns cities for the selected state. Results are paginated.",
@@ -319,7 +522,7 @@ const docTemplate = `{
         },
         "/api/v1/payments": {
             "get": {
-                "description": "Returns payments visible to the authenticated user. Admin users can view every payment in the system, agent users can only view payments linked to their own transactions, and client users can only view payments linked to their own transactions. Optional filters by property, payment status, and due date range are applied only when provided.",
+                "description": "Returns payments visible to the authenticated user.",
                 "produces": [
                     "application/json"
                 ],
@@ -361,48 +564,22 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "default": 20,
-                        "description": "Maximum number of results to return, default 20, max 100",
+                        "description": "Maximum number of results to return",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "default": 0,
-                        "description": "Pagination offset, default 0",
+                        "description": "Pagination offset",
                         "name": "offset",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paginated list of payments",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/payments.ListPaymentsResult"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid query params",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Missing authentication",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     }
                 }
@@ -410,7 +587,7 @@ const docTemplate = `{
         },
         "/api/v1/payments/{payment_id}": {
             "get": {
-                "description": "Returns one payment detail when the payment exists and the authenticated user is allowed to access it. Agent and client users receive 403 Forbidden when the payment belongs to a different transaction.",
+                "description": "Returns one payment detail.",
                 "produces": [
                     "application/json"
                 ],
@@ -436,39 +613,9 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Payment detail",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/payments.PaymentDetail"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid path params",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Missing authentication",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Payment not found",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal error",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     }
                 }
@@ -476,32 +623,32 @@ const docTemplate = `{
         },
         "/api/v1/properties": {
             "get": {
-                "description": "Returns a paginated list of property cards with optional search, status, type, modality, and location filters. Deleted properties are always excluded. The selected card price prefers sale price unless the property modality is rent or no current sale price exists; in that case the best current rent price is used following monthly, annual, weekly, then daily priority.",
+                "description": "Returns a paginated list of property cards. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Properties"
                 ],
-                "summary": "List properties",
+                "summary": "List properties with advanced filters",
                 "parameters": [
                     {
                         "type": "integer",
                         "default": 1,
-                        "description": "Page number",
+                        "description": "Page number (starts at 1)",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 20,
-                        "description": "Results per page",
+                        "description": "Items per page (max 100)",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Search term across title, street, neighborhood, city, state, and country",
+                        "description": "Search term (matches title, address, city, state, country)",
                         "name": "q",
                         "in": "query"
                     },
@@ -511,7 +658,7 @@ const docTemplate = `{
                             "type": "integer"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter by property status. Repeat the parameter to send multiple values.",
+                        "description": "Filter by status IDs (Available=2 by default for clients)",
                         "name": "status_id",
                         "in": "query"
                     },
@@ -546,33 +693,51 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "number",
+                        "description": "Minimum price filter",
+                        "name": "min_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Maximum price filter",
+                        "name": "max_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Minimum bedrooms filter (Residential only)",
+                        "name": "min_bedrooms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Sort field: created_at, title, or price",
+                        "description": "Sort by: created_at, title, price",
                         "name": "sort",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Sort order: asc or desc",
+                        "description": "Sort order: asc, desc",
                         "name": "order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paginated property cards",
+                        "description": "Paginated list of property cards",
                         "schema": {
                             "$ref": "#/definitions/properties.ListPropertiesResult"
                         }
                     },
                     "400": {
-                        "description": "Invalid query params",
+                        "description": "Invalid input parameters",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -941,6 +1106,76 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/history": {
+            "get": {
+                "description": "Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Get property status history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID for RBAC validation",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Role ID (1: Admin, 2: Agent, 3: Client)",
+                        "name": "X-Role-ID",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chronological status history retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyHistoryResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID or missing required headers",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden: You are not authorized to view this history",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1657,6 +1892,99 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/payments": {
+            "post": {
+                "description": "Register a payment for a contract with simulation logic (terminates in 0000 for failure).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Process a payment (Simulated)",
+                "parameters": [
+                    {
+                        "description": "Payment Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/payments.RegisterPaymentRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/payments.PaymentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/payments/{uuid}/confirm": {
+            "patch": {
+                "description": "Manually transition a 'Pending' payment (like OXXO) to 'Completed'.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "payments"
+                ],
+                "summary": "Confirm a pending payment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Payment UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1820,6 +2148,104 @@ const docTemplate = `{
                 },
                 "meta": {
                     "$ref": "#/definitions/clauses.ListClausesMeta"
+                }
+            }
+        },
+        "contracts.ContractDetail": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number"
+                },
+                "client_name": {
+                    "type": "string"
+                },
+                "contract_uuid": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "owner_name": {
+                    "type": "string"
+                },
+                "pdf_url": {
+                    "type": "string"
+                },
+                "property_title": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "contracts.ContractListItem": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number"
+                },
+                "client_name": {
+                    "type": "string"
+                },
+                "contract_uuid": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "property_title": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "transaction_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "contracts.CreateContractInput": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "contracts.CreateContractResult": {
+            "type": "object",
+            "properties": {
+                "contract_uuid": {
+                    "type": "string"
+                },
+                "storage_key": {
+                    "type": "string"
                 }
             }
         },
@@ -2047,6 +2473,32 @@ const docTemplate = `{
                 }
             }
         },
+        "payments.PaymentResponse": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "gateway_payment_id": {
+                    "type": "string"
+                },
+                "payment_date": {
+                    "type": "string"
+                },
+                "payment_uuid": {
+                    "type": "string"
+                },
+                "reference_number": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_id": {
+                    "type": "integer"
+                }
+            }
+        },
         "payments.PaymentsPagination": {
             "type": "object",
             "properties": {
@@ -2061,6 +2513,33 @@ const docTemplate = `{
                 "total": {
                     "type": "integer",
                     "example": 84
+                }
+            }
+        },
+        "payments.RegisterPaymentRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "contract_id",
+                "gateway_id",
+                "payment_method_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "card_number": {
+                    "description": "Para simulación",
+                    "type": "string"
+                },
+                "contract_id": {
+                    "type": "integer"
+                },
+                "gateway_id": {
+                    "type": "integer"
+                },
+                "payment_method_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -2457,6 +2936,17 @@ const docTemplate = `{
                 }
             }
         },
+        "properties.GetPropertyHistoryResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyStatusHistoryData"
+                    }
+                }
+            }
+        },
         "properties.GetPropertyPhotosResult": {
             "type": "object",
             "properties": {
@@ -2594,6 +3084,15 @@ const docTemplate = `{
         "properties.PropertyCardData": {
             "type": "object",
             "properties": {
+                "bathrooms": {
+                    "type": "integer"
+                },
+                "bedrooms": {
+                    "type": "integer"
+                },
+                "built_area": {
+                    "type": "number"
+                },
                 "cover_photo_url": {
                     "type": "string",
                     "example": "https://cdn.example.com/properties/cover.jpg"
@@ -2739,6 +3238,29 @@ const docTemplate = `{
                 "storage_key": {
                     "type": "string",
                     "example": "properties/123/front.jpg"
+                }
+            }
+        },
+        "properties.PropertyStatusHistoryData": {
+            "type": "object",
+            "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
+                "changed_by_name": {
+                    "type": "string"
+                },
+                "history_id": {
+                    "type": "integer"
+                },
+                "new_status_name": {
+                    "type": "string"
+                },
+                "previous_status_name": {
+                    "type": "string"
+                },
+                "property_uuid": {
+                    "type": "string"
                 }
             }
         },
@@ -3050,13 +3572,9 @@ const docTemplate = `{
         "shared.ErrorResponse": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "integer",
-                    "example": 404
-                },
-                "message": {
+                "error": {
                     "type": "string",
-                    "example": "Resource not found"
+                    "example": "error message"
                 }
             }
         },

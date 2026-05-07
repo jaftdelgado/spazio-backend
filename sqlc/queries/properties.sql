@@ -79,6 +79,8 @@ WITH sale_current AS (
     currency
   FROM sale_prices
   WHERE is_current = true
+    AND (sqlc.arg(min_price)::numeric = 0 OR sale_price >= sqlc.arg(min_price)::numeric)
+    AND (sqlc.arg(max_price)::numeric = 0 OR sale_price <= sqlc.arg(max_price)::numeric)
 ),
 ranked_rent_prices AS (
   SELECT
@@ -101,6 +103,8 @@ ranked_rent_prices AS (
   FROM rent_prices rp
   JOIN rent_periods rper ON rper.period_id = rp.period_id
   WHERE rp.is_current = true
+    AND (sqlc.arg(min_price)::numeric = 0 OR rp.rent_price >= sqlc.arg(min_price)::numeric)
+    AND (sqlc.arg(max_price)::numeric = 0 OR rp.rent_price <= sqlc.arg(max_price)::numeric)
 ),
 selected_rent AS (
   SELECT
@@ -141,11 +145,15 @@ SELECT
       ELSE ''
     END AS text
   ) AS display_period_name,
+  res.bedrooms,
+  res.bathrooms,
+  res.built_area,
   COUNT(*) OVER() AS total_count
 FROM properties p
 JOIN property_types pt ON pt.property_type_id = p.property_type_id
 JOIN modalities m ON m.modality_id = p.modality_id
 JOIN property_status ps ON ps.status_id = p.status_id
+LEFT JOIN residential_properties res ON res.property_id = p.property_id
 LEFT JOIN locations l ON l.property_id = p.property_id
 LEFT JOIN cities ci ON ci.city_id = l.city_id
 LEFT JOIN states st ON st.state_id = ci.state_id
@@ -185,6 +193,14 @@ WHERE p.deleted_at IS NULL
   AND (
     sqlc.arg(city_id)::int = 0
     OR ci.city_id = sqlc.arg(city_id)::int
+  )
+  AND (
+    sqlc.arg(min_bedrooms)::int = 0
+    OR (pt.subtype = 'residential' AND res.bedrooms >= sqlc.arg(min_bedrooms)::int)
+  )
+  AND (
+    (sqlc.arg(min_price)::numeric = 0 AND sqlc.arg(max_price)::numeric = 0)
+    OR (sc.property_id IS NOT NULL OR sr.property_id IS NOT NULL)
   )
 ORDER BY
   CASE WHEN sqlc.arg(sort_field)::text = '' THEN p.is_featured END DESC,
@@ -500,3 +516,19 @@ INSERT INTO property_status_history (
   new_status_id,
   changed_by_user_id
 ) VALUES ($1, $2, $3, $4);
+
+-- name: ListPropertyStatusHistory :many
+SELECT 
+    psh.history_id,
+    p.property_uuid,
+    prev.name AS previous_status_name,
+    curr.name AS new_status_name,
+    u.first_name || ' ' || u.last_name AS changed_by_name,
+    psh.changed_at
+FROM property_status_history psh
+JOIN property_status prev ON psh.previous_status_id = prev.status_id
+JOIN property_status curr ON psh.new_status_id = curr.status_id
+JOIN users u ON psh.changed_by_user_id = u.user_id
+JOIN properties p ON psh.property_id = p.property_id
+WHERE p.property_uuid = $1 AND p.deleted_at IS NULL
+ORDER BY psh.changed_at ASC;

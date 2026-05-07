@@ -109,6 +109,70 @@ definitions:
       meta:
         $ref: '#/definitions/clauses.ListClausesMeta'
     type: object
+  contracts.ContractDetail:
+    properties:
+      agreed_amount:
+        type: number
+      client_name:
+        type: string
+      contract_uuid:
+        type: string
+      currency:
+        type: string
+      end_date:
+        type: string
+      owner_name:
+        type: string
+      pdf_url:
+        type: string
+      property_title:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+    type: object
+  contracts.ContractListItem:
+    properties:
+      agreed_amount:
+        type: number
+      client_name:
+        type: string
+      contract_uuid:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      property_title:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+      transaction_type:
+        type: string
+    type: object
+  contracts.CreateContractInput:
+    properties:
+      agreed_amount:
+        type: number
+      currency:
+        type: string
+      end_date:
+        type: string
+      start_date:
+        type: string
+      transaction_id:
+        type: integer
+    type: object
+  contracts.CreateContractResult:
+    properties:
+      contract_uuid:
+        type: string
+      storage_key:
+        type: string
+    type: object
   locations.City:
     properties:
       city_id:
@@ -264,6 +328,23 @@ definitions:
         example: Pagado
         type: string
     type: object
+  payments.PaymentResponse:
+    properties:
+      amount:
+        type: number
+      gateway_payment_id:
+        type: string
+      payment_date:
+        type: string
+      payment_uuid:
+        type: string
+      reference_number:
+        type: string
+      status:
+        type: string
+      status_id:
+        type: integer
+    type: object
   payments.PaymentsPagination:
     properties:
       limit:
@@ -275,6 +356,25 @@ definitions:
       total:
         example: 84
         type: integer
+    type: object
+  payments.RegisterPaymentRequest:
+    properties:
+      amount:
+        type: number
+      card_number:
+        description: Para simulación
+        type: string
+      contract_id:
+        type: integer
+      gateway_id:
+        type: integer
+      payment_method_id:
+        type: integer
+    required:
+    - amount
+    - contract_id
+    - gateway_id
+    - payment_method_id
     type: object
   properties.ActiveRentPriceData:
     properties:
@@ -552,6 +652,13 @@ definitions:
       title:
         type: string
     type: object
+  properties.GetPropertyHistoryResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/properties.PropertyStatusHistoryData'
+        type: array
+    type: object
   properties.GetPropertyPhotosResult:
     properties:
       data:
@@ -641,6 +748,12 @@ definitions:
     type: object
   properties.PropertyCardData:
     properties:
+      bathrooms:
+        type: integer
+      bedrooms:
+        type: integer
+      built_area:
+        type: number
       cover_photo_url:
         example: https://cdn.example.com/properties/cover.jpg
         type: string
@@ -744,6 +857,21 @@ definitions:
         type: integer
       storage_key:
         example: properties/123/front.jpg
+        type: string
+    type: object
+  properties.PropertyStatusHistoryData:
+    properties:
+      changed_at:
+        type: string
+      changed_by_name:
+        type: string
+      history_id:
+        type: integer
+      new_status_name:
+        type: string
+      previous_status_name:
+        type: string
+      property_uuid:
         type: string
     type: object
   properties.ResidentialData:
@@ -951,11 +1079,8 @@ definitions:
     type: object
   shared.ErrorResponse:
     properties:
-      code:
-        example: 404
-        type: integer
-      message:
-        example: Resource not found
+      error:
+        example: error message
         type: string
     type: object
   uploads.UploadPhotoResult:
@@ -1144,6 +1269,145 @@ paths:
       summary: List clauses
       tags:
       - Clauses
+  /api/v1/contracts:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of contracts. Admins and Agents see all,
+        Owners see only their own. Supports filtering by type, status, date range,
+        and text search.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by type (sale/rent)
+        in: query
+        name: transaction_type
+        type: string
+      - description: Filter by status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Filter by owner ID (Admin/Agent only)
+        in: query
+        name: owner_id
+        type: integer
+      - description: Filter by start date (RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (RFC3339)
+        in: query
+        name: end_date
+        type: string
+      - description: Search by property title or client name
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/contracts.ContractListItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List contracts
+      tags:
+      - Contracts
+    post:
+      consumes:
+      - application/json
+      description: Generates a legal contract in PDF format based on real estate transaction
+        data and stores it in R2. Only the property owner can invoke this endpoint.
+        Supports multiple contracts per transaction.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Contract generation data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/contracts.CreateContractInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Contract generated and stored successfully
+          schema:
+            $ref: '#/definitions/contracts.CreateContractResult'
+        "400":
+          description: Invalid input or logical date error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Unauthorized user (not the owner)
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error in PDF generation or storage
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Generate digital contract
+      tags:
+      - Contracts
+  /api/v1/contracts/{uuid}:
+    get:
+      consumes:
+      - application/json
+      description: Returns the full details of a contract, including the PDF URL.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Contract UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/contracts.ContractDetail'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get contract detail
+      tags:
+      - Contracts
   /api/v1/locations/cities:
     get:
       description: Returns cities for the selected state. Results are paginated.
@@ -1227,11 +1491,7 @@ paths:
       - Locations
   /api/v1/payments:
     get:
-      description: Returns payments visible to the authenticated user. Admin users
-        can view every payment in the system, agent users can only view payments linked
-        to their own transactions, and client users can only view payments linked
-        to their own transactions. Optional filters by property, payment status, and
-        due date range are applied only when provided.
+      description: Returns payments visible to the authenticated user.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1254,13 +1514,11 @@ paths:
         in: query
         name: date_to
         type: string
-      - default: 20
-        description: Maximum number of results to return, default 20, max 100
+      - description: Maximum number of results to return
         in: query
         name: limit
         type: integer
-      - default: 0
-        description: Pagination offset, default 0
+      - description: Pagination offset
         in: query
         name: offset
         type: integer
@@ -1268,33 +1526,15 @@ paths:
       - application/json
       responses:
         "200":
-          description: Paginated list of payments
+          description: OK
           schema:
             $ref: '#/definitions/payments.ListPaymentsResult'
-        "400":
-          description: Invalid query params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: List payments
       tags:
       - Payments
   /api/v1/payments/{payment_id}:
     get:
-      description: Returns one payment detail when the payment exists and the authenticated
-        user is allowed to access it. Agent and client users receive 403 Forbidden
-        when the payment belongs to a different transaction.
+      description: Returns one payment detail.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1310,58 +1550,36 @@ paths:
       - application/json
       responses:
         "200":
-          description: Payment detail
+          description: OK
           schema:
             $ref: '#/definitions/payments.PaymentDetail'
-        "400":
-          description: Invalid path params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "404":
-          description: Payment not found
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: Get payment detail
       tags:
       - Payments
   /api/v1/properties:
     get:
-      description: Returns a paginated list of property cards with optional search,
-        status, type, modality, and location filters. Deleted properties are always
-        excluded. The selected card price prefers sale price unless the property modality
-        is rent or no current sale price exists; in that case the best current rent
-        price is used following monthly, annual, weekly, then daily priority.
+      description: Returns a paginated list of property cards. Supports filtering
+        by search query, status, property type, modality, location (country, state,
+        city), price range, and minimum bedrooms. Price selection logic prioritizes
+        sale price, then the best current rent price (Monthly > Annual > Weekly >
+        Daily).
       parameters:
       - default: 1
-        description: Page number
+        description: Page number (starts at 1)
         in: query
         name: page
         type: integer
       - default: 20
-        description: Results per page
+        description: Items per page (max 100)
         in: query
         name: page_size
         type: integer
-      - description: Search term across title, street, neighborhood, city, state,
-          and country
+      - description: Search term (matches title, address, city, state, country)
         in: query
         name: q
         type: string
       - collectionFormat: csv
-        description: Filter by property status. Repeat the parameter to send multiple
-          values.
+        description: Filter by status IDs (Available=2 by default for clients)
         in: query
         items:
           type: integer
@@ -1387,11 +1605,23 @@ paths:
         in: query
         name: city_id
         type: integer
-      - description: 'Sort field: created_at, title, or price'
+      - description: Minimum price filter
+        in: query
+        name: min_price
+        type: number
+      - description: Maximum price filter
+        in: query
+        name: max_price
+        type: number
+      - description: Minimum bedrooms filter (Residential only)
+        in: query
+        name: min_bedrooms
+        type: integer
+      - description: 'Sort by: created_at, title, price'
         in: query
         name: sort
         type: string
-      - description: 'Sort order: asc or desc'
+      - description: 'Sort order: asc, desc'
         in: query
         name: order
         type: string
@@ -1399,18 +1629,18 @@ paths:
       - application/json
       responses:
         "200":
-          description: Paginated property cards
+          description: Paginated list of property cards
           schema:
             $ref: '#/definitions/properties.ListPropertiesResult'
         "400":
-          description: Invalid query params
+          description: Invalid input parameters
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "500":
-          description: Internal error
+          description: Internal server error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
-      summary: List properties
+      summary: List properties with advanced filters
       tags:
       - Properties
     post:
@@ -1666,6 +1896,55 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Replace property clauses
+      tags:
+      - Properties
+  /api/v1/properties/{uuid}/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the chronological history of status changes for a specific
+        property. Administrators can view any property history, while Agents or Clients
+        can only view history of properties they own.
+      parameters:
+      - description: Property UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID for RBAC validation
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: 'Role ID (1: Admin, 2: Agent, 3: Client)'
+        in: header
+        name: X-Role-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chronological status history retrieved successfully
+          schema:
+            $ref: '#/definitions/properties.GetPropertyHistoryResult'
+        "400":
+          description: Invalid UUID or missing required headers
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: 'Forbidden: You are not authorized to view this history'
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Property not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get property status history
       tags:
       - Properties
   /api/v1/properties/{uuid}/photos:
@@ -2161,4 +2440,66 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
+  /payments:
+    post:
+      consumes:
+      - application/json
+      description: Register a payment for a contract with simulation logic (terminates
+        in 0000 for failure).
+      parameters:
+      - description: Payment Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/payments.RegisterPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/payments.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Process a payment (Simulated)
+      tags:
+      - payments
+  /payments/{uuid}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+      parameters:
+      - description: Payment UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm a pending payment
+      tags:
+      - payments
 swagger: "2.0"
