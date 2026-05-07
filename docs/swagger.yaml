@@ -264,6 +264,23 @@ definitions:
         example: Pagado
         type: string
     type: object
+  payments.PaymentResponse:
+    properties:
+      amount:
+        type: number
+      gateway_payment_id:
+        type: string
+      payment_date:
+        type: string
+      payment_uuid:
+        type: string
+      reference_number:
+        type: string
+      status:
+        type: string
+      status_id:
+        type: integer
+    type: object
   payments.PaymentsPagination:
     properties:
       limit:
@@ -275,6 +292,25 @@ definitions:
       total:
         example: 84
         type: integer
+    type: object
+  payments.RegisterPaymentRequest:
+    properties:
+      amount:
+        type: number
+      card_number:
+        description: Para simulación
+        type: string
+      contract_id:
+        type: integer
+      gateway_id:
+        type: integer
+      payment_method_id:
+        type: integer
+    required:
+    - amount
+    - contract_id
+    - gateway_id
+    - payment_method_id
     type: object
   properties.ActiveRentPriceData:
     properties:
@@ -967,6 +1003,47 @@ definitions:
       url:
         type: string
     type: object
+  users.CreateUserInput:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password_hash:
+        type: string
+      phone:
+        type: string
+      profile_picture_url:
+        type: string
+      role_id:
+        type: integer
+      status_id:
+        type: integer
+      user_uuid:
+        type: string
+    type: object
+  users.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  users.VerifyUserInput:
+    properties:
+      email:
+        type: string
+      token:
+        type: string
+    required:
+    - email
+    - token
+    type: object
   visits.CreateVisitRequest:
     properties:
       property_id:
@@ -1227,11 +1304,7 @@ paths:
       - Locations
   /api/v1/payments:
     get:
-      description: Returns payments visible to the authenticated user. Admin users
-        can view every payment in the system, agent users can only view payments linked
-        to their own transactions, and client users can only view payments linked
-        to their own transactions. Optional filters by property, payment status, and
-        due date range are applied only when provided.
+      description: Returns payments visible to the authenticated user.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1254,13 +1327,11 @@ paths:
         in: query
         name: date_to
         type: string
-      - default: 20
-        description: Maximum number of results to return, default 20, max 100
+      - description: Maximum number of results to return
         in: query
         name: limit
         type: integer
-      - default: 0
-        description: Pagination offset, default 0
+      - description: Pagination offset
         in: query
         name: offset
         type: integer
@@ -1268,33 +1339,15 @@ paths:
       - application/json
       responses:
         "200":
-          description: Paginated list of payments
+          description: OK
           schema:
             $ref: '#/definitions/payments.ListPaymentsResult'
-        "400":
-          description: Invalid query params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: List payments
       tags:
       - Payments
   /api/v1/payments/{payment_id}:
     get:
-      description: Returns one payment detail when the payment exists and the authenticated
-        user is allowed to access it. Agent and client users receive 403 Forbidden
-        when the payment belongs to a different transaction.
+      description: Returns one payment detail.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1310,29 +1363,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Payment detail
+          description: OK
           schema:
             $ref: '#/definitions/payments.PaymentDetail'
-        "400":
-          description: Invalid path params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "404":
-          description: Payment not found
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: Get payment detail
       tags:
       - Payments
@@ -2161,4 +2194,173 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
+  /payments:
+    post:
+      consumes:
+      - application/json
+      description: Register a payment for a contract with simulation logic (terminates
+        in 0000 for failure).
+      parameters:
+      - description: Payment Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/payments.RegisterPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/payments.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Process a payment (Simulated)
+      tags:
+      - payments
+  /payments/{uuid}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+      parameters:
+      - description: Payment UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm a pending payment
+      tags:
+      - payments
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentica al usuario y devuelve un token JWT
+      parameters:
+      - description: Credenciales de acceso
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/users.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login exitoso
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Email o contraseña requeridos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Login fallido
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Iniciar sesión
+      tags:
+      - Users
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Crea un nuevo perfil de usuario en el sistema y envía confirmación
+        a Supabase
+      parameters:
+      - description: Datos del nuevo usuario
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/users.CreateUserInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Usuario creado exitosamente
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Formato de datos inválido
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno del servidor
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Registrar un nuevo usuario
+      tags:
+      - Users
+  /users/verify:
+    post:
+      consumes:
+      - application/json
+      description: Confirma el correo del usuario mediante un token enviado por email
+      parameters:
+      - description: Token y email de verificación
+        in: body
+        name: verify
+        required: true
+        schema:
+          $ref: '#/definitions/users.VerifyUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cuenta verificada exitosamente
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Datos de verificación inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Verificación fallida
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verificar cuenta de usuario
+      tags:
+      - Users
 swagger: "2.0"
