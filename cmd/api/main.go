@@ -45,6 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Modules initialization
 	propertiesModule := properties.NewModule(database, r2)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
