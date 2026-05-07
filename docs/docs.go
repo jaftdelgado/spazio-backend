@@ -623,32 +623,32 @@ const docTemplate = `{
         },
         "/api/v1/properties": {
             "get": {
-                "description": "Returns a paginated list of property cards with optional search, status, type, modality, and location filters. Deleted properties are always excluded. The selected card price prefers sale price unless the property modality is rent or no current sale price exists; in that case the best current rent price is used following monthly, annual, weekly, then daily priority.",
+                "description": "Returns a paginated list of property cards. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "Properties"
                 ],
-                "summary": "List properties",
+                "summary": "List properties with advanced filters",
                 "parameters": [
                     {
                         "type": "integer",
                         "default": 1,
-                        "description": "Page number",
+                        "description": "Page number (starts at 1)",
                         "name": "page",
                         "in": "query"
                     },
                     {
                         "type": "integer",
                         "default": 20,
-                        "description": "Results per page",
+                        "description": "Items per page (max 100)",
                         "name": "page_size",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Search term across title, street, neighborhood, city, state, and country",
+                        "description": "Search term (matches title, address, city, state, country)",
                         "name": "q",
                         "in": "query"
                     },
@@ -658,7 +658,7 @@ const docTemplate = `{
                             "type": "integer"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter by property status. Repeat the parameter to send multiple values.",
+                        "description": "Filter by status IDs (Available=2 by default for clients)",
                         "name": "status_id",
                         "in": "query"
                     },
@@ -693,33 +693,51 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "number",
+                        "description": "Minimum price filter",
+                        "name": "min_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Maximum price filter",
+                        "name": "max_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Minimum bedrooms filter (Residential only)",
+                        "name": "min_bedrooms",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
-                        "description": "Sort field: created_at, title, or price",
+                        "description": "Sort by: created_at, title, price",
                         "name": "sort",
                         "in": "query"
                     },
                     {
                         "type": "string",
-                        "description": "Sort order: asc or desc",
+                        "description": "Sort order: asc, desc",
                         "name": "order",
                         "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paginated property cards",
+                        "description": "Paginated list of property cards",
                         "schema": {
                             "$ref": "#/definitions/properties.ListPropertiesResult"
                         }
                     },
                     "400": {
-                        "description": "Invalid query params",
+                        "description": "Invalid input parameters",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
                     "500": {
-                        "description": "Internal error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1088,6 +1106,76 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/history": {
+            "get": {
+                "description": "Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Get property status history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User ID for RBAC validation",
+                        "name": "X-User-ID",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Role ID (1: Admin, 2: Agent, 3: Client)",
+                        "name": "X-Role-ID",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Chronological status history retrieved successfully",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyHistoryResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid UUID or missing required headers",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden: You are not authorized to view this history",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -2848,6 +2936,17 @@ const docTemplate = `{
                 }
             }
         },
+        "properties.GetPropertyHistoryResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyStatusHistoryData"
+                    }
+                }
+            }
+        },
         "properties.GetPropertyPhotosResult": {
             "type": "object",
             "properties": {
@@ -2985,6 +3084,15 @@ const docTemplate = `{
         "properties.PropertyCardData": {
             "type": "object",
             "properties": {
+                "bathrooms": {
+                    "type": "integer"
+                },
+                "bedrooms": {
+                    "type": "integer"
+                },
+                "built_area": {
+                    "type": "number"
+                },
                 "cover_photo_url": {
                     "type": "string",
                     "example": "https://cdn.example.com/properties/cover.jpg"
@@ -3130,6 +3238,29 @@ const docTemplate = `{
                 "storage_key": {
                     "type": "string",
                     "example": "properties/123/front.jpg"
+                }
+            }
+        },
+        "properties.PropertyStatusHistoryData": {
+            "type": "object",
+            "properties": {
+                "changed_at": {
+                    "type": "string"
+                },
+                "changed_by_name": {
+                    "type": "string"
+                },
+                "history_id": {
+                    "type": "integer"
+                },
+                "new_status_name": {
+                    "type": "string"
+                },
+                "previous_status_name": {
+                    "type": "string"
+                },
+                "property_uuid": {
+                    "type": "string"
                 }
             }
         },
@@ -3441,13 +3572,9 @@ const docTemplate = `{
         "shared.ErrorResponse": {
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "integer",
-                    "example": 404
-                },
-                "message": {
+                "error": {
                     "type": "string",
-                    "example": "Resource not found"
+                    "example": "error message"
                 }
             }
         },

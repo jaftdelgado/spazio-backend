@@ -652,6 +652,13 @@ definitions:
       title:
         type: string
     type: object
+  properties.GetPropertyHistoryResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/properties.PropertyStatusHistoryData'
+        type: array
+    type: object
   properties.GetPropertyPhotosResult:
     properties:
       data:
@@ -741,6 +748,12 @@ definitions:
     type: object
   properties.PropertyCardData:
     properties:
+      bathrooms:
+        type: integer
+      bedrooms:
+        type: integer
+      built_area:
+        type: number
       cover_photo_url:
         example: https://cdn.example.com/properties/cover.jpg
         type: string
@@ -844,6 +857,21 @@ definitions:
         type: integer
       storage_key:
         example: properties/123/front.jpg
+        type: string
+    type: object
+  properties.PropertyStatusHistoryData:
+    properties:
+      changed_at:
+        type: string
+      changed_by_name:
+        type: string
+      history_id:
+        type: integer
+      new_status_name:
+        type: string
+      previous_status_name:
+        type: string
+      property_uuid:
         type: string
     type: object
   properties.ResidentialData:
@@ -1051,11 +1079,8 @@ definitions:
     type: object
   shared.ErrorResponse:
     properties:
-      code:
-        example: 404
-        type: integer
-      message:
-        example: Resource not found
+      error:
+        example: error message
         type: string
     type: object
   uploads.UploadPhotoResult:
@@ -1533,30 +1558,28 @@ paths:
       - Payments
   /api/v1/properties:
     get:
-      description: Returns a paginated list of property cards with optional search,
-        status, type, modality, and location filters. Deleted properties are always
-        excluded. The selected card price prefers sale price unless the property modality
-        is rent or no current sale price exists; in that case the best current rent
-        price is used following monthly, annual, weekly, then daily priority.
+      description: Returns a paginated list of property cards. Supports filtering
+        by search query, status, property type, modality, location (country, state,
+        city), price range, and minimum bedrooms. Price selection logic prioritizes
+        sale price, then the best current rent price (Monthly > Annual > Weekly >
+        Daily).
       parameters:
       - default: 1
-        description: Page number
+        description: Page number (starts at 1)
         in: query
         name: page
         type: integer
       - default: 20
-        description: Results per page
+        description: Items per page (max 100)
         in: query
         name: page_size
         type: integer
-      - description: Search term across title, street, neighborhood, city, state,
-          and country
+      - description: Search term (matches title, address, city, state, country)
         in: query
         name: q
         type: string
       - collectionFormat: csv
-        description: Filter by property status. Repeat the parameter to send multiple
-          values.
+        description: Filter by status IDs (Available=2 by default for clients)
         in: query
         items:
           type: integer
@@ -1582,11 +1605,23 @@ paths:
         in: query
         name: city_id
         type: integer
-      - description: 'Sort field: created_at, title, or price'
+      - description: Minimum price filter
+        in: query
+        name: min_price
+        type: number
+      - description: Maximum price filter
+        in: query
+        name: max_price
+        type: number
+      - description: Minimum bedrooms filter (Residential only)
+        in: query
+        name: min_bedrooms
+        type: integer
+      - description: 'Sort by: created_at, title, price'
         in: query
         name: sort
         type: string
-      - description: 'Sort order: asc or desc'
+      - description: 'Sort order: asc, desc'
         in: query
         name: order
         type: string
@@ -1594,18 +1629,18 @@ paths:
       - application/json
       responses:
         "200":
-          description: Paginated property cards
+          description: Paginated list of property cards
           schema:
             $ref: '#/definitions/properties.ListPropertiesResult'
         "400":
-          description: Invalid query params
+          description: Invalid input parameters
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "500":
-          description: Internal error
+          description: Internal server error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
-      summary: List properties
+      summary: List properties with advanced filters
       tags:
       - Properties
     post:
@@ -1861,6 +1896,55 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Replace property clauses
+      tags:
+      - Properties
+  /api/v1/properties/{uuid}/history:
+    get:
+      consumes:
+      - application/json
+      description: Returns the chronological history of status changes for a specific
+        property. Administrators can view any property history, while Agents or Clients
+        can only view history of properties they own.
+      parameters:
+      - description: Property UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: User ID for RBAC validation
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: 'Role ID (1: Admin, 2: Agent, 3: Client)'
+        in: header
+        name: X-Role-ID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Chronological status history retrieved successfully
+          schema:
+            $ref: '#/definitions/properties.GetPropertyHistoryResult'
+        "400":
+          description: Invalid UUID or missing required headers
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: 'Forbidden: You are not authorized to view this history'
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Property not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get property status history
       tags:
       - Properties
   /api/v1/properties/{uuid}/photos:
