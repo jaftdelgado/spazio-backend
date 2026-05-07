@@ -3,6 +3,7 @@ package properties
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,58 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
+func (r *repository) ListPropertyStatusHistory(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error) {
+	var pgUUID pgtype.UUID
+	if err := pgUUID.Scan(propertyUUID); err != nil {
+		return nil, fmt.Errorf("invalid uuid: %w", err)
+	}
+
+	rows, err := r.queries.ListPropertyStatusHistory(ctx, pgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("list property status history: %w", err)
+	}
+
+	history := make([]PropertyStatusHistoryData, 0, len(rows))
+	for _, row := range rows {
+		changedByName := ""
+		if row.ChangedByName != nil {
+			if s, ok := row.ChangedByName.(string); ok {
+				changedByName = s
+			}
+		}
+
+		history = append(history, PropertyStatusHistoryData{
+			HistoryID:          row.HistoryID,
+			PropertyUUID:       propertyUUID,
+			PreviousStatusName: row.PreviousStatusName,
+			NewStatusName:      row.NewStatusName,
+			ChangedByName:      changedByName,
+			ChangedAt:          row.ChangedAt.Time,
+		})
+	}
+
+	return history, nil
+}
+
+func (r *repository) GetPropertyOwnerByUUID(ctx context.Context, propertyUUID string) (int32, error) {
+	parsedUUID, err := uuid.Parse(propertyUUID)
+	if err != nil {
+		return 0, fmt.Errorf("parse property uuid: %w", err)
+	}
+
+	propertyID, err := getPropertyIDByUUID(ctx, r.queries, parsedUUID)
+	if err != nil {
+		return 0, err
+	}
+
+	ownerID, err := r.queries.GetPropertyOwnerID(ctx, propertyID)
+	if err != nil {
+		return 0, fmt.Errorf("get property owner: %w", err)
+	}
+
+	return ownerID, nil
+}
+
 func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
 	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
 		SearchQuery:    input.Query,
@@ -23,6 +76,9 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 		CountryID:      input.CountryID,
 		StateID:        input.StateID,
 		CityID:         input.CityID,
+		MinPrice:       float64ToNumeric(input.MinPrice),
+		MaxPrice:       float64ToNumeric(input.MaxPrice),
+		MinBedrooms:    input.MinBedrooms,
 		SortField:      input.Sort,
 		SortOrder:      input.Order,
 		PageOffset:     resolvePageOffset(input.Page, input.PageSize),
@@ -46,6 +102,13 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 	}
 
 	return properties, rows[0].TotalCount, nil
+}
+
+func float64ToNumeric(val float64) pgtype.Numeric {
+	if val == 0 {
+		return pgtype.Numeric{Valid: false}
+	}
+	return pgtype.Numeric{Int: big.NewInt(int64(val * 100)), Exp: -2, Valid: true}
 }
 
 func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
@@ -266,6 +329,19 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 			StatusID: row.StatusID,
 			Name:     row.StatusName,
 		},
+	}
+
+	if row.Bedrooms.Valid {
+		v := row.Bedrooms.Int16
+		card.Bedrooms = &v
+	}
+	if row.Bathrooms.Valid {
+		v := row.Bathrooms.Int16
+		card.Bathrooms = &v
+	}
+	if row.BuiltArea.Valid {
+		v, _ := row.BuiltArea.Float64Value()
+		card.BuiltArea = &v.Float64
 	}
 
 	if row.DisplayPriceAmount.Valid {

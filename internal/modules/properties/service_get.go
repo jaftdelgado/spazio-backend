@@ -2,10 +2,38 @@ package properties
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
+func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+	if requesterRoleID != RoleAdminID {
+		ownerID, err := s.repository.GetPropertyOwnerByUUID(ctx, propertyUUID)
+		if err != nil {
+			if errors.Is(err, ErrPropertyNotFound) {
+				return GetPropertyHistoryResult{}, ErrPropertyNotFound
+			}
+			return GetPropertyHistoryResult{}, fmt.Errorf("verify ownership: %w", err)
+		}
+
+		if ownerID != requesterID {
+			return GetPropertyHistoryResult{}, errors.New("forbidden: you can only see history of your own properties")
+		}
+	}
+
+	data, err := s.repository.ListPropertyStatusHistory(ctx, propertyUUID)
+	if err != nil {
+		return GetPropertyHistoryResult{}, err
+	}
+
+	return GetPropertyHistoryResult{Data: data}, nil
+}
+
 func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
+	if len(input.StatusIDs) == 0 {
+		input.StatusIDs = []int32{StatusAvailable}
+	}
+
 	items, total, err := s.repository.ListProperties(ctx, input)
 	if err != nil {
 		return ListPropertiesResult{}, fmt.Errorf("list properties: %w", err)
@@ -32,6 +60,8 @@ func (s *service) GetProperty(ctx context.Context, propertyUUID string) (GetProp
 		return GetPropertyResult{}, fmt.Errorf("get property: %w", err)
 	}
 
+	result.Data.OwnerID = 0
+
 	return result, nil
 }
 
@@ -40,6 +70,8 @@ func (s *service) GetFullProperty(ctx context.Context, propertyUUID string) (Get
 	if err != nil {
 		return GetPropertyFullResult{}, fmt.Errorf("get full property: %w", err)
 	}
+
+	result.Data.OwnerID = 0
 
 	return result, nil
 }

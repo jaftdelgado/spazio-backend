@@ -23,6 +23,24 @@ type mockPropertyRepository struct {
 	updatePropertyFunc         func(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	getPropertyStorageKeysFunc func(ctx context.Context, propertyID int32) ([]string, error)
 	deletePropertyFunc         func(ctx context.Context, propertyID int32, changedByUserID int32) error
+
+	// CU-18
+	getPropertyOwnerByUUIDFunc   func(ctx context.Context, propertyUUID string) (int32, error)
+	listPropertyStatusHistoryFunc func(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error)
+}
+
+func (m *mockPropertyRepository) GetPropertyOwnerByUUID(ctx context.Context, propertyUUID string) (int32, error) {
+	if m.getPropertyOwnerByUUIDFunc != nil {
+		return m.getPropertyOwnerByUUIDFunc(ctx, propertyUUID)
+	}
+	return 0, nil
+}
+
+func (m *mockPropertyRepository) ListPropertyStatusHistory(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error) {
+	if m.listPropertyStatusHistoryFunc != nil {
+		return m.listPropertyStatusHistoryFunc(ctx, propertyUUID)
+	}
+	return nil, nil
 }
 
 func (m *mockPropertyRepository) GetModalityName(ctx context.Context, modalityID int32) (string, error) {
