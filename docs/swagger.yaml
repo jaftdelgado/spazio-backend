@@ -1532,6 +1532,36 @@ paths:
       summary: List payments
       tags:
       - Payments
+    post:
+      consumes:
+      - application/json
+      description: Register a payment for a contract with simulation logic (terminates
+        in 0000 for failure).
+      parameters:
+      - description: Payment Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/payments.RegisterPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/payments.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Process a payment (Simulated)
+      tags:
+      - Payments
   /api/v1/payments/{payment_id}:
     get:
       description: Returns one payment detail.
@@ -1554,6 +1584,37 @@ paths:
           schema:
             $ref: '#/definitions/payments.PaymentDetail'
       summary: Get payment detail
+      tags:
+      - Payments
+  /api/v1/payments/{uuid}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+      parameters:
+      - description: Payment UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm a pending payment
       tags:
       - Payments
   /api/v1/properties:
@@ -2440,66 +2501,4 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
-  /payments:
-    post:
-      consumes:
-      - application/json
-      description: Register a payment for a contract with simulation logic (terminates
-        in 0000 for failure).
-      parameters:
-      - description: Payment Details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/payments.RegisterPaymentRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/payments.PaymentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Process a payment (Simulated)
-      tags:
-      - payments
-  /payments/{uuid}/confirm:
-    patch:
-      consumes:
-      - application/json
-      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
-      parameters:
-      - description: Payment UUID
-        in: path
-        name: uuid
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Confirm a pending payment
-      tags:
-      - payments
 swagger: "2.0"
