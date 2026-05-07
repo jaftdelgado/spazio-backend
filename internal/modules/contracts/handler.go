@@ -1,0 +1,173 @@
+package contracts
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/jaftdelgado/spazio-backend/internal/shared"
+)
+
+type Handler struct {
+	service ContractService
+}
+
+func NewHandler(service ContractService) *Handler {
+	return &Handler{service: service}
+}
+
+func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+	r.POST("/api/v1/contracts", h.generateContract)
+	r.GET("/api/v1/contracts", h.listContracts)
+	r.GET("/api/v1/contracts/:uuid", h.getContract)
+}
+
+// listContracts godoc
+// @Summary      List contracts
+// @Description  Returns a paginated list of contracts. Admins and Agents see all, Owners see only their own. Supports filtering by type, status, date range, and text search.
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        X-User-ID         header    string  true   "Authenticated user ID"
+// @Param        page              query     int     false  "Page number (default 1)"
+// @Param        limit             query     int     false  "Items per page (default 10)"
+// @Param        transaction_type  query     string  false  "Filter by type (sale/rent)"
+// @Param        status_id         query     int     false  "Filter by status ID"
+// @Param        owner_id          query     int     false  "Filter by owner ID (Admin/Agent only)"
+// @Param        start_date        query     string  false  "Filter by start date (RFC3339)"
+// @Param        end_date          query     string  false  "Filter by end date (RFC3339)"
+// @Param        search            query     string  false  "Search by property title or client name"
+// @Success      200               {array}   ContractListItem
+// @Failure      400               {object}  shared.ErrorResponse
+// @Failure      500               {object}  shared.ErrorResponse
+// @Router       /api/v1/contracts [get]
+func (h *Handler) listContracts(c *gin.Context) {
+	userIDStr := c.GetHeader("X-User-ID")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		shared.BadRequest(c, errors.New("X-User-ID es requerido"))
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	
+	filter := ListContractsFilter{
+		Page:  int32(page),
+		Limit: int32(limit),
+	}
+
+	if tType := c.Query("transaction_type"); tType != "" {
+		filter.TransactionType = &tType
+	}
+	if sID := c.Query("status_id"); sID != "" {
+		val, _ := strconv.Atoi(sID)
+		v32 := int32(val)
+		filter.StatusID = &v32
+	}
+	if oID := c.Query("owner_id"); oID != "" {
+		val, _ := strconv.Atoi(oID)
+		v32 := int32(val)
+		filter.OwnerID = &v32
+	}
+	if sDate := c.Query("start_date"); sDate != "" {
+		if t, err := time.Parse(time.RFC3339, sDate); err == nil {
+			filter.StartDate = &t
+		}
+	}
+	if eDate := c.Query("end_date"); eDate != "" {
+		if t, err := time.Parse(time.RFC3339, eDate); err == nil {
+			filter.EndDate = &t
+		}
+	}
+	if search := c.Query("search"); search != "" {
+		filter.Search = &search
+	}
+
+	result, err := h.service.ListContracts(c.Request.Context(), int32(userID), filter)
+	if err != nil {
+		shared.InternalError(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// getContract godoc
+// @Summary      Get contract detail
+// @Description  Returns the full details of a contract, including the PDF URL.
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        X-User-ID  header    string  true  "Authenticated user ID"
+// @Param        uuid       path      string  true  "Contract UUID"
+// @Success      200        {object}  ContractDetail
+// @Failure      403        {object}  shared.ErrorResponse
+// @Failure      404        {object}  shared.ErrorResponse
+// @Router       /api/v1/contracts/{uuid} [get]
+func (h *Handler) getContract(c *gin.Context) {
+	userIDStr := c.GetHeader("X-User-ID")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		shared.BadRequest(c, errors.New("X-User-ID es requerido"))
+		return
+	}
+
+	contractUUID, err := uuid.Parse(c.Param("uuid"))
+	if err != nil {
+		shared.BadRequest(c, errors.New("invalid uuid format"))
+		return
+	}
+
+	result, err := h.service.GetContractDetail(c.Request.Context(), int32(userID), contractUUID)
+	if err != nil {
+		shared.InternalError(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// generateContract godoc
+// @Summary      Generate digital contract
+// @Description  Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint. Supports multiple contracts per transaction.
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        X-User-ID  header    string                true  "Authenticated user ID"
+// @Param        request    body      CreateContractInput   true  "Contract generation data"
+// @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
+// @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical date error"
+// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the owner)"
+// @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
+// @Router       /api/v1/contracts [post]
+func (h *Handler) generateContract(c *gin.Context) {
+	userIDStr := c.GetHeader("X-User-ID")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		shared.BadRequest(c, errors.New("X-User-ID es requerido y debe ser un número válido"))
+		return
+	}
+
+	var req CreateContractInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	if req.TransactionID <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction_id is required"})
+		return
+	}
+
+	result, err := h.service.GenerateContract(c.Request.Context(), int32(userID), req)
+	if err != nil {
+		shared.InternalError(c, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}

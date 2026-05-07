@@ -15,6 +15,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/clauses"
+	"github.com/jaftdelgado/spazio-backend/internal/modules/contracts"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/locations"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/payments"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/properties"
@@ -44,6 +45,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Modules initialization
 	propertiesModule := properties.NewModule(database, r2)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
@@ -53,6 +55,7 @@ func main() {
 	usersModule := users.NewModule(database, cfg)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
+	contractsModule := contracts.NewModule(database, r2)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -72,9 +75,11 @@ func main() {
 	usersModule.RegisterRoutes(api)
 	uploadsModule.RegisterRoutes(api)
 	visitsModule.RegisterRoutes(api)
+	contractsModule.RegisterRoutes(api)
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}
 
+	log.Default().Printf("Server running on port %s", cfg.Port)
 }

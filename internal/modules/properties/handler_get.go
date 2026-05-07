@@ -18,24 +18,27 @@ const (
 )
 
 // listProperties godoc
-// @Summary      List properties
-// @Description  Returns a paginated list of property cards with optional search, status, type, modality, and location filters. Deleted properties are always excluded. The selected card price prefers sale price unless the property modality is rent or no current sale price exists; in that case the best current rent price is used following monthly, annual, weekly, then daily priority.
+// @Summary      List properties with advanced filters
+// @Description  Returns a paginated list of property cards. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
 // @Tags         Properties
 // @Produce      json
-// @Param        page              query     int                   false  "Page number" default(1)
-// @Param        page_size         query     int                   false  "Results per page" default(20)
-// @Param        q                 query     string                false  "Search term across title, street, neighborhood, city, state, and country"
-// @Param        status_id         query     []int                 false  "Filter by property status. Repeat the parameter to send multiple values."
+// @Param        page              query     int                   false  "Page number (starts at 1)" default(1)
+// @Param        page_size         query     int                   false  "Items per page (max 100)" default(20)
+// @Param        q                 query     string                false  "Search term (matches title, address, city, state, country)"
+// @Param        status_id         query     []int                 false  "Filter by status IDs (Available=2 by default for clients)"
 // @Param        property_type_id  query     int                   false  "Filter by property type ID"
 // @Param        modality_id       query     int                   false  "Filter by modality ID"
 // @Param        country_id        query     int                   false  "Filter by country ID"
 // @Param        state_id          query     int                   false  "Filter by state ID"
 // @Param        city_id           query     int                   false  "Filter by city ID"
-// @Param        sort              query     string                false  "Sort field: created_at, title, or price"
-// @Param        order             query     string                false  "Sort order: asc or desc"
-// @Success      200               {object}  ListPropertiesResult  "Paginated property cards"
-// @Failure      400               {object}  shared.ErrorResponse  "Invalid query params"
-// @Failure      500               {object}  shared.ErrorResponse  "Internal error"
+// @Param        min_price         query     number                false  "Minimum price filter"
+// @Param        max_price         query     number                false  "Maximum price filter"
+// @Param        min_bedrooms      query     int                   false  "Minimum bedrooms filter (Residential only)"
+// @Param        sort              query     string                false  "Sort by: created_at, title, price"
+// @Param        order             query     string                false  "Sort order: asc, desc"
+// @Success      200               {object}  ListPropertiesResult  "Paginated list of property cards"
+// @Failure      400               {object}  shared.ErrorResponse  "Invalid input parameters"
+// @Failure      500               {object}  shared.ErrorResponse  "Internal server error"
 // @Router       /api/v1/properties [get]
 func (h *Handler) listProperties(c *gin.Context) {
 	page, err := resolveOptionalPropertyInt(strings.TrimSpace(c.Query("page")), defaultPropertiesPage, "page")
@@ -86,6 +89,24 @@ func (h *Handler) listProperties(c *gin.Context) {
 		return
 	}
 
+	minPrice, err := resolveOptionalFloat64Query(strings.TrimSpace(c.Query("min_price")), 0, "min_price")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	maxPrice, err := resolveOptionalFloat64Query(strings.TrimSpace(c.Query("max_price")), 0, "max_price")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	minBedrooms, err := resolveOptionalPositivePropertyInt(strings.TrimSpace(c.Query("min_bedrooms")), "min_bedrooms")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
 	sortField := strings.ToLower(strings.TrimSpace(c.Query("sort")))
 	sortOrder := strings.ToLower(strings.TrimSpace(c.Query("order")))
 
@@ -104,12 +125,68 @@ func (h *Handler) listProperties(c *gin.Context) {
 		CountryID:      int32(countryID),
 		StateID:        int32(stateID),
 		CityID:         int32(cityID),
+		MinPrice:       minPrice,
+		MaxPrice:       maxPrice,
+		MinBedrooms:    int32(minBedrooms),
 		Sort:           sortField,
 		Order:          resolvePropertySortOrder(sortOrder),
 	})
 	if err != nil {
 		log.Printf("list properties: %v", err)
 		shared.InternalError(c, "could not list properties")
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// getPropertyHistory godoc
+// @Summary      Get property status history
+// @Description  Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own.
+// @Tags         Properties
+// @Accept       json
+// @Produce      json
+// @Param        uuid       path      string                true  "Property UUID"
+// @Param        X-User-ID  header    string                true  "User ID for RBAC validation"
+// @Param        X-Role-ID  header    string                true  "Role ID (1: Admin, 2: Agent, 3: Client)"
+// @Success      200        {object}  GetPropertyHistoryResult  "Chronological status history retrieved successfully"
+// @Failure      400        {object}  shared.ErrorResponse      "Invalid UUID or missing required headers"
+// @Failure      403        {object}  shared.ErrorResponse      "Forbidden: You are not authorized to view this history"
+// @Failure      404        {object}  shared.ErrorResponse      "Property not found"
+// @Failure      500        {object}  shared.ErrorResponse      "Internal server error"
+// @Router       /api/v1/properties/{uuid}/history [get]
+func (h *Handler) getPropertyHistory(c *gin.Context) {
+	propertyUUID := strings.TrimSpace(c.Param("uuid"))
+	if propertyUUID == "" {
+		shared.BadRequest(c, errors.New("uuid is required"))
+		return
+	}
+
+	userID, err := strconv.Atoi(c.GetHeader("X-User-ID"))
+	if err != nil {
+		shared.BadRequest(c, errors.New("invalid X-User-ID header"))
+		return
+	}
+
+	roleID, err := strconv.Atoi(c.GetHeader("X-Role-ID"))
+	if err != nil {
+		shared.BadRequest(c, errors.New("invalid X-Role-ID header"))
+		return
+	}
+
+	result, err := h.service.GetPropertyHistory(c.Request.Context(), propertyUUID, int32(userID), int32(roleID))
+	if err != nil {
+		if errors.Is(err, ErrPropertyNotFound) {
+			shared.NotFound(c, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "forbidden") {
+			shared.Forbidden(c, err.Error())
+			return
+		}
+
+		log.Printf("get property history: %v", err)
+		shared.InternalError(c, "could not get property history")
 		return
 	}
 
@@ -264,4 +341,17 @@ func resolvePropertySortOrder(sortOrder string) string {
 	}
 
 	return sortOrder
+}
+
+func resolveOptionalFloat64Query(rawValue string, fallback float64, field string) (float64, error) {
+	if rawValue == "" {
+		return fallback, nil
+	}
+
+	value, err := strconv.ParseFloat(rawValue, 64)
+	if err != nil {
+		return 0, errors.New(field + " must be a valid number")
+	}
+
+	return value, nil
 }
