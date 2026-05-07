@@ -80,4 +80,5 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Default().Printf("Server running on port %s", cfg.Port)
 }
