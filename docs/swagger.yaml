@@ -109,6 +109,70 @@ definitions:
       meta:
         $ref: '#/definitions/clauses.ListClausesMeta'
     type: object
+  contracts.ContractDetail:
+    properties:
+      agreed_amount:
+        type: number
+      client_name:
+        type: string
+      contract_uuid:
+        type: string
+      currency:
+        type: string
+      end_date:
+        type: string
+      owner_name:
+        type: string
+      pdf_url:
+        type: string
+      property_title:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+    type: object
+  contracts.ContractListItem:
+    properties:
+      agreed_amount:
+        type: number
+      client_name:
+        type: string
+      contract_uuid:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      property_title:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+      transaction_type:
+        type: string
+    type: object
+  contracts.CreateContractInput:
+    properties:
+      agreed_amount:
+        type: number
+      currency:
+        type: string
+      end_date:
+        type: string
+      start_date:
+        type: string
+      transaction_id:
+        type: integer
+    type: object
+  contracts.CreateContractResult:
+    properties:
+      contract_uuid:
+        type: string
+      storage_key:
+        type: string
+    type: object
   locations.City:
     properties:
       city_id:
@@ -264,6 +328,23 @@ definitions:
         example: Pagado
         type: string
     type: object
+  payments.PaymentResponse:
+    properties:
+      amount:
+        type: number
+      gateway_payment_id:
+        type: string
+      payment_date:
+        type: string
+      payment_uuid:
+        type: string
+      reference_number:
+        type: string
+      status:
+        type: string
+      status_id:
+        type: integer
+    type: object
   payments.PaymentsPagination:
     properties:
       limit:
@@ -275,6 +356,25 @@ definitions:
       total:
         example: 84
         type: integer
+    type: object
+  payments.RegisterPaymentRequest:
+    properties:
+      amount:
+        type: number
+      card_number:
+        description: Para simulación
+        type: string
+      contract_id:
+        type: integer
+      gateway_id:
+        type: integer
+      payment_method_id:
+        type: integer
+    required:
+    - amount
+    - contract_id
+    - gateway_id
+    - payment_method_id
     type: object
   properties.ActiveRentPriceData:
     properties:
@@ -1144,6 +1244,145 @@ paths:
       summary: List clauses
       tags:
       - Clauses
+  /api/v1/contracts:
+    get:
+      consumes:
+      - application/json
+      description: Returns a paginated list of contracts. Admins and Agents see all,
+        Owners see only their own. Supports filtering by type, status, date range,
+        and text search.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Page number (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items per page (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by type (sale/rent)
+        in: query
+        name: transaction_type
+        type: string
+      - description: Filter by status ID
+        in: query
+        name: status_id
+        type: integer
+      - description: Filter by owner ID (Admin/Agent only)
+        in: query
+        name: owner_id
+        type: integer
+      - description: Filter by start date (RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (RFC3339)
+        in: query
+        name: end_date
+        type: string
+      - description: Search by property title or client name
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/contracts.ContractListItem'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: List contracts
+      tags:
+      - Contracts
+    post:
+      consumes:
+      - application/json
+      description: Generates a legal contract in PDF format based on real estate transaction
+        data and stores it in R2. Only the property owner can invoke this endpoint.
+        Supports multiple contracts per transaction.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Contract generation data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/contracts.CreateContractInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Contract generated and stored successfully
+          schema:
+            $ref: '#/definitions/contracts.CreateContractResult'
+        "400":
+          description: Invalid input or logical date error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Unauthorized user (not the owner)
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error in PDF generation or storage
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Generate digital contract
+      tags:
+      - Contracts
+  /api/v1/contracts/{uuid}:
+    get:
+      consumes:
+      - application/json
+      description: Returns the full details of a contract, including the PDF URL.
+      parameters:
+      - description: Authenticated user ID
+        in: header
+        name: X-User-ID
+        required: true
+        type: string
+      - description: Contract UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/contracts.ContractDetail'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get contract detail
+      tags:
+      - Contracts
   /api/v1/locations/cities:
     get:
       description: Returns cities for the selected state. Results are paginated.
@@ -1227,11 +1466,7 @@ paths:
       - Locations
   /api/v1/payments:
     get:
-      description: Returns payments visible to the authenticated user. Admin users
-        can view every payment in the system, agent users can only view payments linked
-        to their own transactions, and client users can only view payments linked
-        to their own transactions. Optional filters by property, payment status, and
-        due date range are applied only when provided.
+      description: Returns payments visible to the authenticated user.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1254,13 +1489,11 @@ paths:
         in: query
         name: date_to
         type: string
-      - default: 20
-        description: Maximum number of results to return, default 20, max 100
+      - description: Maximum number of results to return
         in: query
         name: limit
         type: integer
-      - default: 0
-        description: Pagination offset, default 0
+      - description: Pagination offset
         in: query
         name: offset
         type: integer
@@ -1268,33 +1501,15 @@ paths:
       - application/json
       responses:
         "200":
-          description: Paginated list of payments
+          description: OK
           schema:
             $ref: '#/definitions/payments.ListPaymentsResult'
-        "400":
-          description: Invalid query params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: List payments
       tags:
       - Payments
   /api/v1/payments/{payment_id}:
     get:
-      description: Returns one payment detail when the payment exists and the authenticated
-        user is allowed to access it. Agent and client users receive 403 Forbidden
-        when the payment belongs to a different transaction.
+      description: Returns one payment detail.
       parameters:
       - description: Numeric ID of the authenticated user
         in: header
@@ -1310,29 +1525,9 @@ paths:
       - application/json
       responses:
         "200":
-          description: Payment detail
+          description: OK
           schema:
             $ref: '#/definitions/payments.PaymentDetail'
-        "400":
-          description: Invalid path params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "401":
-          description: Missing authentication
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "404":
-          description: Payment not found
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
       summary: Get payment detail
       tags:
       - Payments
@@ -2161,4 +2356,66 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
+  /payments:
+    post:
+      consumes:
+      - application/json
+      description: Register a payment for a contract with simulation logic (terminates
+        in 0000 for failure).
+      parameters:
+      - description: Payment Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/payments.RegisterPaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/payments.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Process a payment (Simulated)
+      tags:
+      - payments
+  /payments/{uuid}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+      parameters:
+      - description: Payment UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm a pending payment
+      tags:
+      - payments
 swagger: "2.0"
