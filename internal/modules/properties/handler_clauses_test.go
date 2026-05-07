@@ -279,6 +279,14 @@ type mockServiceForClauses struct {
 	getFullPropertyFunc func(ctx context.Context, uuid string) (GetPropertyFullResult, error)
 	updatePropertyFunc  func(ctx context.Context, uuid string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	deletePropertyFunc  func(ctx context.Context, uuid string, input DeletePropertyInput) error
+	getPropertyHistoryFunc func(ctx context.Context, uuid string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+}
+
+func (m *mockServiceForClauses) GetPropertyHistory(ctx context.Context, uuid string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+	if m.getPropertyHistoryFunc != nil {
+		return m.getPropertyHistoryFunc(ctx, uuid, requesterID, requesterRoleID)
+	}
+	return GetPropertyHistoryResult{}, nil
 }
 
 func (m *mockServiceForClauses) CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {

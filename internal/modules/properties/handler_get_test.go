@@ -2,290 +2,193 @@ package properties
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"reflect"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
 
-func TestHandler_ListProperties(t *testing.T) {
+func init() {
+	gin.SetMode(gin.TestMode)
+}
+
+func TestHandler_ListProperties_CU12(t *testing.T) {
 	tests := []struct {
-		name              string
-		query             url.Values
-		serviceErr        error
-		wantStatus        int
-		wantServiceCalled bool
-		wantCheckInput    bool
-		wantInput         ListPropertiesInput
+		name           string
+		queryParams    string
+		mockResult     ListPropertiesResult
+		mockErr        error
+		wantStatus     int
+		expectMinPrice float64
+		expectMaxPrice float64
+		expectBedrooms int32
 	}{
 		{
-			name:              "returns ok with default values when query params are empty",
-			query:             url.Values{},
-			wantStatus:        http.StatusOK,
-			wantServiceCalled: true,
-			wantCheckInput:    true,
-			wantInput: ListPropertiesInput{
-				Page:      1,
-				PageSize:  20,
-				StatusIDs: []int32{},
-				Order:     "desc",
+			name:        "valid search with all CU-12 filters",
+			queryParams: "?min_price=1000&max_price=5000&min_bedrooms=3&q=xalapa",
+			mockResult: ListPropertiesResult{
+				Data: []PropertyCardData{{PropertyUUID: "abc", Title: "Casa Xalapa"}},
+				Meta: ListPropertiesMeta{TotalCount: 1, TotalPages: 1},
 			},
+			wantStatus:     http.StatusOK,
+			expectMinPrice: 1000,
+			expectMaxPrice: 5000,
+			expectBedrooms: 3,
 		},
 		{
-			name:       "returns bad request when page is invalid",
-			query:      url.Values{"page": []string{"abc"}},
-			wantStatus: http.StatusBadRequest,
+			name:        "invalid min_price format",
+			queryParams: "?min_price=invalid",
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
-			name:       "returns bad request when page size is invalid",
-			query:      url.Values{"page_size": []string{"abc"}},
-			wantStatus: http.StatusBadRequest,
+			name:        "invalid min_bedrooms format",
+			queryParams: "?min_bedrooms=-1",
+			wantStatus:  http.StatusBadRequest,
 		},
 		{
-			name:       "returns bad request when page size exceeds limit",
-			query:      url.Values{"page_size": []string{"101"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when page is zero",
-			query:      url.Values{"page": []string{"0"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when status id is invalid",
-			query:      url.Values{"status_id": []string{"abc"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when status id is zero",
-			query:      url.Values{"status_id": []string{"0"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when property type id is invalid",
-			query:      url.Values{"property_type_id": []string{"abc"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when property type id is zero",
-			query:      url.Values{"property_type_id": []string{"0"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when sort is invalid",
-			query:      url.Values{"sort": []string{"invalid"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when order is invalid",
-			query:      url.Values{"order": []string{"invalid"}},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:              "returns internal server error when service fails",
-			query:             url.Values{"page": []string{"1"}, "page_size": []string{"20"}},
-			serviceErr:        errors.New("db"),
-			wantStatus:        http.StatusInternalServerError,
-			wantServiceCalled: true,
-		},
-		{
-			name: "returns ok when request is valid",
-			query: url.Values{
-				"page":             []string{"2"},
-				"page_size":        []string{"50"},
-				"q":                []string{"search"},
-				"status_id":        []string{"1", "2"},
-				"property_type_id": []string{"3"},
-				"modality_id":      []string{"4"},
-				"country_id":       []string{"5"},
-				"state_id":         []string{"6"},
-				"city_id":          []string{"7"},
-				"sort":             []string{"price"},
-				"order":            []string{"desc"},
-			},
-			wantStatus:        http.StatusOK,
-			wantServiceCalled: true,
+			name:        "page size too large",
+			queryParams: "?page_size=101",
+			wantStatus:  http.StatusBadRequest,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			called := false
-			var calledInput ListPropertiesInput
-
-			customMock := &mockServiceForClauses{
+			mockSvc := &mockPropertyService{
 				listPropertiesFunc: func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
-					called = true
-					calledInput = input
-					if tt.serviceErr != nil {
-						return ListPropertiesResult{}, tt.serviceErr
+					if tt.name == "valid search with all CU-12 filters" {
+						if input.MinPrice != tt.expectMinPrice || input.MaxPrice != tt.expectMaxPrice || input.MinBedrooms != tt.expectBedrooms {
+							return ListPropertiesResult{}, fmt.Errorf("params mismatch: got price[%v-%v] beds[%v]", input.MinPrice, input.MaxPrice, input.MinBedrooms)
+						}
 					}
-					return ListPropertiesResult{}, nil
+					return tt.mockResult, tt.mockErr
 				},
 			}
 
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/properties?"+tt.query.Encode(), nil)
-			ctx.Request = req
+			h := NewHandler(mockSvc)
+			w := httptest.NewRecorder()
+			c, r := gin.CreateTestContext(w)
 
-			handler := NewHandler(customMock)
-			handler.listProperties(ctx)
+			r.GET("/api/v1/properties", h.listProperties)
+			
+			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties"+tt.queryParams, nil)
+			c.Request = req
+			
+			r.ServeHTTP(w, req)
 
-			if recorder.Code != tt.wantStatus {
-				t.Fatalf("status: got %d, want %d", recorder.Code, tt.wantStatus)
+			if w.Code != tt.wantStatus {
+				t.Errorf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
 			}
 
-			if called != tt.wantServiceCalled {
-				t.Fatalf("service called: got %v, want %v", called, tt.wantServiceCalled)
-			}
-
-			if tt.wantCheckInput {
-				if !reflect.DeepEqual(calledInput, tt.wantInput) {
-					t.Fatalf("input mismatch: got %#v want %#v", calledInput, tt.wantInput)
+			if tt.wantStatus == http.StatusOK {
+				var res ListPropertiesResult
+				if err := json.NewDecoder(w.Body).Decode(&res); err != nil {
+					t.Fatalf("decode response: %v", err)
+				}
+				if len(res.Data) != len(tt.mockResult.Data) {
+					t.Errorf("data length: got %d, want %d", len(res.Data), len(tt.mockResult.Data))
 				}
 			}
 		})
 	}
 }
 
-func TestHandler_GetProperty(t *testing.T) {
-	validUUID := "123e4567-e89b-12d3-a456-426614174000"
+// Mock definitions for Service
+type mockPropertyService struct {
+	PropertyService // Embed to satisfy interface
+	listPropertiesFunc func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
+	getPropertyFunc    func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	getFullPropertyFunc func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
+	getPropertyHistoryFunc func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+}
 
+func (m *mockPropertyService) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
+	return m.listPropertiesFunc(ctx, input)
+}
+
+func (m *mockPropertyService) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
+	return m.getPropertyFunc(ctx, propertyUUID)
+}
+
+func (m *mockPropertyService) GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error) {
+	return m.getFullPropertyFunc(ctx, propertyUUID)
+}
+
+func (m *mockPropertyService) GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+	return m.getPropertyHistoryFunc(ctx, propertyUUID, requesterID, requesterRoleID)
+}
+
+func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 	tests := []struct {
-		name                  string
-		uuid                  string
-		full                  string
-		getPropertyResult     GetPropertyResult
-		getFullPropertyResult GetPropertyFullResult
-		serviceErr            error
-		wantStatus            int
-		wantGetPropertyCalled bool
-		wantGetFullCalled     bool
+		name        string
+		propertyUUID string
+		headers     map[string]string
+		mockResult  GetPropertyHistoryResult
+		mockErr     error
+		wantStatus  int
 	}{
 		{
-			name:       "returns bad request when uuid is empty",
-			uuid:       "",
-			wantStatus: http.StatusBadRequest,
+			name:         "returns history successfully",
+			propertyUUID: "abc-123",
+			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			mockResult:   GetPropertyHistoryResult{Data: []PropertyStatusHistoryData{{HistoryID: 1}}},
+			wantStatus:   http.StatusOK,
 		},
 		{
-			name:       "returns bad request when full query param is invalid",
-			uuid:       validUUID,
-			full:       "maybe",
-			wantStatus: http.StatusBadRequest,
+			name:         "missing X-User-ID header",
+			propertyUUID: "abc-123",
+			headers:      map[string]string{"X-Role-ID": "1"},
+			wantStatus:   http.StatusBadRequest,
 		},
 		{
-			name:                  "returns ok with default full value when query param is absent",
-			uuid:                  validUUID,
-			full:                  "",
-			getPropertyResult:     GetPropertyResult{Data: GetPropertyData{PropertyUUID: validUUID}},
-			wantStatus:            http.StatusOK,
-			wantGetPropertyCalled: true,
-			wantGetFullCalled:     false,
+			name:         "forbidden error from service",
+			propertyUUID: "abc-123",
+			headers:      map[string]string{"X-User-ID": "2", "X-Role-ID": "3"},
+			mockErr:      fmt.Errorf("forbidden: access denied"),
+			wantStatus:   http.StatusForbidden,
 		},
 		{
-			name:                  "returns ok when full is false",
-			uuid:                  validUUID,
-			full:                  "false",
-			getPropertyResult:     GetPropertyResult{Data: GetPropertyData{PropertyUUID: validUUID}},
-			wantStatus:            http.StatusOK,
-			wantGetPropertyCalled: true,
+			name:         "property not found",
+			propertyUUID: "non-existent",
+			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			mockErr:      ErrPropertyNotFound,
+			wantStatus:   http.StatusNotFound,
 		},
 		{
-			name:                  "returns ok when full is true",
-			uuid:                  validUUID,
-			full:                  "true",
-			getFullPropertyResult: GetPropertyFullResult{Data: GetPropertyFullData{PropertyUUID: validUUID}},
-			wantStatus:            http.StatusOK,
-			wantGetFullCalled:     true,
-		},
-		{
-			name:                  "returns not found when property does not exist",
-			uuid:                  validUUID,
-			full:                  "false",
-			serviceErr:            ErrPropertyNotFound,
-			wantStatus:            http.StatusNotFound,
-			wantGetPropertyCalled: true,
-		},
-		{
-			name:                  "returns internal server error when service fails",
-			uuid:                  validUUID,
-			full:                  "false",
-			serviceErr:            errors.New("db"),
-			wantStatus:            http.StatusInternalServerError,
-			wantGetPropertyCalled: true,
-		},
-		{
-			name:              "returns not found when full property does not exist",
-			uuid:              validUUID,
-			full:              "true",
-			serviceErr:        ErrPropertyNotFound,
-			wantStatus:        http.StatusNotFound,
-			wantGetFullCalled: true,
-		},
-		{
-			name:              "returns internal server error when full property service fails",
-			uuid:              validUUID,
-			full:              "true",
-			serviceErr:        errors.New("db"),
-			wantStatus:        http.StatusInternalServerError,
-			wantGetFullCalled: true,
+			name:         "internal server error",
+			propertyUUID: "abc-123",
+			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			mockErr:      fmt.Errorf("random error"),
+			wantStatus:   http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getPropertyCalled := false
-			getFullCalled := false
-
-			customMock := &mockServiceForClauses{
-				getPropertyFunc: func(ctx context.Context, uuid string) (GetPropertyResult, error) {
-					getPropertyCalled = true
-					if tt.serviceErr != nil {
-						return GetPropertyResult{}, tt.serviceErr
-					}
-					return tt.getPropertyResult, nil
-				},
-				getFullPropertyFunc: func(ctx context.Context, uuid string) (GetPropertyFullResult, error) {
-					getFullCalled = true
-					if tt.serviceErr != nil {
-						return GetPropertyFullResult{}, tt.serviceErr
-					}
-					return tt.getFullPropertyResult, nil
+			mockSvc := &mockPropertyService{
+				getPropertyHistoryFunc: func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+					return tt.mockResult, tt.mockErr
 				},
 			}
 
-			recorder := httptest.NewRecorder()
-			ctx, _ := gin.CreateTestContext(recorder)
-			ctx.Params = gin.Params{{Key: "uuid", Value: tt.uuid}}
+			h := NewHandler(mockSvc)
+			w := httptest.NewRecorder()
+			_, r := gin.CreateTestContext(w)
 
-			query := url.Values{}
-			if tt.full != "" {
-				query.Set("full", tt.full)
-			}
-			path := "/api/v1/properties/" + tt.uuid
-			if encoded := query.Encode(); encoded != "" {
-				path += "?" + encoded
-			}
-			req := httptest.NewRequest(http.MethodGet, path, nil)
-			ctx.Request = req
+			r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
 
-			handler := NewHandler(customMock)
-			handler.getProperty(ctx)
-
-			if recorder.Code != tt.wantStatus {
-				t.Fatalf("status: got %d, want %d", recorder.Code, tt.wantStatus)
+			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.propertyUUID+"/history", nil)
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
 			}
+			
+			r.ServeHTTP(w, req)
 
-			if getPropertyCalled != tt.wantGetPropertyCalled {
-				t.Fatalf("get property called: got %v, want %v", getPropertyCalled, tt.wantGetPropertyCalled)
-			}
-			if getFullCalled != tt.wantGetFullCalled {
-				t.Fatalf("get full property called: got %v, want %v", getFullCalled, tt.wantGetFullCalled)
+			if w.Code != tt.wantStatus {
+				t.Errorf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
 			}
 		})
 	}

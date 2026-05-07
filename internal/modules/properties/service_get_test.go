@@ -8,6 +8,49 @@ import (
 	"testing"
 )
 
+func TestService_ListProperties_CU12(t *testing.T) {
+	tests := []struct {
+		name      string
+		repoItems []PropertyCardData
+		repoTotal int64
+		input     ListPropertiesInput
+		wantStatusForced bool
+	}{
+		{
+			name:      "CU-12: forces StatusAvailable when no status provided",
+			repoItems: []PropertyCardData{{PropertyUUID: "a"}},
+			repoTotal: 1,
+			input:     ListPropertiesInput{Page: 1, PageSize: 20},
+			wantStatusForced: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockPropertyRepository{
+				listPropertiesFunc: func(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
+					if tt.wantStatusForced {
+						found := false
+						for _, s := range input.StatusIDs {
+							if s == StatusAvailable {
+								found = true
+								break
+							}
+						}
+						if !found {
+							t.Errorf("expected StatusAvailable (2) in filters, got %v", input.StatusIDs)
+						}
+					}
+					return tt.repoItems, tt.repoTotal, nil
+				},
+			}
+
+			svc := NewService(repo, &mockPropertyPhotoStorage{})
+			_, _ = svc.ListProperties(context.Background(), tt.input)
+		})
+	}
+}
+
 func TestService_ListProperties(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -133,7 +176,7 @@ func TestService_GetProperty(t *testing.T) {
 	}{
 		{
 			name:       "returns property when repository returns result",
-			repoResult: GetPropertyResult{Data: GetPropertyData{PropertyUUID: "id"}},
+			repoResult: GetPropertyResult{Data: GetPropertyData{PropertyUUID: "id", OwnerID: 100}},
 			wantErr:    false,
 		},
 		{
@@ -181,8 +224,8 @@ func TestService_GetProperty(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if !reflect.DeepEqual(result, tt.repoResult) {
-				t.Fatalf("result mismatch: got %#v want %#v", result, tt.repoResult)
+			if result.Data.OwnerID != 0 {
+				t.Errorf("OwnerID: got %d, want 0 (CU-12 Privacy)", result.Data.OwnerID)
 			}
 		})
 	}
@@ -199,7 +242,7 @@ func TestService_GetFullProperty(t *testing.T) {
 	}{
 		{
 			name:       "returns full property when repository returns result",
-			repoResult: GetPropertyFullResult{Data: GetPropertyFullData{PropertyUUID: "id"}},
+			repoResult: GetPropertyFullResult{Data: GetPropertyFullData{PropertyUUID: "id", OwnerID: 100}},
 			wantErr:    false,
 		},
 		{
@@ -247,8 +290,107 @@ func TestService_GetFullProperty(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if !reflect.DeepEqual(result, tt.repoResult) {
-				t.Fatalf("result mismatch: got %#v want %#v", result, tt.repoResult)
+			if result.Data.OwnerID != 0 {
+				t.Errorf("OwnerID: got %d, want 0 (CU-12 Privacy)", result.Data.OwnerID)
+			}
+		})
+	}
+}
+
+func TestService_GetPropertyHistory_CU18(t *testing.T) {
+	tests := []struct {
+		name            string
+		propertyUUID    string
+		userID          int32
+		roleID          int32
+		mockOwnerID     int32
+		mockOwnerErr    error
+		mockHistory     []PropertyStatusHistoryData
+		mockHistoryErr  error
+		wantErr         bool
+		wantErrContains string
+		wantDataLen     int
+	}{
+		{
+			name:         "Admin can see history of any property",
+			propertyUUID: "prop-1",
+			userID:       99, // Not the owner
+			roleID:       RoleAdminID,
+			mockHistory: []PropertyStatusHistoryData{
+				{HistoryID: 1, PreviousStatusName: "Draft", NewStatusName: "Available"},
+			},
+			wantDataLen: 1,
+		},
+		{
+			name:         "Owner can see history of their own property",
+			propertyUUID: "prop-1",
+			userID:       10,
+			roleID:       RoleClientID,
+			mockOwnerID:  10,
+			mockHistory: []PropertyStatusHistoryData{
+				{HistoryID: 1}, {HistoryID: 2},
+			},
+			wantDataLen: 2,
+		},
+		{
+			name:            "Non-owner is forbidden from seeing history",
+			propertyUUID:    "prop-1",
+			userID:          20,
+			roleID:          RoleClientID,
+			mockOwnerID:     10,
+			wantErr:         true,
+			wantErrContains: "forbidden",
+		},
+		{
+			name:            "Returns error if property not found during ownership check",
+			propertyUUID:    "missing",
+			userID:          10,
+			roleID:          RoleClientID,
+			mockOwnerErr:    ErrPropertyNotFound,
+			wantErr:         true,
+			wantErrContains: ErrPropertyNotFound.Error(),
+		},
+		{
+			name:            "Returns error if repository fails to list history",
+			propertyUUID:    "prop-1",
+			userID:          10,
+			roleID:          RoleAdminID,
+			mockHistoryErr:  errors.New("db error"),
+			wantErr:         true,
+			wantErrContains: "db error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockPropertyRepository{
+				getPropertyOwnerByUUIDFunc: func(ctx context.Context, propertyUUID string) (int32, error) {
+					return tt.mockOwnerID, tt.mockOwnerErr
+				},
+				listPropertyStatusHistoryFunc: func(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error) {
+					return tt.mockHistory, tt.mockHistoryErr
+				},
+			}
+
+			svc := NewService(repo, &mockPropertyPhotoStorage{})
+			result, err := svc.GetPropertyHistory(context.Background(), tt.propertyUUID, tt.userID, tt.roleID)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if tt.wantErrContains != "" && !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Fatalf("error message: got %q, want substring %q", err.Error(), tt.wantErrContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(result.Data) != tt.wantDataLen {
+				t.Fatalf("data length: got %d, want %d", len(result.Data), tt.wantDataLen)
 			}
 		})
 	}
