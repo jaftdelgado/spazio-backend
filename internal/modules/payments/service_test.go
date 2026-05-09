@@ -144,13 +144,6 @@ func TestProcessPayment_ContractCancelled(t *testing.T) {
 	assert.Contains(t, err.Error(), "ya está cancelado")
 }
 
-<<<<<<< HEAD
-func bigNewInt(v int64) *big.Int {
-	return big.NewInt(v)
-}
-
-=======
->>>>>>> origin/main
 func TestConfirmPendingPayment_Success(t *testing.T) {
 	repo := new(MockRepository)
 	service := NewService(repo)
