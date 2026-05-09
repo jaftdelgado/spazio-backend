@@ -113,7 +113,7 @@ func (r *repository) UpdateUser(ctx context.Context, uuidStr string, input Updat
 	}, nil
 }
 
-func (r *repository) DeleteUser(ctx context.Context, uuidStr string) error {
+func (r *repository) DeleteUser(ctx context.Context, uuidStr string, email string) error {
 	queries := sqlcgen.New(r.db)
 
 	var userUUID pgtype.UUID
@@ -121,7 +121,10 @@ func (r *repository) DeleteUser(ctx context.Context, uuidStr string) error {
 		return fmt.Errorf("invalid uuid format: %w", err)
 	}
 
-	rowsAffected, err := queries.DeleteUserByUUID(ctx, userUUID)
+	rowsAffected, err := queries.DeleteUserByUUIDOrEmail(ctx, sqlcgen.DeleteUserByUUIDOrEmailParams{
+		UserUuid: userUUID,
+		Email:    email,
+	})
 	if err != nil {
 		return fmt.Errorf("error deleting user in db: %w", err)
 	}

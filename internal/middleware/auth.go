@@ -32,38 +32,44 @@ func Auth(supabaseURL, supabaseAnonKey string, db *pgxpool.Pool) gin.HandlerFunc
 
 		tokenString := parts[1]
 
-		userUUID, err := validateSupabaseToken(c.Request.Context(), client, supabaseURL, supabaseAnonKey, tokenString)
+		identity, err := validateSupabaseToken(c.Request.Context(), client, supabaseURL, supabaseAnonKey, tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido o expirado"})
 			c.Abort()
 			return
 		}
 
-		c.Set("user_uuid", userUUID)
+		c.Set("user_uuid", identity.UserUUID)
+		c.Set("user_email", identity.Email)
 
 		var roleName string
 		query := `
 			SELECT r.name 
 			FROM users u 
 			JOIN roles r ON u.role_id = r.id 
-			WHERE u.user_uuid = $1`
+			WHERE u.deleted_at IS NULL
+				AND (u.user_uuid = $1 OR u.email = $2)`
 
-		err = db.QueryRow(c.Request.Context(), query, userUUID).Scan(&roleName)
+		err = db.QueryRow(c.Request.Context(), query, identity.UserUUID, identity.Email).Scan(&roleName)
 		if err != nil {
 			roleName = "user"
 		}
 
 		c.Set("user_role", roleName)
 
-		fmt.Println("Pase por el Middleware de Auth")
 		c.Next()
 	}
 }
 
-func validateSupabaseToken(ctx context.Context, client *http.Client, supabaseURL, supabaseAnonKey, token string) (string, error) {
+type SupabaseIdentity struct {
+	UserUUID string
+	Email    string
+}
+
+func validateSupabaseToken(ctx context.Context, client *http.Client, supabaseURL, supabaseAnonKey, token string) (SupabaseIdentity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(supabaseURL, "/")+"/auth/v1/user", nil)
 	if err != nil {
-		return "", err
+		return SupabaseIdentity{}, err
 	}
 
 	req.Header.Set("apikey", supabaseAnonKey)
@@ -71,25 +77,29 @@ func validateSupabaseToken(ctx context.Context, client *http.Client, supabaseURL
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return SupabaseIdentity{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("supabase auth returned status %d", resp.StatusCode)
+		return SupabaseIdentity{}, fmt.Errorf("supabase auth returned status %d", resp.StatusCode)
 	}
 
 	var user struct {
-		ID string `json:"id"`
+		ID    string `json:"id"`
+		Email string `json:"email"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return "", err
+		return SupabaseIdentity{}, err
 	}
 
 	if user.ID == "" {
-		return "", fmt.Errorf("supabase user response did not include id")
+		return SupabaseIdentity{}, fmt.Errorf("supabase user response did not include id")
 	}
 
-	return user.ID, nil
+	return SupabaseIdentity{
+		UserUUID: user.ID,
+		Email:    user.Email,
+	}, nil
 }

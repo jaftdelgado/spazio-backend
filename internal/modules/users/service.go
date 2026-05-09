@@ -198,8 +198,8 @@ func (s *service) UpdateUser(ctx context.Context, uuidStr string, input UpdateUs
 	return result, nil
 }
 
-func (s *service) DeleteUser(ctx context.Context, uuidStr string) error {
-	if err := s.repository.DeleteUser(ctx, uuidStr); err != nil {
+func (s *service) DeleteUser(ctx context.Context, uuidStr string, email string) error {
+	if err := s.repository.DeleteUser(ctx, uuidStr, email); err != nil {
 		return fmt.Errorf("delete user: %w", err)
 	}
 

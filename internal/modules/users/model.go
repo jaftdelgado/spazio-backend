@@ -62,7 +62,7 @@ type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (CreateUserResult, error)
 	UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error
 	UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error)
-	DeleteUser(ctx context.Context, uuidStr string) error
+	DeleteUser(ctx context.Context, uuidStr string, email string) error
 }
 
 type UserService interface {
@@ -70,5 +70,5 @@ type UserService interface {
 	VerifyUser(ctx context.Context, email, token string) error
 	LoginUser(ctx context.Context, input LoginInput) (LoginResult, error)
 	UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error)
-	DeleteUser(ctx context.Context, uuidStr string) error
+	DeleteUser(ctx context.Context, uuidStr string, email string) error
 }

@@ -49,3 +49,11 @@ SET
     updated_at = NOW()
 WHERE user_uuid = $1
   AND deleted_at IS NULL;
+
+-- name: DeleteUserByUUIDOrEmail :execrows
+UPDATE users
+SET
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND (user_uuid = $1 OR email = $2);

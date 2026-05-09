@@ -170,7 +170,9 @@ func (h *Handler) DeleteAccount(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.DeleteUser(c.Request.Context(), userUUID); err != nil {
+	userEmail, _ := authenticatedUserEmail(c)
+
+	if err := h.service.DeleteUser(c.Request.Context(), userUUID, userEmail); err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
 			return
@@ -197,4 +199,18 @@ func authenticatedUserUUID(c *gin.Context) (string, bool) {
 	}
 
 	return userUUID, true
+}
+
+func authenticatedUserEmail(c *gin.Context) (string, bool) {
+	userEmailValue, exists := c.Get("user_email")
+	if !exists {
+		return "", false
+	}
+
+	userEmail, ok := userEmailValue.(string)
+	if !ok || userEmail == "" {
+		return "", false
+	}
+
+	return userEmail, true
 }
