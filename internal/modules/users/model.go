@@ -2,8 +2,11 @@ package users
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var ErrUserNotFound = errors.New("usuario no encontrado")
 
 type CreateUserInput struct {
 	UserUUID          string `json:"user_uuid"`
@@ -29,6 +32,13 @@ type VerifyUserInput struct {
 	Token string `json:"token" binding:"required"`
 }
 
+type UpdateUserInput struct {
+	FirstName         string `json:"first_name" binding:"required"`
+	LastName          string `json:"last_name" binding:"required"`
+	Phone             string `json:"phone"`
+	ProfilePictureURL string `json:"profile_picture_url"`
+}
+
 type LoginInput struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
@@ -40,14 +50,25 @@ type LoginResult struct {
 	User         CreateUserResult `json:"user"`
 }
 
+type UpdateUserResult struct {
+	UserID    int32     `json:"user_id"`
+	UserUUID  string    `json:"user_uuid"`
+	Email     string    `json:"email"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type UserRepository interface {
 	CreateUser(ctx context.Context, input CreateUserInput) (CreateUserResult, error)
 	GetUserByEmail(ctx context.Context, email string) (CreateUserResult, error)
 	UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error
+	UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error)
+	DeleteUser(ctx context.Context, uuidStr string) error
 }
 
 type UserService interface {
 	RegisterUser(ctx context.Context, input CreateUserInput) (CreateUserResult, error)
 	VerifyUser(ctx context.Context, email, token string) error
 	LoginUser(ctx context.Context, input LoginInput) (LoginResult, error)
+	UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error)
+	DeleteUser(ctx context.Context, uuidStr string) error
 }

@@ -30,6 +30,7 @@ import (
 // @description API de Spazio Backend
 // @host localhost:8080
 // @BasePath /
+
 func main() {
 	cfg := config.Load()
 
@@ -62,19 +63,23 @@ func main() {
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
-	api := r.Group("")
-	propertiesModule.RegisterRoutes(api)
-	servicesModule.RegisterRoutes(api)
-	catalogsModule.RegisterRoutes(api)
-	clausesModule.RegisterRoutes(api)
-	locationsModule.RegisterRoutes(api)
-	paymentsModule.RegisterRoutes(api)
-	usersModule.RegisterRoutes(api)
-	uploadsModule.RegisterRoutes(api)
-	visitsModule.RegisterRoutes(api)
+	public := r.Group("")
+	usersModule.RegisterRoutes(public)
+	catalogsModule.RegisterRoutes(public)
+	locationsModule.RegisterRoutes(public)
+
+	protected := r.Group("")
+	protected.Use(middleware.Auth(cfg.SupabaseURL, cfg.SupabaseAnonKey, database))
+	{
+		propertiesModule.RegisterRoutes(protected)
+		servicesModule.RegisterRoutes(protected)
+		clausesModule.RegisterRoutes(protected)
+		paymentsModule.RegisterRoutes(protected)
+		uploadsModule.RegisterRoutes(protected)
+		visitsModule.RegisterRoutes(protected)
+	}
 
 	if err := r.Run(":" + cfg.Port); err != nil {
 		log.Fatal(err)
 	}
-
 }

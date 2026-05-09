@@ -1695,9 +1695,68 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/DeleteProfile": {
+            "delete": {
+                "description": "Soft deletes the authenticated user's local account by marking deleted_at. The Supabase account may still exist, but deleted local users cannot log in through this API.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete user account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Account deleted successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired session",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Account deletion failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users/login": {
             "post": {
-                "description": "Autentica al usuario y devuelve un token JWT",
+                "description": "Authenticates the user and returns a JWT token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1707,7 +1766,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Iniciar sesión",
+                "summary": "Login",
                 "parameters": [
                     {
                         "description": "Credenciales de acceso",
@@ -1748,9 +1807,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/register": {
-            "post": {
-                "description": "Crea un nuevo perfil de usuario en el sistema y envía confirmación a Supabase",
+        "/users/profile": {
+            "put": {
+                "description": "Updates the authenticated user's profile data using the Supabase access token to resolve the user identity.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1760,7 +1819,76 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Registrar un nuevo usuario",
+                "summary": "Update user profile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Profile data to update",
+                        "name": "profile",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/users.UpdateUserInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile updated successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired session",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Profile update failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/register": {
+            "post": {
+                "description": "Create new User",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Register new User",
                 "parameters": [
                     {
                         "description": "Datos del nuevo usuario",
@@ -1803,7 +1931,7 @@ const docTemplate = `{
         },
         "/users/verify": {
             "post": {
-                "description": "Confirma el correo del usuario mediante un token enviado por email",
+                "description": "Verifies the user's email address using the token sent to their email.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1813,7 +1941,7 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Verificar cuenta de usuario",
+                "summary": "Verify user account",
                 "parameters": [
                     {
                         "description": "Token y email de verificación",
@@ -3368,6 +3496,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.UpdateUserInput": {
+            "type": "object",
+            "required": [
+                "first_name",
+                "last_name"
+            ],
+            "properties": {
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "phone": {
+                    "type": "string"
+                },
+                "profile_picture_url": {
                     "type": "string"
                 }
             }

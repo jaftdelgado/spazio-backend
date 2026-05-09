@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,8 +16,8 @@ func NewHandler(service UserService) *Handler {
 }
 
 // Register godoc
-// @Summary      Registrar un nuevo usuario
-// @Description  Crea un nuevo perfil de usuario en el sistema y envía confirmación a Supabase
+// @Summary      Register new User
+// @Description  Create new User
 // @Tags         Users
 // @Accept       json
 // @Produce      json
@@ -49,8 +50,8 @@ func (h *Handler) Register(c *gin.Context) {
 }
 
 // Verify godoc
-// @Summary      Verificar cuenta de usuario
-// @Description  Confirma el correo del usuario mediante un token enviado por email
+// @Summary      Verify user account
+// @Description  Verifies the user's email address using the token sent to their email.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
@@ -85,8 +86,8 @@ func (h *Handler) Verify(c *gin.Context) {
 }
 
 // Login godoc
-// @Summary      Iniciar sesión
-// @Description  Autentica al usuario y devuelve un token JWT
+// @Summary      Login
+// @Description  Authenticates the user and returns a JWT token.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
@@ -113,4 +114,87 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+// UpdateProfile godoc
+// @Summary      Update user profile
+// @Description  Updates the authenticated user's profile data using the Supabase access token to resolve the user identity.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string           true  "Bearer access token"
+// @Param        profile        body      UpdateUserInput  true  "Profile data to update"
+// @Success      200            {object}  map[string]interface{} "Profile updated successfully"
+// @Failure      400            {object}  map[string]string      "Invalid request body"
+// @Failure      401            {object}  map[string]string      "Invalid or expired session"
+// @Failure      500            {object}  map[string]string      "Profile update failed"
+// @Router       /users/profile [put]
+func (h *Handler) UpdateProfile(c *gin.Context) {
+	userUUID, ok := authenticatedUserUUID(c)
+	if !ok {
+		return
+	}
+
+	var input UpdateUserInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos: " + err.Error()})
+		return
+	}
+
+	result, err := h.service.UpdateUser(c.Request.Context(), userUUID, input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo actualizar el perfil: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Perfil actualizado correctamente",
+		"data":    result,
+	})
+}
+
+// DeleteAccount godoc
+// @Summary      Delete user account
+// @Description  Soft deletes the authenticated user's local account by marking deleted_at. The Supabase account may still exist, but deleted local users cannot log in through this API.
+// @Tags         Users
+// @Produce      json
+// @Param        Authorization  header    string  true  "Bearer access token"
+// @Success      200            {object}  map[string]string "Account deleted successfully"
+// @Failure      401            {object}  map[string]string "Invalid or expired session"
+// @Failure      404            {object}  map[string]string "User not found"
+// @Failure      500            {object}  map[string]string "Account deletion failed"
+// @Router       /users/DeleteProfile [delete]
+func (h *Handler) DeleteAccount(c *gin.Context) {
+	userUUID, ok := authenticatedUserUUID(c)
+	if !ok {
+		return
+	}
+
+	if err := h.service.DeleteUser(c.Request.Context(), userUUID); err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo eliminar la cuenta: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Cuenta eliminada correctamente"})
+}
+
+func authenticatedUserUUID(c *gin.Context) (string, bool) {
+	userUUIDValue, exists := c.Get("user_uuid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión inválida o expirada"})
+		return "", false
+	}
+
+	userUUID, ok := userUUIDValue.(string)
+	if !ok || userUUID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Identificador de usuario inválido"})
+		return "", false
+	}
+
+	return userUUID, true
 }
