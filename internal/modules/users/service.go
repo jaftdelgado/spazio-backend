@@ -142,7 +142,7 @@ func (s *service) LoginUser(ctx context.Context, input LoginInput) (LoginResult,
 		"password": input.Password,
 	})
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return LoginResult{}, err
 	}
@@ -158,21 +158,24 @@ func (s *service) LoginUser(ctx context.Context, input LoginInput) (LoginResult,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return LoginResult{}, fmt.Errorf("credenciales inválidas o cuenta no verificada")
+		return LoginResult{}, fmt.Errorf("login fallido: credenciales incorrectas")
 	}
 
 	var authRes struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
+		User         struct {
+			ID string `json:"id"`
+		} `json:"user"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&authRes); err != nil {
-		return LoginResult{}, fmt.Errorf("error decodificando tokens: %w", err)
+		return LoginResult{}, fmt.Errorf("error en la respuesta de autenticación")
 	}
 
 	userData, err := s.repository.GetUserByEmail(ctx, input.Email)
 	if err != nil {
-		return LoginResult{}, fmt.Errorf("error obteniendo datos del usuario: %w", err)
+		return LoginResult{}, fmt.Errorf("usuario autenticado pero no encontrado en base de datos local")
 	}
 
 	return LoginResult{
@@ -180,4 +183,25 @@ func (s *service) LoginUser(ctx context.Context, input LoginInput) (LoginResult,
 		RefreshToken: authRes.RefreshToken,
 		User:         userData,
 	}, nil
+}
+
+func (s *service) UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error) {
+	if input.FirstName == "" || input.LastName == "" {
+		return CreateUserResult{}, fmt.Errorf("nombre y apellido son obligatorios")
+	}
+
+	result, err := s.repository.UpdateUser(ctx, uuidStr, input)
+	if err != nil {
+		return CreateUserResult{}, err
+	}
+
+	return result, nil
+}
+
+func (s *service) DeleteUser(ctx context.Context, uuidStr string, email string) error {
+	if err := s.repository.DeleteUser(ctx, uuidStr, email); err != nil {
+		return fmt.Errorf("delete user: %w", err)
+	}
+
+	return nil
 }

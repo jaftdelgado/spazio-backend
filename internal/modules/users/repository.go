@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
@@ -57,9 +58,11 @@ func (r *repository) GetUserByEmail(ctx context.Context, email string) (CreateUs
 		return CreateUserResult{}, fmt.Errorf("error getting user by email: %w", err)
 	}
 
+	parsedUUID, _ := uuid.FromBytes(user.UserUuid.Bytes[:])
+
 	return CreateUserResult{
 		UserID:    user.UserID,
-		UserUUID:  fmt.Sprintf("%x-%x-%x-%x-%x", user.UserUuid.Bytes[0:4], user.UserUuid.Bytes[4:6], user.UserUuid.Bytes[6:8], user.UserUuid.Bytes[8:10], user.UserUuid.Bytes[10:16]),
+		UserUUID:  parsedUUID.String(),
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt.Time,
 	}, nil
@@ -74,6 +77,60 @@ func (r *repository) UpdateUserStatus(ctx context.Context, userID int32, statusI
 	})
 	if err != nil {
 		return fmt.Errorf("error updating user status in db: %w", err)
+	}
+
+	return nil
+}
+
+func (r *repository) UpdateUser(ctx context.Context, uuidStr string, input UpdateUserInput) (CreateUserResult, error) {
+	queries := sqlcgen.New(r.db)
+
+	var userUUID pgtype.UUID
+	if err := userUUID.Scan(uuidStr); err != nil {
+		return CreateUserResult{}, fmt.Errorf("invalid uuid format: %w", err)
+	}
+
+	params := sqlcgen.UpdateUserByUUIDParams{
+		UserUuid:          userUUID,
+		FirstName:         input.FirstName,
+		LastName:          input.LastName,
+		Phone:             input.Phone,
+		ProfilePictureUrl: input.ProfilePictureURL,
+	}
+
+	user, err := queries.UpdateUserByUUID(ctx, params)
+	if err != nil {
+		return CreateUserResult{}, fmt.Errorf("error updating user in db: %w", err)
+	}
+
+	parsedUUID, _ := uuid.FromBytes(user.UserUuid.Bytes[:])
+
+	return CreateUserResult{
+		UserID:    user.UserID,
+		UserUUID:  parsedUUID.String(),
+		Email:     user.Email,
+		CreatedAt: user.CreatedAt.Time,
+	}, nil
+}
+
+func (r *repository) DeleteUser(ctx context.Context, uuidStr string, email string) error {
+	queries := sqlcgen.New(r.db)
+
+	var userUUID pgtype.UUID
+	if err := userUUID.Scan(uuidStr); err != nil {
+		return fmt.Errorf("invalid uuid format: %w", err)
+	}
+
+	rowsAffected, err := queries.DeleteUserByUUIDOrEmail(ctx, sqlcgen.DeleteUserByUUIDOrEmailParams{
+		UserUuid: userUUID,
+		Email:    email,
+	})
+	if err != nil {
+		return fmt.Errorf("error deleting user in db: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return ErrUserNotFound
 	}
 
 	return nil
