@@ -1092,6 +1092,61 @@ definitions:
       url:
         type: string
     type: object
+  users.CreateUserInput:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password_hash:
+        type: string
+      phone:
+        type: string
+      profile_picture_url:
+        type: string
+      role_id:
+        type: integer
+      status_id:
+        type: integer
+      user_uuid:
+        type: string
+    type: object
+  users.LoginInput:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  users.UpdateUserInput:
+    properties:
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone:
+        type: string
+      profile_picture_url:
+        type: string
+    required:
+    - first_name
+    - last_name
+    type: object
+  users.VerifyUserInput:
+    properties:
+      email:
+        type: string
+      token:
+        type: string
+    required:
+    - email
+    - token
+    type: object
   visits.CreateVisitRequest:
     properties:
       property_id:
@@ -2501,4 +2556,199 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
+  /users/DeleteProfile:
+    delete:
+      description: Soft deletes the authenticated user's local account by marking
+        deleted_at. The Supabase account may still exist, but deleted local users
+        cannot log in through this API.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Account deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid or expired session
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Account deletion failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete user account
+      tags:
+      - Users
+  /users/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates the user and returns a JWT token.
+      parameters:
+      - description: Credenciales de acceso
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/users.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login exitoso
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Email o contraseña requeridos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Login fallido
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login
+      tags:
+      - Users
+  /users/profile:
+    put:
+      consumes:
+      - application/json
+      description: Updates the authenticated user's profile data using the Supabase
+        access token to resolve the user identity.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Profile data to update
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/users.UpdateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid or expired session
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Profile update failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update user profile
+      tags:
+      - Users
+  /users/register:
+    post:
+      consumes:
+      - application/json
+      description: Create new User
+      parameters:
+      - description: Datos del nuevo usuario
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/users.CreateUserInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Usuario creado exitosamente
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Formato de datos inválido
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Error interno del servidor
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register new User
+      tags:
+      - Users
+  /users/verify:
+    post:
+      consumes:
+      - application/json
+      description: Verifies the user's email address using the token sent to their
+        email.
+      parameters:
+      - description: Token y email de verificación
+        in: body
+        name: verify
+        required: true
+        schema:
+          $ref: '#/definitions/users.VerifyUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cuenta verificada exitosamente
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Datos de verificación inválidos
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Verificación fallida
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify user account
+      tags:
+      - Users
 swagger: "2.0"
