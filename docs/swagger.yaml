@@ -109,8 +109,6 @@ definitions:
       meta:
         $ref: '#/definitions/clauses.ListClausesMeta'
     type: object
-<<<<<<< HEAD
-=======
   contracts.ContractDetail:
     properties:
       agreed_amount:
@@ -175,7 +173,6 @@ definitions:
       storage_key:
         type: string
     type: object
->>>>>>> origin/main
   locations.City:
     properties:
       city_id:
@@ -655,8 +652,6 @@ definitions:
       title:
         type: string
     type: object
-<<<<<<< HEAD
-=======
   properties.GetPropertyHistoryResult:
     properties:
       data:
@@ -664,7 +659,6 @@ definitions:
           $ref: '#/definitions/properties.PropertyStatusHistoryData'
         type: array
     type: object
->>>>>>> origin/main
   properties.GetPropertyPhotosResult:
     properties:
       data:
@@ -754,15 +748,12 @@ definitions:
     type: object
   properties.PropertyCardData:
     properties:
-<<<<<<< HEAD
-=======
       bathrooms:
         type: integer
       bedrooms:
         type: integer
       built_area:
         type: number
->>>>>>> origin/main
       cover_photo_url:
         example: https://cdn.example.com/properties/cover.jpg
         type: string
@@ -868,8 +859,6 @@ definitions:
         example: properties/123/front.jpg
         type: string
     type: object
-<<<<<<< HEAD
-=======
   properties.PropertyStatusHistoryData:
     properties:
       changed_at:
@@ -885,7 +874,6 @@ definitions:
       property_uuid:
         type: string
     type: object
->>>>>>> origin/main
   properties.ResidentialData:
     properties:
       bathrooms:
@@ -1091,16 +1079,8 @@ definitions:
     type: object
   shared.ErrorResponse:
     properties:
-<<<<<<< HEAD
-      code:
-        example: 404
-        type: integer
-      message:
-        example: Resource not found
-=======
       error:
         example: error message
->>>>>>> origin/main
         type: string
     type: object
   uploads.UploadPhotoResult:
@@ -1112,7 +1092,6 @@ definitions:
       url:
         type: string
     type: object
-<<<<<<< HEAD
   users.CreateUserInput:
     properties:
       email:
@@ -1168,8 +1147,6 @@ definitions:
     - email
     - token
     type: object
-=======
->>>>>>> origin/main
   visits.CreateVisitRequest:
     properties:
       property_id:
@@ -1347,8 +1324,6 @@ paths:
       summary: List clauses
       tags:
       - Clauses
-<<<<<<< HEAD
-=======
   /api/v1/contracts:
     get:
       consumes:
@@ -1488,7 +1463,6 @@ paths:
       summary: Get contract detail
       tags:
       - Contracts
->>>>>>> origin/main
   /api/v1/locations/cities:
     get:
       description: Returns cities for the selected state. Results are paginated.
@@ -1613,8 +1587,6 @@ paths:
       summary: List payments
       tags:
       - Payments
-<<<<<<< HEAD
-=======
     post:
       consumes:
       - application/json
@@ -1645,7 +1617,6 @@ paths:
       summary: Process a payment (Simulated)
       tags:
       - Payments
->>>>>>> origin/main
   /api/v1/payments/{payment_id}:
     get:
       description: Returns one payment detail.
@@ -1670,18 +1641,6 @@ paths:
       summary: Get payment detail
       tags:
       - Payments
-<<<<<<< HEAD
-  /api/v1/properties:
-    get:
-      description: Returns a paginated list of property cards with optional search,
-        status, type, modality, and location filters. Deleted properties are always
-        excluded. The selected card price prefers sale price unless the property modality
-        is rent or no current sale price exists; in that case the best current rent
-        price is used following monthly, annual, weekly, then daily priority.
-      parameters:
-      - default: 1
-        description: Page number
-=======
   /api/v1/payments/{uuid}/confirm:
     patch:
       consumes:
@@ -1723,35 +1682,20 @@ paths:
       parameters:
       - default: 1
         description: Page number (starts at 1)
->>>>>>> origin/main
         in: query
         name: page
         type: integer
       - default: 20
-<<<<<<< HEAD
-        description: Results per page
-        in: query
-        name: page_size
-        type: integer
-      - description: Search term across title, street, neighborhood, city, state,
-          and country
-=======
         description: Items per page (max 100)
         in: query
         name: page_size
         type: integer
       - description: Search term (matches title, address, city, state, country)
->>>>>>> origin/main
         in: query
         name: q
         type: string
       - collectionFormat: csv
-<<<<<<< HEAD
-        description: Filter by property status. Repeat the parameter to send multiple
-          values.
-=======
         description: Filter by status IDs (Available=2 by default for clients)
->>>>>>> origin/main
         in: query
         items:
           type: integer
@@ -1777,13 +1721,6 @@ paths:
         in: query
         name: city_id
         type: integer
-<<<<<<< HEAD
-      - description: 'Sort field: created_at, title, or price'
-        in: query
-        name: sort
-        type: string
-      - description: 'Sort order: asc or desc'
-=======
       - description: Minimum price filter
         in: query
         name: min_price
@@ -1801,7 +1738,6 @@ paths:
         name: sort
         type: string
       - description: 'Sort order: asc, desc'
->>>>>>> origin/main
         in: query
         name: order
         type: string
@@ -1809,20 +1745,6 @@ paths:
       - application/json
       responses:
         "200":
-<<<<<<< HEAD
-          description: Paginated property cards
-          schema:
-            $ref: '#/definitions/properties.ListPropertiesResult'
-        "400":
-          description: Invalid query params
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: List properties
-=======
           description: Paginated list of property cards
           schema:
             $ref: '#/definitions/properties.ListPropertiesResult'
@@ -1835,7 +1757,6 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: List properties with advanced filters
->>>>>>> origin/main
       tags:
       - Properties
     post:
@@ -2093,8 +2014,6 @@ paths:
       summary: Replace property clauses
       tags:
       - Properties
-<<<<<<< HEAD
-=======
   /api/v1/properties/{uuid}/history:
     get:
       consumes:
@@ -2144,7 +2063,6 @@ paths:
       summary: Get property status history
       tags:
       - Properties
->>>>>>> origin/main
   /api/v1/properties/{uuid}/photos:
     get:
       description: Returns the photo metadata linked to a property by UUID ordered
@@ -2638,69 +2556,6 @@ paths:
       summary: Reschedule a visit
       tags:
       - visits
-<<<<<<< HEAD
-  /payments:
-    post:
-      consumes:
-      - application/json
-      description: Register a payment for a contract with simulation logic (terminates
-        in 0000 for failure).
-      parameters:
-      - description: Payment Details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/payments.RegisterPaymentRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/payments.PaymentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Process a payment (Simulated)
-      tags:
-      - payments
-  /payments/{uuid}/confirm:
-    patch:
-      consumes:
-      - application/json
-      description: Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
-      parameters:
-      - description: Payment UUID
-        in: path
-        name: uuid
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Confirm a pending payment
-      tags:
-      - payments
   /users/DeleteProfile:
     delete:
       description: Soft deletes the authenticated user's local account by marking
@@ -2896,6 +2751,4 @@ paths:
       summary: Verify user account
       tags:
       - Users
-=======
->>>>>>> origin/main
 swagger: "2.0"

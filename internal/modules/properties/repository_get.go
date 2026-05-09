@@ -3,10 +3,7 @@ package properties
 import (
 	"context"
 	"fmt"
-<<<<<<< HEAD
-=======
 	"math/big"
->>>>>>> origin/main
 	"sort"
 	"strings"
 	"time"
@@ -18,8 +15,6 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
-<<<<<<< HEAD
-=======
 func (r *repository) ListPropertyStatusHistory(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error) {
 	var pgUUID pgtype.UUID
 	if err := pgUUID.Scan(propertyUUID); err != nil {
@@ -72,7 +67,6 @@ func (r *repository) GetPropertyOwnerByUUID(ctx context.Context, propertyUUID st
 	return ownerID, nil
 }
 
->>>>>>> origin/main
 func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
 	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
 		SearchQuery:    input.Query,
@@ -82,12 +76,9 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 		CountryID:      input.CountryID,
 		StateID:        input.StateID,
 		CityID:         input.CityID,
-<<<<<<< HEAD
-=======
 		MinPrice:       float64ToNumeric(input.MinPrice),
 		MaxPrice:       float64ToNumeric(input.MaxPrice),
 		MinBedrooms:    input.MinBedrooms,
->>>>>>> origin/main
 		SortField:      input.Sort,
 		SortOrder:      input.Order,
 		PageOffset:     resolvePageOffset(input.Page, input.PageSize),
@@ -113,8 +104,6 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 	return properties, rows[0].TotalCount, nil
 }
 
-<<<<<<< HEAD
-=======
 func float64ToNumeric(val float64) pgtype.Numeric {
 	if val == 0 {
 		return pgtype.Numeric{Valid: false}
@@ -122,7 +111,6 @@ func float64ToNumeric(val float64) pgtype.Numeric {
 	return pgtype.Numeric{Int: big.NewInt(int64(val * 100)), Exp: -2, Valid: true}
 }
 
->>>>>>> origin/main
 func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
 	parsedUUID, err := uuid.Parse(propertyUUID)
 	if err != nil {
@@ -343,8 +331,6 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		},
 	}
 
-<<<<<<< HEAD
-=======
 	if row.Bedrooms.Valid {
 		v := row.Bedrooms.Int16
 		card.Bedrooms = &v
@@ -358,7 +344,6 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		card.BuiltArea = &v.Float64
 	}
 
->>>>>>> origin/main
 	if row.DisplayPriceAmount.Valid {
 		amount, err := row.DisplayPriceAmount.Float64Value()
 		if err != nil {

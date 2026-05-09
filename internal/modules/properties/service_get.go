@@ -2,12 +2,6 @@ package properties
 
 import (
 	"context"
-<<<<<<< HEAD
-	"fmt"
-)
-
-func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
-=======
 	"errors"
 	"fmt"
 )
@@ -40,7 +34,6 @@ func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput)
 		input.StatusIDs = []int32{StatusAvailable}
 	}
 
->>>>>>> origin/main
 	items, total, err := s.repository.ListProperties(ctx, input)
 	if err != nil {
 		return ListPropertiesResult{}, fmt.Errorf("list properties: %w", err)
@@ -67,11 +60,8 @@ func (s *service) GetProperty(ctx context.Context, propertyUUID string) (GetProp
 		return GetPropertyResult{}, fmt.Errorf("get property: %w", err)
 	}
 
-<<<<<<< HEAD
-=======
 	result.Data.OwnerID = 0
 
->>>>>>> origin/main
 	return result, nil
 }
 
@@ -81,11 +71,8 @@ func (s *service) GetFullProperty(ctx context.Context, propertyUUID string) (Get
 		return GetPropertyFullResult{}, fmt.Errorf("get full property: %w", err)
 	}
 
-<<<<<<< HEAD
-=======
 	result.Data.OwnerID = 0
 
->>>>>>> origin/main
 	return result, nil
 }
 
