@@ -1,7 +1,6 @@
 package shared
 
-// ErrorResponse is the standard error structure for API responses used by Swagger.
+// ErrorResponse represents a standard error payload for API responses.
 type ErrorResponse struct {
-	Code    int    `json:"code" example:"404"`
-	Message string `json:"message" example:"Resource not found"`
+	Error string `json:"error" example:"error message"`
 }

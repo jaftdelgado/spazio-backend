@@ -17,8 +17,32 @@ const (
 
 	StatusAvailable int32 = 2
 	StatusDeleted   int32 = 5
+<<<<<<< HEAD
 )
 
+=======
+
+	RoleAdminID  int32 = 1
+	RoleAgentID  int32 = 2
+	RoleClientID int32 = 3
+)
+
+// PropertyStatusHistoryData represents a record in the property status history.
+type PropertyStatusHistoryData struct {
+	HistoryID          int32     `json:"history_id"`
+	PropertyUUID       string    `json:"property_uuid"`
+	PreviousStatusName string    `json:"previous_status_name"`
+	NewStatusName      string    `json:"new_status_name"`
+	ChangedByName      string    `json:"changed_by_name"`
+	ChangedAt          time.Time `json:"changed_at"`
+}
+
+// GetPropertyHistoryResult is the response returned by the history endpoint.
+type GetPropertyHistoryResult struct {
+	Data []PropertyStatusHistoryData `json:"data"`
+}
+
+>>>>>>> origin/main
 // CreatePropertyInput is the request payload required to register a property.
 type CreatePropertyInput struct {
 	OwnerID        int32                       `json:"owner_id" example:"1"`
@@ -111,6 +135,12 @@ type ListPropertiesInput struct {
 	CityID         int32
 	Sort           string
 	Order          string
+<<<<<<< HEAD
+=======
+	MinPrice       float64
+	MaxPrice       float64
+	MinBedrooms    int32
+>>>>>>> origin/main
 }
 
 // ListPropertiesResult is the response payload returned by the properties list endpoint.
@@ -138,6 +168,12 @@ type PropertyCardData struct {
 	Modality      PropertyCardModalityData `json:"modality"`
 	Status        PropertyCardStatusData   `json:"status"`
 	Price         *PropertyCardPriceData   `json:"price"`
+<<<<<<< HEAD
+=======
+	Bedrooms      *int16                   `json:"bedrooms,omitempty"`
+	Bathrooms     *int16                   `json:"bathrooms,omitempty"`
+	BuiltArea     *float64                 `json:"built_area,omitempty"`
+>>>>>>> origin/main
 }
 
 // PropertyCardTypeData contains the serialized property type used in cards.
@@ -510,6 +546,13 @@ type PropertyRepository interface {
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	GetPropertyStorageKeys(ctx context.Context, propertyID int32) ([]string, error)
 	DeleteProperty(ctx context.Context, propertyID int32, changedByUserID int32) error
+<<<<<<< HEAD
+=======
+
+	// CU-18
+	GetPropertyOwnerByUUID(ctx context.Context, propertyUUID string) (int32, error)
+	ListPropertyStatusHistory(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error)
+>>>>>>> origin/main
 }
 
 // PropertyService defines application logic operations for properties.
@@ -529,6 +572,12 @@ type PropertyService interface {
 	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error
+<<<<<<< HEAD
+=======
+
+	// CU-18
+	GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+>>>>>>> origin/main
 }
 
 type propertyPhotoStorage interface {

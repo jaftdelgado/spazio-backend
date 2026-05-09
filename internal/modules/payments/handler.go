@@ -26,27 +26,43 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
+<<<<<<< HEAD
 	// UC-16 & UC-17: Process and Confirm
 	r.POST("/payments", h.processPayment)
 	r.PATCH("/payments/:uuid/confirm", h.confirmPendingPayment)
 
 	// UC-17: Consulting Payments (Legacy/Compatibility with origin)
+=======
+	r.POST("/api/v1/payments", h.processPayment)
+	r.PATCH("/api/v1/payments/:uuid/confirm", h.confirmPendingPayment)
+
+>>>>>>> origin/main
 	r.GET("/api/v1/payments", h.listPayments)
 	r.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
 }
 
+<<<<<<< HEAD
 // --- Handlers: UC-16 & UC-17 (Processing) ---
 
 // @Summary Confirm a pending payment
 // @Description Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
 // @Tags payments
+=======
+// @Summary Confirm a pending payment
+// @Description Manually transition a 'Pending' payment (like OXXO) to 'Completed'.
+// @Tags Payments
+>>>>>>> origin/main
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Payment UUID"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
+<<<<<<< HEAD
 // @Router /payments/{uuid}/confirm [patch]
+=======
+// @Router /api/v1/payments/{uuid}/confirm [patch]
+>>>>>>> origin/main
 func (h *Handler) confirmPendingPayment(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
 	if !ok {
@@ -71,14 +87,22 @@ func (h *Handler) confirmPendingPayment(c *gin.Context) {
 
 // @Summary Process a payment (Simulated)
 // @Description Register a payment for a contract with simulation logic (terminates in 0000 for failure).
+<<<<<<< HEAD
 // @Tags payments
+=======
+// @Tags Payments
+>>>>>>> origin/main
 // @Accept json
 // @Produce json
 // @Param request body RegisterPaymentRequest true "Payment Details"
 // @Success 201 {object} PaymentResponse
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
+<<<<<<< HEAD
 // @Router /payments [post]
+=======
+// @Router /api/v1/payments [post]
+>>>>>>> origin/main
 func (h *Handler) processPayment(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
 	if !ok {
