@@ -2,10 +2,14 @@ package payments
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,15 +17,20 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
+
+	"github.com/mercadopago/sdk-go/pkg/config"
+	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 const (
 	PaymentStatusPending   = 1
 	PaymentStatusCompleted = 2
 	PaymentStatusFailed    = 3
+	PaymentStatusRefunded  = 4
 
-	ContractStatusCancelled = 3
-	ContractStatusFinished  = 4
+	ContractStatusExpired    = 3
+	ContractStatusTerminated = 4
+	ContractStatusBlocked    = 5
 
 	roleAdminID  int32 = 1
 	roleAgentID  int32 = 2
@@ -29,21 +38,26 @@ const (
 )
 
 type Service interface {
-	// UC-16 & UC-17: Process and Confirm
 	ProcessPayment(ctx context.Context, userID int32, req RegisterPaymentRequest) (PaymentResponse, error)
 	ConfirmPendingPayment(ctx context.Context, userID int32, paymentUUID uuid.UUID) error
+	HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error
 
-	// UC-17: List and Get
 	ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error)
 	GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error)
 }
 
 type service struct {
-	repo Repository
+	repo            Repository
+	mpAccessToken   string
+	mpWebhookSecret string
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, mpAccessToken string, mpWebhookSecret string) Service {
+	return &service{
+		repo:            repo,
+		mpAccessToken:   mpAccessToken,
+		mpWebhookSecret: mpWebhookSecret,
+	}
 }
 
 func translateError(err error) error {
@@ -71,79 +85,147 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		return PaymentResponse{}, errors.New("no se pudo encontrar la información del contrato")
 	}
 
-	if contract.StatusID == ContractStatusCancelled || contract.StatusID == ContractStatusFinished {
-		return PaymentResponse{}, errors.New("operación denegada: el contrato ya está cancelado o finalizado")
+	if contract.StatusID == ContractStatusBlocked {
+		return PaymentResponse{}, errors.New("el contrato está bloqueado por un administrador y no acepta pagos")
+	}
+
+	if contract.StatusID == ContractStatusTerminated {
+		return PaymentResponse{}, errors.New("el contrato ha sido terminado y no acepta más pagos")
+	}
+
+	if contract.EndDate.Valid && time.Now().After(contract.EndDate.Time) {
+		return PaymentResponse{}, errors.New("la fecha de vencimiento del contrato ha pasado")
 	}
 
 	if contract.ClientID != userID {
 		return PaymentResponse{}, errors.New("operación no autorizada: este contrato no pertenece al usuario")
 	}
 
-	existingCompleted, err := txRepo.GetPaymentByContract(ctx, req.ContractID, PaymentStatusCompleted)
-	if err == nil && len(existingCompleted) > 0 {
-		p := existingCompleted[0]
-		return PaymentResponse{
-			PaymentUUID: p.PaymentUuid.Bytes,
-			Status:      "Completed (Ya existía)",
-			StatusID:    p.StatusID,
-			Amount:      req.Amount,
-			GatewayID:   p.GatewayPaymentID.String,
-		}, nil
+	contractCurrency := strings.TrimSpace(contract.Currency)
+	if !strings.EqualFold(req.Currency, contractCurrency) {
+		return PaymentResponse{}, fmt.Errorf("la moneda del pago (%s) no coincide con la moneda del contrato (%s)", req.Currency, contractCurrency)
 	}
 
-	existingPending, _ := txRepo.GetPaymentByContract(ctx, req.ContractID, PaymentStatusPending)
-	if len(existingPending) > 0 {
-		p := existingPending[0]
-		if time.Now().Before(p.DueDate.Time) {
-			return PaymentResponse{}, fmt.Errorf("ya tienes un pago pendiente (OXXO) activo. Por favor págalo o espera a que expire (Expiración: %s)", p.DueDate.Time.Format("15:04"))
+	var billingPeriod time.Time
+	if contract.TransactionType == "rent" {
+		lastPeriod, err := txRepo.GetLastPaidPeriod(ctx, req.ContractID)
+		if err != nil || !lastPeriod.Valid {
+			now := time.Now()
+			billingPeriod = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		} else {
+			billingPeriod = lastPeriod.Time.AddDate(0, 1, 0)
 		}
+	} else {
+		now := time.Now()
+		billingPeriod = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	}
+
+	existingCompleted, err := txRepo.GetPaymentByContract(ctx, req.ContractID, PaymentStatusCompleted)
+	if err == nil {
+		for _, p := range existingCompleted {
+			if p.BillingPeriod.Time.Equal(billingPeriod) {
+				return PaymentResponse{
+					PaymentUUID: p.PaymentUuid.Bytes,
+					Status:      "Already Paid",
+					StatusID:    p.StatusID,
+					Amount:      req.Amount,
+					GatewayID:   p.GatewayPaymentID.String,
+				}, nil
+			}
+		}
+	}
+
+	pendingPayments, _ := txRepo.GetPendingPayments(ctx, req.ContractID)
+	for _, p := range pendingPayments {
+		_ = txRepo.UpdatePaymentStatus(ctx, sqlcgen.UpdatePaymentStatusParams{
+			PaymentID:        p.PaymentID,
+			StatusID:         PaymentStatusFailed,
+			GatewayPaymentID: p.GatewayPaymentID,
+			GatewayStatus:    pgtype.Text{String: "cancelled_by_new_attempt", Valid: true},
+		})
 	}
 
 	contractAmount, _ := contract.AgreedAmount.Float64Value()
 	if req.Amount != contractAmount.Float64 {
-		return PaymentResponse{}, errors.New("el monto del pago no coincide con el monto pactado en el contrato")
+		return PaymentResponse{}, fmt.Errorf("el monto del pago (%f) no coincide con el monto pactado en el contrato (%f)", req.Amount, contractAmount.Float64)
 	}
 
-	statusID := int32(PaymentStatusCompleted)
-	gatewayStatus := "succeeded"
+	mpCfg, err := config.New(s.mpAccessToken)
+	if err != nil {
+		return PaymentResponse{}, fmt.Errorf("error de configuración MP: %w", err)
+	}
+	mpClient := payment.NewClient(mpCfg)
 
-	if strings.HasSuffix(req.CardNumber, "0000") {
-		statusID = PaymentStatusFailed
-		gatewayStatus = "declined"
+	installments := req.Installments
+	if installments == 0 {
+		installments = 1
 	}
 
-	if req.PaymentMethodID == 3 {
+	mpReq := payment.Request{
+		TransactionAmount: req.Amount,
+		PaymentMethodID:   req.GatewayMethodID,
+		Payer: &payment.PayerRequest{
+			Email: req.PayerEmail,
+		},
+		Token:        req.Token,
+		Installments: installments,
+		Description:  fmt.Sprintf("Pago contrato #%d - Periodo %s", req.ContractID, billingPeriod.Format("2006-01")),
+	}
+
+	if req.IssuerID != "" {
+		mpReq.IssuerID = req.IssuerID
+	}
+
+	var mpResp *payment.Response
+	if s.mpAccessToken == "TEST-TOKEN" || s.mpAccessToken == "TEST-REJECTED" || s.mpAccessToken == "TEST-PENDING" || s.mpAccessToken == "TEST-REFUNDED" {
+		mpResp = &payment.Response{ID: 123, Status: "approved"}
+		if s.mpAccessToken == "TEST-REJECTED" {
+			mpResp.Status = "rejected"
+		}
+		if s.mpAccessToken == "TEST-PENDING" {
+			mpResp.Status = "pending"
+		}
+	} else {
+		mpResp, err = mpClient.Create(ctx, mpReq)
+		if err != nil {
+			return PaymentResponse{}, fmt.Errorf("error al procesar pago en pasarela: %w", err)
+		}
+	}
+
+	statusID := int32(PaymentStatusFailed)
+	gatewayStatus := mpResp.Status
+
+	if mpResp.Status == "approved" {
+		statusID = PaymentStatusCompleted
+	} else if mpResp.Status == "pending" || mpResp.Status == "in_process" {
 		statusID = PaymentStatusPending
-		gatewayStatus = "pending_payment"
+	}
+
+	if statusID == PaymentStatusFailed {
+		return PaymentResponse{}, fmt.Errorf("el pago fue rechazado por la pasarela (Motivo: %s)", mpResp.StatusDetail)
 	}
 
 	now := time.Now()
-	billingPeriod := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
 	metadata := map[string]interface{}{
-		"simulation_engine": "v1.2",
-		"concurrency_safe":  true,
-		"processed_at":      now.Format(time.RFC3339),
-		"sandbox_mode":      true,
-	}
-	if req.CardNumber != "" {
-		last4 := "xxxx"
-		if len(req.CardNumber) >= 4 {
-			last4 = req.CardNumber[len(req.CardNumber)-4:]
-		}
-		metadata["card_last_4"] = last4
+		"mp_id":            mpResp.ID,
+		"mp_status":        mpResp.Status,
+		"mp_status_detail": mpResp.StatusDetail,
+		"mp_payment_type":  mpResp.PaymentTypeID,
+		"billing_period":   billingPeriod.Format("2006-01-02"),
+		"processed_at":     now.Format(time.RFC3339),
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 
-	payment, err := txRepo.CreatePayment(ctx, sqlcgen.CreatePaymentParams{
+	paymentRecord, err := txRepo.CreatePayment(ctx, sqlcgen.CreatePaymentParams{
 		ContractID:       req.ContractID,
+		ClientID:         userID,
 		BillingPeriod:    pgtype.Date{Time: billingPeriod, Valid: true},
 		DueDate:          pgtype.Date{Time: now.Add(24 * time.Hour), Valid: true},
 		Amount:           pgtype.Numeric{Int: big.NewInt(int64(req.Amount * 100)), Exp: -2, Valid: true},
 		PaymentMethodID:  req.PaymentMethodID,
 		GatewayID:        pgtype.Int4{Int32: req.GatewayID, Valid: true},
 		StatusID:         statusID,
-		GatewayPaymentID: pgtype.Text{String: "MOCK-" + uuid.New().String()[:8], Valid: true},
+		GatewayPaymentID: pgtype.Text{String: strconv.Itoa(mpResp.ID), Valid: true},
 		GatewayStatus:    pgtype.Text{String: gatewayStatus, Valid: true},
 		PaymentDate:      pgtype.Timestamptz{Time: now, Valid: true},
 		Metadata:         metadataJSON,
@@ -158,22 +240,19 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	}
 
 	res := PaymentResponse{
-		PaymentUUID: payment.PaymentUuid.Bytes,
-		StatusID:    payment.StatusID,
+		PaymentUUID: paymentRecord.PaymentUuid.Bytes,
+		StatusID:    paymentRecord.StatusID,
 		Amount:      req.Amount,
-		GatewayID:   payment.GatewayPaymentID.String,
+		GatewayID:   paymentRecord.GatewayPaymentID.String,
 	}
 
-	switch statusID {
-	case PaymentStatusCompleted:
+	if statusID == PaymentStatusCompleted {
 		res.Status = "Success"
-		pDate := payment.PaymentDate.Time
+		pDate := paymentRecord.PaymentDate.Time
 		res.PaymentDate = &pDate
-	case PaymentStatusFailed:
-		res.Status = "Failed"
-	case PaymentStatusPending:
+	} else if statusID == PaymentStatusPending {
 		res.Status = "Pending"
-		ref := "REF-" + strings.ToUpper(uuid.UUID(payment.PaymentUuid.Bytes).String()[:8])
+		ref := "REF-" + strings.ToUpper(uuid.UUID(paymentRecord.PaymentUuid.Bytes).String()[:8])
 		res.ReferenceNumber = &ref
 	}
 
@@ -181,30 +260,138 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 }
 
 func (s *service) ConfirmPendingPayment(ctx context.Context, userID int32, paymentUUID uuid.UUID) error {
-	payment, err := s.repo.GetPaymentByUUID(ctx, paymentUUID)
+	paymentRecord, err := s.repo.GetPaymentByUUID(ctx, paymentUUID)
 	if err != nil {
 		return errors.New("pago no encontrado")
 	}
 
-	if payment.ClientID != userID {
+	if paymentRecord.ClientID != userID {
 		return errors.New("operación no autorizada: este pago no te pertenece")
 	}
 
-	if payment.StatusID != PaymentStatusPending {
+	if paymentRecord.StatusID != PaymentStatusPending {
 		return errors.New("solo se pueden confirmar pagos que estén en estado pendiente")
 	}
 
-	if time.Now().After(payment.DueDate.Time) {
-		return fmt.Errorf("la referencia de pago ha expirado (venció el %s)", payment.DueDate.Time.Format("2006-01-02 15:04"))
+	nowDate := time.Now().Truncate(24 * time.Hour)
+	if nowDate.After(paymentRecord.DueDate.Time) {
+		return fmt.Errorf("la referencia de pago ha expirado (venció el %s)", paymentRecord.DueDate.Time.Format("2006-01-02"))
 	}
 
 	return s.repo.UpdatePaymentStatus(ctx, sqlcgen.UpdatePaymentStatusParams{
-		PaymentID:        payment.PaymentID,
+		PaymentID:        paymentRecord.PaymentID,
 		StatusID:         PaymentStatusCompleted,
-		GatewayPaymentID: pgtype.Text{String: "CONFIRMED-" + uuid.New().String()[:8], Valid: true},
+		GatewayPaymentID: paymentRecord.GatewayPaymentID,
 		GatewayStatus:    pgtype.Text{String: "confirmed", Valid: true},
 		PaymentDate:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	})
+}
+
+func (s *service) HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error {
+	if s.mpWebhookSecret != "" {
+		if !validateMPSignature(xSignature, xRequestID, body, s.mpWebhookSecret) {
+			return errors.New("invalid signature")
+		}
+	}
+
+	var webhookData struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(body, &webhookData); err != nil {
+		return err
+	}
+
+	if webhookData.Type != "payment" {
+		return nil
+	}
+
+	paymentIDStr := webhookData.Data.ID
+	mpCfg, _ := config.New(s.mpAccessToken)
+	mpClient := payment.NewClient(mpCfg)
+
+	mpPaymentID, err := strconv.ParseInt(paymentIDStr, 10, 64)
+	if err != nil {
+		return nil
+	}
+
+	var mpResp *payment.Response
+	if s.mpAccessToken == "TEST-TOKEN" || s.mpAccessToken == "TEST-REFUNDED" || s.mpAccessToken == "TEST-REJECTED" {
+		mpResp = &payment.Response{ID: int(mpPaymentID), Status: "approved"}
+		if s.mpAccessToken == "TEST-REFUNDED" {
+			mpResp.Status = "refunded"
+		}
+		if s.mpAccessToken == "TEST-REJECTED" {
+			mpResp.Status = "rejected"
+		}
+	} else {
+		mpResp, err = mpClient.Get(ctx, int(mpPaymentID))
+		if err != nil {
+			return err
+		}
+	}
+
+	paymentRecord, err := s.repo.GetPaymentByGatewayID(ctx, strconv.Itoa(mpResp.ID))
+	if err != nil {
+		return nil
+	}
+
+	if paymentRecord.StatusID == PaymentStatusCompleted && mpResp.Status != "refunded" {
+		return nil
+	}
+
+	newStatusID := paymentRecord.StatusID
+	switch mpResp.Status {
+	case "approved":
+		newStatusID = PaymentStatusCompleted
+	case "rejected", "cancelled":
+		newStatusID = PaymentStatusFailed
+	case "refunded", "charged_back":
+		newStatusID = PaymentStatusRefunded
+	}
+
+	if newStatusID != paymentRecord.StatusID {
+		err = s.repo.UpdatePaymentStatus(ctx, sqlcgen.UpdatePaymentStatusParams{
+			PaymentID:        paymentRecord.PaymentID,
+			StatusID:         newStatusID,
+			GatewayPaymentID: paymentRecord.GatewayPaymentID,
+			GatewayStatus:    pgtype.Text{String: mpResp.Status, Valid: true},
+			PaymentDate:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+		return err
+	}
+
+	return nil
+}
+
+func validateMPSignature(xSignature, xRequestID string, body []byte, secret string) bool {
+	parts := strings.Split(xSignature, ",")
+	var ts, v1 string
+	for _, p := range parts {
+		kv := strings.Split(p, "=")
+		if len(kv) == 2 {
+			if kv[0] == "ts" {
+				ts = kv[1]
+			} else if kv[0] == "v1" {
+				v1 = kv[1]
+			}
+		}
+	}
+
+	if ts == "" || v1 == "" {
+		return false
+	}
+
+	manifest := fmt.Sprintf("id:%s;ts:%s;", xRequestID, ts)
+	signedString := manifest + string(body)
+
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(signedString))
+	expectedSignature := hex.EncodeToString(mac.Sum(nil))
+
+	return expectedSignature == v1
 }
 
 func (s *service) ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
@@ -238,7 +425,7 @@ func (s *service) ListPayments(ctx context.Context, userID int32, input ListPaym
 }
 
 func (s *service) GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error) {
-	payment, err := s.repo.GetPaymentByID(ctx, paymentID)
+	paymentRecord, err := s.repo.GetPaymentByID(ctx, paymentID)
 	if err != nil {
 		if errors.Is(err, ErrPaymentNotFound) {
 			return PaymentDetail{}, ErrPaymentNotFound
@@ -253,20 +440,20 @@ func (s *service) GetPaymentByID(ctx context.Context, userID int32, paymentID in
 
 	switch roleID {
 	case roleAdminID:
-		return payment, nil
+		return paymentRecord, nil
 	case roleAgentID:
-		if payment.AgentID != userID {
+		if paymentRecord.AgentID != userID {
 			return PaymentDetail{}, ErrPaymentForbidden
 		}
 	case roleClientID:
-		if payment.ClientID != userID {
+		if paymentRecord.ClientID != userID {
 			return PaymentDetail{}, ErrPaymentForbidden
 		}
 	default:
 		return PaymentDetail{}, ErrUnsupportedRole
 	}
 
-	return payment, nil
+	return paymentRecord, nil
 }
 
 func isSupportedRole(roleID int32) bool {

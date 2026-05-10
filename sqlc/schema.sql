@@ -380,6 +380,7 @@ CREATE TABLE IF NOT EXISTS payments (
 	payment_id serial PRIMARY KEY,
 	payment_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
 	contract_id int NOT NULL REFERENCES contracts(contract_id),
+	client_id int NOT NULL REFERENCES users(user_id),
 	billing_period date NOT NULL,
 	due_date date NOT NULL,
 	amount decimal(15,2) NOT NULL,

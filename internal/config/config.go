@@ -8,13 +8,15 @@ import (
 )
 
 type Config struct {
-	Port              string
-	DatabaseURL       string
-	MigrateURL        string
-	R2                R2Config
-	SupabaseURL       string
-	SupabaseAnonKey   string
-	SupabaseJWTSecret string
+	Port                     string
+	DatabaseURL              string
+	MigrateURL               string
+	R2                       R2Config
+	SupabaseURL              string
+	SupabaseAnonKey          string
+	SupabaseJWTSecret        string
+	MercadoPagoAccessToken   string
+	MercadoPagoWebhookSecret string
 }
 
 type R2Config struct {
@@ -41,15 +43,16 @@ func Load() *Config {
 			BucketName:      getEnv("R2_BUCKET_NAME", ""),
 			PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 		},
-		SupabaseURL:       getEnv("SUPABASE_URL", ""),
-		SupabaseAnonKey:   getEnv("SUPABASE_ANON_KEY", ""),
-		SupabaseJWTSecret: getEnv("SUPABASE_JWT_SECRET", ""),
+		SupabaseURL:              getEnv("SUPABASE_URL", ""),
+		SupabaseAnonKey:          getEnv("SUPABASE_ANON_KEY", ""),
+		SupabaseJWTSecret:        getEnv("SUPABASE_JWT_SECRET", ""),
+		MercadoPagoAccessToken:   getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
+		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
 	}
 }
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
-		//log.Println("Cargando URL de Supabase:", os.Getenv("SUPABASE_URL"))
 		return v
 	}
 	return fallback

@@ -1,9 +1,28 @@
 -- name: GetContractForPaymentWithLock :one
-SELECT c.contract_id, t.client_id, c.agreed_amount, c.status_id
+SELECT 
+    c.contract_id, 
+    t.client_id, 
+    c.agreed_amount, 
+    c.status_id, 
+    c.end_date,
+    c.currency,
+    t.transaction_type
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
 WHERE c.contract_id = $1
 FOR UPDATE;
+
+-- name: GetLastPaidPeriod :one
+SELECT billing_period
+FROM payments
+WHERE contract_id = $1 AND status_id = 2 -- Completed
+ORDER BY billing_period DESC
+LIMIT 1;
+
+-- name: GetPendingPayments :many
+SELECT payment_id, gateway_payment_id
+FROM payments
+WHERE contract_id = $1 AND status_id = 1; -- Pending
 
 -- name: GetPaymentByContract :many
 SELECT * FROM payments 
@@ -13,6 +32,7 @@ AND status_id = $2;
 -- name: CreatePayment :one
 INSERT INTO payments (
     contract_id,
+    client_id,
     billing_period,
     due_date,
     amount,
@@ -24,7 +44,7 @@ INSERT INTO payments (
     payment_date,
     metadata
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING *;
 
 -- name: GetContractForPayment :one
@@ -39,6 +59,13 @@ FROM payments p
 JOIN contracts c ON p.contract_id = c.contract_id
 JOIN transactions t ON c.transaction_id = t.transaction_id
 WHERE p.payment_uuid = $1;
+
+-- name: GetPaymentByGatewayID :one
+SELECT p.*, t.client_id
+FROM payments p
+JOIN contracts c ON p.contract_id = c.contract_id
+JOIN transactions t ON c.transaction_id = t.transaction_id
+WHERE p.gateway_payment_id = $1;
 
 -- name: UpdatePaymentStatus :exec
 UPDATE payments 
