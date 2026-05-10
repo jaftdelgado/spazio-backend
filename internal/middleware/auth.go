@@ -46,7 +46,7 @@ func Auth(supabaseURL, supabaseAnonKey string, db *pgxpool.Pool) gin.HandlerFunc
 		query := `
 			SELECT r.name 
 			FROM users u 
-			JOIN roles r ON u.role_id = r.id 
+			JOIN roles r ON u.role_id = r.role_id 
 			WHERE u.deleted_at IS NULL
 				AND (u.user_uuid = $1 OR u.email = $2)`
 

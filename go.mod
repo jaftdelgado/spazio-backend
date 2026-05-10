@@ -13,6 +13,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/johnfercher/maroto/v2 v2.4.0
 	github.com/joho/godotenv v1.5.1
+	github.com/mercadopago/sdk-go v1.8.1
 	github.com/nickalie/go-webpbin v0.0.0-20260302110202-4584fd694f25
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/files v1.0.1

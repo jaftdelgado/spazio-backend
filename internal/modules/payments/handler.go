@@ -25,12 +25,39 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
-func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.POST("/api/v1/payments", h.processPayment)
-	r.PATCH("/api/v1/payments/:uuid/confirm", h.confirmPendingPayment)
+func (h *Handler) RegisterRoutes(protected, public *gin.RouterGroup) {
+	protected.POST("/api/v1/payments", h.processPayment)
+	protected.PATCH("/api/v1/payments/:uuid/confirm", h.confirmPendingPayment)
+	protected.GET("/api/v1/payments", h.listPayments)
+	protected.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
 
-	r.GET("/api/v1/payments", h.listPayments)
-	r.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
+	public.POST("/api/v1/payments/webhook", h.handleWebhook)
+}
+
+// @Summary Handle MercadoPago Webhooks
+// @Description Webhook receiver for asynchronous payment updates.
+// @Tags Payments
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /api/v1/payments/webhook [post]
+func (h *Handler) handleWebhook(c *gin.Context) {
+	xSignature := c.GetHeader("x-signature")
+	xRequestID := c.GetHeader("x-request-id")
+
+	body, err := c.GetRawData()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "could not read body"})
+		return
+	}
+
+	err = h.service.HandleWebhook(c.Request.Context(), xSignature, xRequestID, body)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "processed"})
 }
 
 // @Summary Confirm a pending payment
@@ -100,8 +127,6 @@ func (h *Handler) processPayment(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, payment)
 }
-
-// --- Handlers: UC-17 (Consulting) ---
 
 // listPayments godoc
 // @Summary      List payments
@@ -180,8 +205,6 @@ func (h *Handler) getPaymentByID(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// --- Helpers ---
-
 func resolveAuthenticatedUserID(c *gin.Context) (int32, bool) {
 	rawUserID := strings.TrimSpace(c.GetHeader("X-User-ID"))
 	if rawUserID == "" {
@@ -209,6 +232,7 @@ func validatePaymentRequest(req RegisterPaymentRequest) error {
 		{Fail: req.PaymentMethodID <= 0, Msg: "payment_method_id is required"},
 		{Fail: req.GatewayID <= 0, Msg: "gateway_id is required"},
 		{Fail: req.Amount <= 0, Msg: "amount must be greater than 0"},
+		{Fail: req.PayerEmail == "", Msg: "payer_email is required"},
 	})
 }
 
