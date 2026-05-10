@@ -47,19 +47,19 @@ func NewService(repo Repository) Service {
 	return &service{repo: repo}
 }
 
-// translateError converts database errors to user-friendly messages
 func translateError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
-		case "23503": // foreign_key_violation
+		case "23503":
 			if strings.Contains(pgErr.ConstraintName, "property_id") {
 				return errors.New("la propiedad seleccionada no existe")
 			}
 			if strings.Contains(pgErr.ConstraintName, "client_id") || strings.Contains(pgErr.ConstraintName, "agent_id") {
 				return errors.New("el usuario involucrado no existe")
 			}
-		case "23505": // unique_violation
+			return errors.New("recurso relacionado no encontrado")
+		case "23505":
 			return errors.New("ya existe una visita programada para ese horario")
 		}
 	}
@@ -67,17 +67,14 @@ func translateError(err error) error {
 }
 
 func normalizeDate(t time.Time) time.Time {
-	// Normalize to UTC and set minutes/seconds to 0
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, time.UTC)
 }
 
 func (s *service) validateEntityIntegrity(ctx context.Context, repo Repository, clientID, propertyID int32) error {
-	// 1. Validar que el cliente esté activo
 	if _, err := repo.CheckUserActive(ctx, clientID); err != nil {
 		return errors.New("el cliente no está activo o no existe")
 	}
 
-	// 2. Validar estado de la propiedad y si está borrada
 	prop, err := repo.GetPropertyStatusAndCheckDeleted(ctx, propertyID)
 	if err != nil {
 		return errors.New("la propiedad no existe")
@@ -100,7 +97,6 @@ func pgTimeToHM(pt pgtype.Time) (int, int) {
 }
 
 func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date time.Time) ([]TimeSlot, error) {
-	// Normalizar fecha de entrada (solo el día importa para la consulta)
 	date = date.UTC()
 
 	agentID, err := s.repo.GetPrimaryAgentForProperty(ctx, propertyID)
@@ -196,7 +192,6 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 	visitDate = normalizeDate(visitDate)
 	now := time.Now().UTC()
 
-	// Validar 48h de anticipación (ahora en UTC)
 	if visitDate.Before(now.Add(48 * time.Hour)) {
 		return VisitResponse{}, errors.New("debe agendar con al menos 48 horas de anticipación")
 	}
@@ -204,7 +199,6 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 		return VisitResponse{}, errors.New("no puede agendar con más de 30 días de anticipación")
 	}
 
-	// Blindaje: Validar estado de propiedad y borrado lógico
 	if err := s.validateEntityIntegrity(ctx, repo, clientID, propertyID); err != nil {
 		return VisitResponse{}, err
 	}
@@ -214,7 +208,6 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 		return VisitResponse{}, errors.New("la propiedad no tiene un agente asignado disponible")
 	}
 
-	// Validar disponibilidad real
 	availableSlots, err := s.GetAvailableSlots(ctx, propertyID, visitDate)
 	if err != nil {
 		return VisitResponse{}, err
@@ -251,7 +244,7 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 		VisitDate:  visit.VisitDate.Time,
 		Status:     "Pending",
 		CreatedAt:  visit.CreatedAt.Time,
-		ClientName: "", // Se llena en el listado
+		ClientName: "",
 	}, nil
 }
 
@@ -274,7 +267,7 @@ func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListV
 	}
 
 	switch role {
-	case 1: // Admin
+	case 1:
 	case 2:
 		params.AgentID = pgtype.Int4{Int32: userID, Valid: true}
 	case 3:
@@ -381,7 +374,6 @@ func (s *service) ConfirmVisit(ctx context.Context, userID int32, visitUUID uuid
 }
 
 func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error) {
-	// Iniciar Transacción Atómica
 	tx, err := s.repo.Begin(ctx)
 	if err != nil {
 		return VisitResponse{}, fmt.Errorf("fallo al iniciar transacción: %w", err)
@@ -390,7 +382,6 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 
 	txRepo := s.repo.WithTx(tx)
 
-	// 1. Obtener cita original
 	oldVisit, err := txRepo.GetVisitByUUID(ctx, visitUUID)
 	if err != nil {
 		return VisitResponse{}, errors.New("visita no encontrada")
@@ -400,7 +391,6 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 		return VisitResponse{}, errors.New("no se puede reagendar una cita ya cancelada")
 	}
 
-	// 2. Validar permisos
 	role, err := txRepo.GetUserRole(ctx, userID)
 	if err != nil {
 		return VisitResponse{}, err
@@ -411,18 +401,15 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 		return VisitResponse{}, errors.New("no tienes permiso para reagendar esta visita")
 	}
 
-	// 3. Crear la nueva visita usando el repositorio transaccional
 	newVisit, err := s.scheduleVisitInternal(ctx, txRepo, oldVisit.ClientID, oldVisit.PropertyID, newDate)
 	if err != nil {
 		return VisitResponse{}, err
 	}
 
-	// 4. Cancelar la cita anterior
 	if err := txRepo.UpdateVisitStatus(ctx, oldVisit.VisitID, StatusCancelled); err != nil {
 		return VisitResponse{}, fmt.Errorf("fallo al cancelar cita anterior: %w", err)
 	}
 
-	// Registrar historia de cancelación
 	if err := txRepo.CreateVisitStatusHistory(ctx, sqlcgen.CreateVisitStatusHistoryParams{
 		VisitID:          oldVisit.VisitID,
 		PreviousStatusID: oldVisit.StatusID,
@@ -432,7 +419,6 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 		return VisitResponse{}, fmt.Errorf("fallo al registrar historial: %w", err)
 	}
 
-	// Commit exitoso: Ambas acciones se guardan o ninguna
 	if err := tx.Commit(ctx); err != nil {
 		return VisitResponse{}, fmt.Errorf("fallo al confirmar cambios: %w", err)
 	}

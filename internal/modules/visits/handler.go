@@ -33,14 +33,14 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Tags visits
 // @Accept json
 // @Produce json
-// @Param id path int true "Property ID"
+// @Param uuid path int true "Property ID"
 // @Param date query string false "Date (YYYY-MM-DD). Defaults to today."
 // @Success 200 {array} TimeSlot
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
-// @Router /api/v1/properties/{id}/availability [get]
+// @Router /api/v1/properties/{uuid}/availability [get]
 func (h *Handler) getAvailability(c *gin.Context) {
-	idStr := c.Param("id")
+	idStr := c.Param("uuid")
 	propertyID, err := strconv.Atoi(idStr)
 	if err != nil {
 		shared.BadRequest(c, err)

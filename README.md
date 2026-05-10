@@ -23,7 +23,7 @@
 - **Property Management** — Publication and administration of residential and commercial properties
 - **User Management** — Role-based access control (RBAC) and user authentication with JWT
 - **CRM & Logistics** — Inquiry tracking, visit scheduling, and agent assignment
-- **Financial Operations** — Multi-currency pricing, rent periods, and transaction management
+- **Financial Operations** — Multi-currency pricing, rent periods, real payment gateway integration (MercadoPago), and transaction management
 - **Multimedia** — Property photos stored on Cloudflare R2 with optimized URLs
 - **Security** — Soft deletes, audit trails, and audit events for compliance
 
@@ -427,6 +427,13 @@ Extracted from Supabase and validated in `middleware/auth.go`.
 - [Gin Framework](https://gin-gonic.com/)
 - [SQLC Documentation](https://sqlc.dev/)
 - [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+
+---
+
+## 📝 License
+
+Proprietary. All rights reserved.
+resql.org/docs/)
 
 ---
 

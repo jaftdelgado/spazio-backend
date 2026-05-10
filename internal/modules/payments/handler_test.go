@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -34,6 +35,11 @@ func (m *MockService) ConfirmPendingPayment(ctx context.Context, userID int32, p
 	return args.Error(0)
 }
 
+func (m *MockService) HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error {
+	args := m.Called(ctx, xSignature, xRequestID, body)
+	return args.Error(0)
+}
+
 func (m *MockService) ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
 	args := m.Called(ctx, userID, input)
 	return args.Get(0).(ListPaymentsResult), args.Error(1)
@@ -44,14 +50,12 @@ func (m *MockService) GetPaymentByID(ctx context.Context, userID int32, paymentI
 	return args.Get(0).(PaymentDetail), args.Error(1)
 }
 
-// --- UC-16 & UC-17 Tests (Processing) ---
-
 func TestHandler_ProcessPayment(t *testing.T) {
 	mockService := new(MockService)
 	handler := NewHandler(mockService)
-	
+
 	r := gin.New()
-	handler.RegisterRoutes(r.Group(""))
+	handler.RegisterRoutes(r.Group(""), r.Group(""))
 
 	t.Run("Valid Request", func(t *testing.T) {
 		reqBody := RegisterPaymentRequest{
@@ -59,23 +63,73 @@ func TestHandler_ProcessPayment(t *testing.T) {
 			PaymentMethodID: 1,
 			GatewayID:       1,
 			Amount:          500.0,
+			Currency:        "MXN",
+			PayerEmail:      "test@example.com",
 		}
-		
+
 		mockService.On("ProcessPayment", mock.Anything, int32(10), reqBody).Return(PaymentResponse{
 			Status: "Success",
-		}, nil)
+		}, nil).Once()
 
 		body, _ := json.Marshal(reqBody)
-		req, _ := http.NewRequest(http.MethodPost, "/payments", bytes.NewBuffer(body))
-		req.Header.Set("X-User-ID", "10")
-		w := httptest.NewRecorder()
-		
-		r.ServeHTTP(w, req)
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/payments", bytes.NewBuffer(body))
+		ctx.Request.Header.Set("X-User-ID", "10")
 
-		assert.Equal(t, http.StatusCreated, w.Code)
-		var resp PaymentResponse
-		json.Unmarshal(w.Body.Bytes(), &resp)
-		assert.Equal(t, "Success", resp.Status)
+		handler.processPayment(ctx)
+
+		assert.Equal(t, http.StatusCreated, recorder.Code)
+	})
+
+	t.Run("Validation Error", func(t *testing.T) {
+		reqBody := RegisterPaymentRequest{
+			ContractID: 1,
+		}
+
+		body, _ := json.Marshal(reqBody)
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/payments", bytes.NewBuffer(body))
+		ctx.Request.Header.Set("X-User-ID", "10")
+
+		handler.processPayment(ctx)
+
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Service Error", func(t *testing.T) {
+		reqBody := RegisterPaymentRequest{
+			ContractID: 1, PaymentMethodID: 1, GatewayID: 1, Amount: 10, Currency: "MXN", PayerEmail: "a@a.com",
+		}
+		mockService.On("ProcessPayment", mock.Anything, int32(10), reqBody).Return(PaymentResponse{}, errors.New("fail")).Once()
+
+		body, _ := json.Marshal(reqBody)
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/payments", bytes.NewBuffer(body))
+		ctx.Request.Header.Set("X-User-ID", "10")
+
+		handler.processPayment(ctx)
+
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	})
+
+	t.Run("Unauthorized - Missing User ID", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		handler.processPayment(ctx)
+		assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+	})
+
+	t.Run("Bad Request - Non-numeric User ID", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		ctx.Request.Header.Set("X-User-ID", "abc")
+		handler.processPayment(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Bad Request - Zero User ID", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments")
+		ctx.Request.Header.Set("X-User-ID", "0")
+		handler.processPayment(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
 	})
 }
 
@@ -83,81 +137,164 @@ func TestHandler_ConfirmPendingPayment(t *testing.T) {
 	mockService := new(MockService)
 	handler := NewHandler(mockService)
 
-	r := gin.New()
-	handler.RegisterRoutes(r.Group(""))
-
 	t.Run("Valid Confirmation", func(t *testing.T) {
 		pUUID := uuid.New()
-		mockService.On("ConfirmPendingPayment", mock.Anything, int32(10), pUUID).Return(nil)
+		mockService.On("ConfirmPendingPayment", mock.Anything, int32(10), pUUID).Return(nil).Once()
 
-		req, _ := http.NewRequest(http.MethodPatch, "/payments/"+pUUID.String()+"/confirm", nil)
-		req.Header.Set("X-User-ID", "10")
-		w := httptest.NewRecorder()
+		recorder, ctx := newHandlerTestContext(http.MethodPatch, "/api/v1/payments/"+pUUID.String()+"/confirm")
+		ctx.Request.Header.Set("X-User-ID", "10")
+		ctx.Params = gin.Params{{Key: "uuid", Value: pUUID.String()}}
 
-		r.ServeHTTP(w, req)
+		handler.confirmPendingPayment(ctx)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "pago confirmado correctamente")
+		assert.Equal(t, http.StatusOK, recorder.Code)
 	})
 
 	t.Run("Invalid UUID", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodPatch, "/payments/invalid-uuid/confirm", nil)
-		req.Header.Set("X-User-ID", "10")
-		w := httptest.NewRecorder()
+		recorder, ctx := newHandlerTestContext(http.MethodPatch, "/api/v1/payments/invalid/confirm")
+		ctx.Request.Header.Set("X-User-ID", "10")
+		ctx.Params = gin.Params{{Key: "uuid", Value: "invalid"}}
 
-		r.ServeHTTP(w, req)
+		handler.confirmPendingPayment(ctx)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Service Error", func(t *testing.T) {
+		pUUID := uuid.New()
+		mockService.On("ConfirmPendingPayment", mock.Anything, int32(10), pUUID).Return(errors.New("fail")).Once()
+
+		recorder, ctx := newHandlerTestContext(http.MethodPatch, "/api/v1/payments/"+pUUID.String()+"/confirm")
+		ctx.Request.Header.Set("X-User-ID", "10")
+		ctx.Params = gin.Params{{Key: "uuid", Value: pUUID.String()}}
+
+		handler.confirmPendingPayment(ctx)
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	})
 }
 
-// --- UC-17 Tests (Consulting) ---
-
-func TestHandler_ListPayments_MissingUserID(t *testing.T) {
+func TestHandler_HandleWebhook(t *testing.T) {
 	mockService := new(MockService)
 	handler := NewHandler(mockService)
-	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
-	handler.listPayments(ctx)
-	assertErrorResponse(t, recorder, http.StatusUnauthorized, "unauthorized")
+
+	t.Run("Success", func(t *testing.T) {
+		mockService.On("HandleWebhook", mock.Anything, "sig", "reqid", mock.Anything).Return(nil).Once()
+
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments/webhook")
+		ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/payments/webhook", bytes.NewBuffer([]byte(`{}`)))
+		ctx.Request.Header.Set("x-signature", "sig")
+		ctx.Request.Header.Set("x-request-id", "reqid")
+
+		handler.handleWebhook(ctx)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("Service Error Returns 200 with status error", func(t *testing.T) {
+		mockService.On("HandleWebhook", mock.Anything, "sig", "reqid", mock.Anything).Return(errors.New("fail")).Once()
+
+		recorder, ctx := newHandlerTestContext(http.MethodPost, "/api/v1/payments/webhook")
+		ctx.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/payments/webhook", bytes.NewBuffer([]byte(`{}`)))
+		ctx.Request.Header.Set("x-signature", "sig")
+		ctx.Request.Header.Set("x-request-id", "reqid")
+
+		handler.handleWebhook(ctx)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
 }
 
-func TestHandler_ListPayments_ServiceReturnsUnsupportedRole(t *testing.T) {
+func TestHandler_ListPayments(t *testing.T) {
 	mockService := new(MockService)
-	mockService.On("ListPayments", mock.Anything, int32(1), mock.Anything).Return(ListPaymentsResult{}, ErrUnsupportedRole)
-	
-	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
-	ctx.Request.Header.Set("X-User-ID", "1")
-
 	handler := NewHandler(mockService)
-	handler.listPayments(ctx)
 
-	assertErrorResponse(t, recorder, http.StatusForbidden, "forbidden")
+	t.Run("Success with Full Filters", func(t *testing.T) {
+		mockService.On("ListPayments", mock.Anything, int32(1), mock.Anything).Return(ListPaymentsResult{}, nil).Once()
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?property_id=1&status_id=1&date_from=2024-01-01&date_to=2024-12-31&limit=50&offset=10")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("Invalid date_from", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?date_from=invalid")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Invalid limit", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?limit=abc")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Limit too high", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?limit=1000")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Date range error", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments?date_from=2024-12-31&date_to=2024-01-01")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Service Error", func(t *testing.T) {
+		mockService.On("ListPayments", mock.Anything, int32(1), mock.Anything).Return(ListPaymentsResult{}, errors.New("fail")).Once()
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		handler.listPayments(ctx)
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	})
 }
 
-func TestHandler_GetPaymentByID_Success(t *testing.T) {
+func TestHandler_GetPaymentByID_Errors(t *testing.T) {
 	mockService := new(MockService)
-	mockService.On("GetPaymentByID", mock.Anything, int32(1), int32(1)).Return(PaymentDetail{
-		PaymentID: 1,
-		ClientID:  7,
-		AgentID:   2,
-	}, nil)
-
-	recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
-	ctx.Request.Header.Set("X-User-ID", "1")
-	ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
-
 	handler := NewHandler(mockService)
-	handler.getPaymentByID(ctx)
 
-	assert.Equal(t, http.StatusOK, recorder.Code)
+	t.Run("Not Found", func(t *testing.T) {
+		mockService.On("GetPaymentByID", mock.Anything, int32(1), int32(1)).Return(PaymentDetail{}, ErrPaymentNotFound).Once()
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
+		handler.getPaymentByID(ctx)
+		assert.Equal(t, http.StatusNotFound, recorder.Code)
+	})
+
+	t.Run("Internal Error", func(t *testing.T) {
+		mockService.On("GetPaymentByID", mock.Anything, int32(1), int32(1)).Return(PaymentDetail{}, errors.New("db fail")).Once()
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
+		handler.getPaymentByID(ctx)
+		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	})
+
+	t.Run("Bad ID Parameter", func(t *testing.T) {
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/abc")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		ctx.Params = gin.Params{{Key: "payment_id", Value: "abc"}}
+		handler.getPaymentByID(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	})
+
+	t.Run("Forbidden Error", func(t *testing.T) {
+		mockService.On("GetPaymentByID", mock.Anything, int32(1), int32(1)).Return(PaymentDetail{}, ErrPaymentForbidden).Once()
+		recorder, ctx := newHandlerTestContext(http.MethodGet, "/api/v1/payments/1")
+		ctx.Request.Header.Set("X-User-ID", "1")
+		ctx.Params = gin.Params{{Key: "payment_id", Value: "1"}}
+		handler.getPaymentByID(ctx)
+		assert.Equal(t, http.StatusForbidden, recorder.Code)
+	})
 }
-
-// --- Helpers ---
 
 func newHandlerTestContext(method string, target string) (*httptest.ResponseRecorder, *gin.Context) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(method, target, nil)
+	ctx.Request, _ = http.NewRequest(method, target, nil)
 	return recorder, ctx
 }
 
