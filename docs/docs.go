@@ -629,6 +629,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/payments/webhook": {
+            "post": {
+                "description": "Webhook receiver for asynchronous payment updates.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Handle MercadoPago Webhooks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/payments/{payment_id}": {
             "get": {
                 "description": "Returns one payment detail.",
@@ -880,59 +906,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/properties/{id}/availability": {
-            "get": {
-                "description": "Get available 1-hour slots for a property on a specific date",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "visits"
-                ],
-                "summary": "Get property availability",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Property ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Date (YYYY-MM-DD). Defaults to today.",
-                        "name": "date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/visits.TimeSlot"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/properties/{uuid}": {
             "get": {
                 "description": "Returns property base data, subtype, and location for the given UUID. When full=true, the response also includes consolidated prices, price history, photos, services, and clauses. Deleted properties are treated as not found.",
@@ -1096,6 +1069,59 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/availability": {
+            "get": {
+                "description": "Get available 1-hour slots for a property on a specific date",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "visits"
+                ],
+                "summary": "Get property availability",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Property ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date (YYYY-MM-DD). Defaults to today.",
+                        "name": "date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/visits.TimeSlot"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -2808,25 +2834,42 @@ const docTemplate = `{
             "required": [
                 "amount",
                 "contract_id",
+                "currency",
                 "gateway_id",
+                "payer_email",
                 "payment_method_id"
             ],
             "properties": {
                 "amount": {
                     "type": "number"
                 },
-                "card_number": {
-                    "description": "Para simulación",
-                    "type": "string"
-                },
                 "contract_id": {
                     "type": "integer"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
                 },
                 "gateway_id": {
                     "type": "integer"
                 },
+                "gateway_method_id": {
+                    "type": "string"
+                },
+                "installments": {
+                    "type": "integer"
+                },
+                "issuer_id": {
+                    "type": "string"
+                },
+                "payer_email": {
+                    "type": "string"
+                },
                 "payment_method_id": {
                     "type": "integer"
+                },
+                "token": {
+                    "type": "string"
                 }
             }
         },
