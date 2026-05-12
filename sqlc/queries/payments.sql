@@ -4,13 +4,17 @@ SELECT
     t.client_id, 
     c.agreed_amount, 
     c.status_id, 
+    c.start_date,
     c.end_date,
     c.currency,
-    t.transaction_type
+    t.transaction_type,
+    c.period_id,
+    rp.name as period_name
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
+LEFT JOIN rent_periods rp ON c.period_id = rp.period_id
 WHERE c.contract_id = $1
-FOR UPDATE;
+FOR UPDATE OF c;
 
 -- name: GetLastPaidPeriod :one
 SELECT billing_period
@@ -48,9 +52,15 @@ INSERT INTO payments (
 ) RETURNING *;
 
 -- name: GetContractForPayment :one
-SELECT c.contract_id, t.client_id, c.agreed_amount
+SELECT 
+    c.contract_id, 
+    t.client_id, 
+    c.agreed_amount,
+    c.period_id,
+    rp.name as period_name
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
+LEFT JOIN rent_periods rp ON c.period_id = rp.period_id
 WHERE c.contract_id = $1;
 
 -- name: GetPaymentByUUID :one

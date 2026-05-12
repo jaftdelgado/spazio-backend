@@ -365,6 +365,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 	contract_uuid uuid NOT NULL UNIQUE DEFAULT gen_random_uuid(),
 	transaction_id int NOT NULL REFERENCES transactions(transaction_id),
 	parent_contract_id int REFERENCES contracts(contract_id),
+	period_id int REFERENCES rent_periods(period_id),
 	currency char(3) NOT NULL,
 	agreed_amount decimal(15,2) NOT NULL,
 	storage_key varchar(255) NOT NULL,
@@ -391,8 +392,7 @@ CREATE TABLE IF NOT EXISTS payments (
 	status_id int NOT NULL REFERENCES payment_status(status_id),
 	gateway_status varchar(50),
 	payment_date timestamptz,
-	metadata jsonb,
-	CHECK (EXTRACT(DAY FROM billing_period) = 1)
+	metadata jsonb
 );
 
 CREATE TABLE IF NOT EXISTS contract_status_history (
