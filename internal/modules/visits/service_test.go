@@ -49,11 +49,6 @@ func (m *MockRepository) GetVisitByUUID(ctx context.Context, visitUUID uuid.UUID
 	return args.Get(0).(sqlcgen.Visit), args.Error(1)
 }
 
-func (m *MockRepository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	args := m.Called(ctx, userID)
-	return int32(args.Int(0)), args.Error(1)
-}
-
 func (m *MockRepository) ListVisits(ctx context.Context, arg sqlcgen.ListVisitsParams) ([]sqlcgen.ListVisitsRow, error) {
 	args := m.Called(ctx, arg)
 	if args.Get(0) == nil {
@@ -351,39 +346,29 @@ func TestListUserVisits(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Role Error", func(t *testing.T) {
-		repo.On("GetUserRole", ctx, int32(1)).Return(0, errors.New("err")).Once()
-		_, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{})
-		assert.Error(t, err)
-	})
-
-	t.Run("Invalid Role", func(t *testing.T) {
-		repo.On("GetUserRole", ctx, int32(1)).Return(99, nil).Once()
-		_, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{})
+		_, err := svc.ListUserVisits(ctx, 1, 99, ListVisitsFilter{})
 		assert.Error(t, err)
 	})
 
 	t.Run("Success Admin with nil fields", func(t *testing.T) {
-		repo.On("GetUserRole", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("ListVisits", ctx, mock.Anything).Return([]sqlcgen.ListVisitsRow{
 			{
 				VisitUuid:  pgtype.UUID{Bytes: uuid.New(), Valid: true},
 				StatusName: "Confirmed",
 			},
 		}, nil).Once()
-		res, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{})
+		res, err := svc.ListUserVisits(ctx, 1, 1, ListVisitsFilter{})
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
 	})
 
 	t.Run("DB list fails", func(t *testing.T) {
-		repo.On("GetUserRole", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("ListVisits", ctx, mock.Anything).Return(nil, errors.New("fail")).Once()
-		_, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{})
+		_, err := svc.ListUserVisits(ctx, 1, 1, ListVisitsFilter{})
 		assert.Error(t, err)
 	})
 
 	t.Run("Agent list Success", func(t *testing.T) {
-		repo.On("GetUserRole", ctx, int32(1)).Return(2, nil).Once()
 		repo.On("ListVisits", ctx, mock.Anything).Return([]sqlcgen.ListVisitsRow{
 			{
 				VisitUuid:  pgtype.UUID{Bytes: uuid.New(), Valid: true},
@@ -395,7 +380,7 @@ func TestListUserVisits(t *testing.T) {
 				Address:    "Address",
 			},
 		}, nil).Once()
-		res, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{})
+		res, err := svc.ListUserVisits(ctx, 1, 2, ListVisitsFilter{})
 		assert.NoError(t, err)
 		assert.Len(t, res, 1)
 	})
@@ -403,9 +388,8 @@ func TestListUserVisits(t *testing.T) {
 	t.Run("Client list Success", func(t *testing.T) {
 		st := int32(1)
 		pr := int32(1)
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
 		repo.On("ListVisits", ctx, mock.Anything).Return([]sqlcgen.ListVisitsRow{}, nil).Once()
-		_, err := svc.ListUserVisits(ctx, 1, ListVisitsFilter{StatusID: &st, PropertyID: &pr, Date: &time.Time{}})
+		_, err := svc.ListUserVisits(ctx, 1, 3, ListVisitsFilter{StatusID: &st, PropertyID: &pr, Date: &time.Time{}})
 		assert.NoError(t, err)
 	})
 }
@@ -418,88 +402,72 @@ func TestConfirmVisit(t *testing.T) {
 
 	t.Run("Visit not found", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, errors.New("not found")).Once()
-		err := svc.ConfirmVisit(ctx, 1, uID)
-		assert.Error(t, err)
-	})
-
-	t.Run("Role lookup fails", func(t *testing.T) {
-		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(0, errors.New("fail")).Once()
-		err := svc.ConfirmVisit(ctx, 1, uID)
+		err := svc.ConfirmVisit(ctx, 1, 1, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Forbidden Client", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{ClientID: 2}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-		err := svc.ConfirmVisit(ctx, 1, uID)
+		err := svc.ConfirmVisit(ctx, 1, 3, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Success Client Pending", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusWaitingAgent)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.ConfirmVisit(ctx, 1, uID)
+		err := svc.ConfirmVisit(ctx, 1, 3, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Success Client Waiting Client", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, StatusID: StatusWaitingClient}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusConfirmed)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.ConfirmVisit(ctx, 1, uID)
+		err := svc.ConfirmVisit(ctx, 1, 3, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Success Agent Pending", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: 2, Valid: true}, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(2)).Return(2, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusWaitingClient)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.ConfirmVisit(ctx, 2, uID)
+		err := svc.ConfirmVisit(ctx, 2, 2, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Forbidden Agent", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{AgentID: pgtype.Int4{Int32: 2, Valid: true}}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(3)).Return(2, nil).Once()
-		err := svc.ConfirmVisit(ctx, 3, uID)
+		err := svc.ConfirmVisit(ctx, 3, 2, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Success Agent Waiting Agent", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: 2, Valid: true}, StatusID: StatusWaitingAgent}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(2)).Return(2, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusConfirmed)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.ConfirmVisit(ctx, 2, uID)
+		err := svc.ConfirmVisit(ctx, 2, 2, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Success Admin", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(10)).Return(1, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusConfirmed)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.ConfirmVisit(ctx, 10, uID)
+		err := svc.ConfirmVisit(ctx, 10, 1, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Invalid transition", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(10)).Return(1, nil).Once()
-		err := svc.ConfirmVisit(ctx, 10, uID)
+		err := svc.ConfirmVisit(ctx, 10, 1, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Update fails", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(10)).Return(1, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusConfirmed)).Return(errors.New("fail")).Once()
-		err := svc.ConfirmVisit(ctx, 10, uID)
+		err := svc.ConfirmVisit(ctx, 10, 1, uID)
 		assert.Error(t, err)
 	})
 }
@@ -514,7 +482,7 @@ func TestRescheduleVisit(t *testing.T) {
 
 	t.Run("Begin fails", func(t *testing.T) {
 		repo.On("Begin", ctx).Return(nil, errors.New("fail")).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, time.Now())
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, time.Now())
 		assert.Error(t, err)
 	})
 
@@ -523,7 +491,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, errors.New("not found")).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, time.Now())
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, time.Now())
 		assert.Error(t, err)
 	})
 
@@ -532,17 +500,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{StatusID: StatusCancelled}, nil).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, time.Now())
-		assert.Error(t, err)
-	})
-
-	t.Run("Role lookup fails", func(t *testing.T) {
-		repo.On("Begin", ctx).Return(tx, nil).Once()
-		repo.On("WithTx", tx).Return(repo).Once()
-		tx.On("Rollback", ctx).Return(nil).Once()
-		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(0, errors.New("fail")).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, time.Now())
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, time.Now())
 		assert.Error(t, err)
 	})
 
@@ -551,8 +509,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{StatusID: StatusPending, ClientID: 2}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, time.Now())
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, time.Now())
 		assert.Error(t, err)
 	})
 
@@ -562,8 +519,6 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, PropertyID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-
 		repo.On("CheckUserActive", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("GetPropertyStatusAndCheckDeleted", ctx, int32(1)).Return(sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: 2}, nil).Once()
 		repo.On("GetPrimaryAgentForProperty", ctx, int32(1)).Return(10, nil).Twice()
@@ -575,7 +530,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("CreateVisit", ctx, mock.Anything).Return(sqlcgen.Visit{VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil).Once()
 
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusCancelled)).Return(errors.New("fail")).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, newDate)
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, newDate)
 		assert.Error(t, err)
 	})
 
@@ -585,8 +540,6 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, PropertyID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-
 		repo.On("CheckUserActive", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("GetPropertyStatusAndCheckDeleted", ctx, int32(1)).Return(sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: 2}, nil).Once()
 		repo.On("GetPrimaryAgentForProperty", ctx, int32(1)).Return(10, nil).Twice()
@@ -599,7 +552,7 @@ func TestRescheduleVisit(t *testing.T) {
 
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusCancelled)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(errors.New("fail")).Once()
-		_, err := svc.RescheduleVisit(ctx, 1, uID, newDate)
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, newDate)
 		assert.Error(t, err)
 	})
 
@@ -609,8 +562,6 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, PropertyID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-
 		repo.On("CheckUserActive", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("GetPropertyStatusAndCheckDeleted", ctx, int32(1)).Return(sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: 2}, nil).Once()
 		repo.On("GetPrimaryAgentForProperty", ctx, int32(1)).Return(10, nil).Twice()
@@ -625,7 +576,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
 		tx.On("Commit", ctx).Return(nil).Once()
 
-		_, err := svc.RescheduleVisit(ctx, 1, uID, newDate)
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, newDate)
 		assert.NoError(t, err)
 	})
 
@@ -635,8 +586,6 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("WithTx", tx).Return(repo).Once()
 		tx.On("Rollback", ctx).Return(nil).Once()
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, ClientID: 1, PropertyID: 1, StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-
 		repo.On("CheckUserActive", ctx, int32(1)).Return(1, nil).Once()
 		repo.On("GetPropertyStatusAndCheckDeleted", ctx, int32(1)).Return(sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: 2}, nil).Once()
 		repo.On("GetPrimaryAgentForProperty", ctx, int32(1)).Return(10, nil).Twice()
@@ -651,7 +600,7 @@ func TestRescheduleVisit(t *testing.T) {
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
 		tx.On("Commit", ctx).Return(errors.New("fail")).Once()
 
-		_, err := svc.RescheduleVisit(ctx, 1, uID, newDate)
+		_, err := svc.RescheduleVisit(ctx, 1, 3, uID, newDate)
 		assert.Error(t, err)
 	})
 }
@@ -664,61 +613,48 @@ func TestCompleteVisit(t *testing.T) {
 
 	t.Run("Visit not found", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, errors.New("not found")).Once()
-		err := svc.CompleteVisit(ctx, 1, uID)
-		assert.Error(t, err)
-	})
-
-	t.Run("Role lookup fails", func(t *testing.T) {
-		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(0, errors.New("fail")).Once()
-		err := svc.CompleteVisit(ctx, 1, uID)
+		err := svc.CompleteVisit(ctx, 1, 1, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Forbidden Client", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(3, nil).Once()
-		err := svc.CompleteVisit(ctx, 1, uID)
+		err := svc.CompleteVisit(ctx, 1, 3, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Forbidden Agent", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{AgentID: pgtype.Int4{Int32: 2, Valid: true}}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(3)).Return(2, nil).Once()
-		err := svc.CompleteVisit(ctx, 3, uID)
+		err := svc.CompleteVisit(ctx, 3, 2, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Not confirmed", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{StatusID: StatusPending}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(1)).Return(1, nil).Once()
-		err := svc.CompleteVisit(ctx, 1, uID)
+		err := svc.CompleteVisit(ctx, 1, 1, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Update fails", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(10)).Return(1, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusCompleted)).Return(errors.New("fail")).Once()
-		err := svc.CompleteVisit(ctx, 10, uID)
+		err := svc.CompleteVisit(ctx, 10, 1, uID)
 		assert.Error(t, err)
 	})
 
 	t.Run("Success Agent", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: 2, Valid: true}, StatusID: StatusConfirmed}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(2)).Return(2, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusCompleted)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.CompleteVisit(ctx, 2, uID)
+		err := svc.CompleteVisit(ctx, 2, 2, uID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Success Admin", func(t *testing.T) {
 		repo.On("GetVisitByUUID", ctx, uID).Return(sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil).Once()
-		repo.On("GetUserRole", ctx, int32(10)).Return(1, nil).Once()
 		repo.On("UpdateVisitStatus", ctx, int32(1), int32(StatusCompleted)).Return(nil).Once()
 		repo.On("CreateVisitStatusHistory", ctx, mock.Anything).Return(nil).Once()
-		err := svc.CompleteVisit(ctx, 10, uID)
+		err := svc.CompleteVisit(ctx, 10, 1, uID)
 		assert.NoError(t, err)
 	})
 }

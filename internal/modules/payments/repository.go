@@ -28,7 +28,6 @@ type Repository interface {
 
 	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
 	GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error)
-	GetUserRole(ctx context.Context, userID int32) (int32, error)
 }
 
 type repository struct {
@@ -159,15 +158,6 @@ func (r *repository) GetPaymentByID(ctx context.Context, paymentID int32) (Payme
 		ClientID:        row.ClientID,
 		AgentID:         row.AgentID,
 	}, nil
-}
-
-func (r *repository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	roleID, err := r.queries.GetUserRole(ctx, userID)
-	if err != nil {
-		return 0, fmt.Errorf("get user role: %w", err)
-	}
-
-	return roleID, nil
 }
 
 func int4FromPointer(value *int32) pgtype.Int4 {

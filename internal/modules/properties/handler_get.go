@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -142,15 +143,14 @@ func (h *Handler) listProperties(c *gin.Context) {
 
 // getPropertyHistory godoc
 // @Summary      Get property status history
-// @Description  Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own.
+// @Description  Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own. The requester identity is resolved from the bearer token.
 // @Tags         Properties
-// @Accept       json
 // @Produce      json
 // @Param        uuid       path      string                true  "Property UUID"
-// @Param        X-User-ID  header    string                true  "User ID for RBAC validation"
-// @Param        X-Role-ID  header    string                true  "Role ID (1: Admin, 2: Agent, 3: Client)"
+// @Param        Authorization  header    string                true  "Bearer access token"
 // @Success      200        {object}  GetPropertyHistoryResult  "Chronological status history retrieved successfully"
-// @Failure      400        {object}  shared.ErrorResponse      "Invalid UUID or missing required headers"
+// @Failure      400        {object}  shared.ErrorResponse      "Invalid UUID"
+// @Failure      401        {object}  shared.ErrorResponse      "Missing or invalid authenticated session"
 // @Failure      403        {object}  shared.ErrorResponse      "Forbidden: You are not authorized to view this history"
 // @Failure      404        {object}  shared.ErrorResponse      "Property not found"
 // @Failure      500        {object}  shared.ErrorResponse      "Internal server error"
@@ -162,19 +162,19 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 		return
 	}
 
-	userID, err := strconv.Atoi(c.GetHeader("X-User-ID"))
+	userID, err := middleware.AuthenticatedUserID(c)
 	if err != nil {
-		shared.BadRequest(c, errors.New("invalid X-User-ID header"))
+		shared.Unauthorized(c)
 		return
 	}
 
-	roleID, err := strconv.Atoi(c.GetHeader("X-Role-ID"))
+	roleID, err := middleware.AuthenticatedRoleID(c)
 	if err != nil {
-		shared.BadRequest(c, errors.New("invalid X-Role-ID header"))
+		shared.Unauthorized(c)
 		return
 	}
 
-	result, err := h.service.GetPropertyHistory(c.Request.Context(), propertyUUID, int32(userID), int32(roleID))
+	result, err := h.service.GetPropertyHistory(c.Request.Context(), propertyUUID, userID, roleID)
 	if err != nil {
 		if errors.Is(err, ErrPropertyNotFound) {
 			shared.NotFound(c, err.Error())

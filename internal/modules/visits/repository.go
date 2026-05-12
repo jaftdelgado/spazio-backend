@@ -18,7 +18,6 @@ type Repository interface {
 	GetOccupiedVisits(ctx context.Context, agentID int32, start, end time.Time) ([]time.Time, error)
 	CreateVisit(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error)
 	GetVisitByUUID(ctx context.Context, visitUUID uuid.UUID) (sqlcgen.Visit, error)
-	GetUserRole(ctx context.Context, userID int32) (int32, error)
 	ListVisits(ctx context.Context, arg sqlcgen.ListVisitsParams) ([]sqlcgen.ListVisitsRow, error)
 	UpdateVisitStatus(ctx context.Context, visitID int32, statusID int32) error
 	CreateVisitStatusHistory(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error
@@ -94,10 +93,6 @@ func (r *repository) CreateVisit(ctx context.Context, arg sqlcgen.CreateVisitPar
 
 func (r *repository) GetVisitByUUID(ctx context.Context, visitUUID uuid.UUID) (sqlcgen.Visit, error) {
 	return r.queries.GetVisitByUUID(ctx, pgtype.UUID{Bytes: visitUUID, Valid: true})
-}
-
-func (r *repository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	return r.queries.GetUserRole(ctx, userID)
 }
 
 func (r *repository) ListVisits(ctx context.Context, arg sqlcgen.ListVisitsParams) ([]sqlcgen.ListVisitsRow, error) {

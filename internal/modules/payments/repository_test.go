@@ -148,13 +148,6 @@ func TestRepository_Methods(t *testing.T) {
 		_, _ = repo.GetPaymentByID(ctx, 1)
 	})
 
-	t.Run("GetUserRole", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetUserRole(ctx, 1)
-	})
-
 	t.Run("Misc Wrapper", func(t *testing.T) {
 		_ = repo.WithTx(nil)
 	})

@@ -1,13 +1,13 @@
 package visits
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -68,11 +68,11 @@ func (h *Handler) getAvailability(c *gin.Context) {
 }
 
 // @Summary Schedule a visit
-// @Description Create a new visit request in 'Pending' status. Requires X-User-ID header.
+// @Description Create a new visit request in 'Pending' status for the authenticated user.
 // @Tags visits
 // @Accept json
 // @Produce json
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer access token"
 // @Param request body CreateVisitRequest true "Visit Details"
 // @Success 201 {object} VisitResponse
 // @Failure 400 {object} shared.ErrorResponse
@@ -90,14 +90,14 @@ func (h *Handler) scheduleVisit(c *gin.Context) {
 		return
 	}
 
-	userIDStr := c.GetHeader("X-User-ID")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID debe ser un número válido"))
+	userID, roleID, ok := resolveAuthenticatedIdentity(c)
+	if !ok {
 		return
 	}
 
-	visit, err := h.service.ScheduleVisit(c.Request.Context(), int32(userID), req.PropertyID, req.VisitDate)
+	_ = roleID
+
+	visit, err := h.service.ScheduleVisit(c.Request.Context(), userID, req.PropertyID, req.VisitDate)
 	if err != nil {
 		shared.InternalError(c, err.Error())
 		return
@@ -116,11 +116,10 @@ func validateCreateVisitRequest(req CreateVisitRequest) error {
 }
 
 // @Summary List user visits
-// @Description List visits according to user role (Admin, Agent, Client). Supports filtering by status, property and date. Requires X-User-ID header.
+// @Description List visits according to the authenticated user role (Admin, Agent, Client). Supports filtering by status, property and date.
 // @Tags visits
-// @Accept json
 // @Produce json
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer access token"
 // @Param status_id query int false "Status ID"
 // @Param property_id query int false "Property ID"
 // @Param date query string false "Date (YYYY-MM-DD)"
@@ -128,10 +127,8 @@ func validateCreateVisitRequest(req CreateVisitRequest) error {
 // @Failure 500 {object} shared.ErrorResponse
 // @Router /api/v1/visits [get]
 func (h *Handler) listVisits(c *gin.Context) {
-	userIDStr := c.GetHeader("X-User-ID")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID debe ser un número válido"))
+	userID, roleID, ok := resolveAuthenticatedIdentity(c)
+	if !ok {
 		return
 	}
 
@@ -152,7 +149,7 @@ func (h *Handler) listVisits(c *gin.Context) {
 		}
 	}
 
-	visits, err := h.service.ListUserVisits(c.Request.Context(), int32(userID), filter)
+	visits, err := h.service.ListUserVisits(c.Request.Context(), userID, roleID, filter)
 	if err != nil {
 		shared.InternalError(c, err.Error())
 		return
@@ -162,12 +159,12 @@ func (h *Handler) listVisits(c *gin.Context) {
 }
 
 // @Summary Confirm a visit
-// @Description Transition a visit status towards 'Confirmed' by Client or Agent. Requires X-User-ID header.
+// @Description Transition a visit status towards 'Confirmed' by Client or Agent using the authenticated session.
 // @Tags visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Visit UUID"
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer access token"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
@@ -180,14 +177,12 @@ func (h *Handler) confirmVisit(c *gin.Context) {
 		return
 	}
 
-	userIDStr := c.GetHeader("X-User-ID")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID debe ser un número válido"))
+	userID, roleID, ok := resolveAuthenticatedIdentity(c)
+	if !ok {
 		return
 	}
 
-	err = h.service.ConfirmVisit(c.Request.Context(), int32(userID), visitUUID)
+	err = h.service.ConfirmVisit(c.Request.Context(), userID, roleID, visitUUID)
 	if err != nil {
 		shared.InternalError(c, err.Error())
 		return
@@ -197,12 +192,12 @@ func (h *Handler) confirmVisit(c *gin.Context) {
 }
 
 // @Summary Reschedule a visit
-// @Description Cancels the old visit and creates a new one with the new date. Requires X-User-ID header.
+// @Description Cancels the old visit and creates a new one with the new date for the authenticated user.
 // @Tags visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Old Visit UUID"
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer access token"
 // @Param request body CreateVisitRequest true "New Visit Details"
 // @Success 201 {object} VisitResponse
 // @Failure 400 {object} shared.ErrorResponse
@@ -227,14 +222,12 @@ func (h *Handler) rescheduleVisit(c *gin.Context) {
 		return
 	}
 
-	userIDStr := c.GetHeader("X-User-ID")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID debe ser un número válido"))
+	userID, roleID, ok := resolveAuthenticatedIdentity(c)
+	if !ok {
 		return
 	}
 
-	visit, err := h.service.RescheduleVisit(c.Request.Context(), int32(userID), visitUUID, req.VisitDate)
+	visit, err := h.service.RescheduleVisit(c.Request.Context(), userID, roleID, visitUUID, req.VisitDate)
 	if err != nil {
 		shared.InternalError(c, err.Error())
 		return
@@ -244,12 +237,12 @@ func (h *Handler) rescheduleVisit(c *gin.Context) {
 }
 
 // @Summary Complete a visit
-// @Description Mark a confirmed visit as completed. Only for Agents or Admin. Requires X-User-ID header.
+// @Description Mark a confirmed visit as completed. Only for Agents or Admin from the authenticated session.
 // @Tags visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Visit UUID"
-// @Param X-User-ID header int true "User ID"
+// @Param Authorization header string true "Bearer access token"
 // @Success 200 {object} map[string]string
 // @Failure 400 {object} shared.ErrorResponse
 // @Failure 500 {object} shared.ErrorResponse
@@ -262,18 +255,32 @@ func (h *Handler) completeVisit(c *gin.Context) {
 		return
 	}
 
-	userIDStr := c.GetHeader("X-User-ID")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID debe ser un número válido"))
+	userID, roleID, ok := resolveAuthenticatedIdentity(c)
+	if !ok {
 		return
 	}
 
-	err = h.service.CompleteVisit(c.Request.Context(), int32(userID), visitUUID)
+	err = h.service.CompleteVisit(c.Request.Context(), userID, roleID, visitUUID)
 	if err != nil {
 		shared.InternalError(c, err.Error())
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "visita marcada como completada"})
+}
+
+func resolveAuthenticatedIdentity(c *gin.Context) (int32, int32, bool) {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return 0, 0, false
+	}
+
+	roleID, err := middleware.AuthenticatedRoleID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return 0, 0, false
+	}
+
+	return userID, roleID, true
 }
