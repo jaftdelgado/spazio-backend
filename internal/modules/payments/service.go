@@ -195,9 +195,10 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	statusID := int32(PaymentStatusFailed)
 	gatewayStatus := mpResp.Status
 
-	if mpResp.Status == "approved" {
+	switch mpResp.Status {
+	case "approved":
 		statusID = PaymentStatusCompleted
-	} else if mpResp.Status == "pending" || mpResp.Status == "in_process" {
+	case "pending", "in_process":
 		statusID = PaymentStatusPending
 	}
 
@@ -246,11 +247,12 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		GatewayID:   paymentRecord.GatewayPaymentID.String,
 	}
 
-	if statusID == PaymentStatusCompleted {
+	switch statusID {
+	case PaymentStatusCompleted:
 		res.Status = "Success"
 		pDate := paymentRecord.PaymentDate.Time
 		res.PaymentDate = &pDate
-	} else if statusID == PaymentStatusPending {
+	case PaymentStatusPending:
 		res.Status = "Pending"
 		ref := "REF-" + strings.ToUpper(uuid.UUID(paymentRecord.PaymentUuid.Bytes).String()[:8])
 		res.ReferenceNumber = &ref
@@ -273,8 +275,8 @@ func (s *service) ConfirmPendingPayment(ctx context.Context, userID int32, payme
 		return errors.New("solo se pueden confirmar pagos que estén en estado pendiente")
 	}
 
-	nowDate := time.Now().Truncate(24 * time.Hour)
-	if nowDate.After(paymentRecord.DueDate.Time) {
+	now := time.Now()
+	if now.After(paymentRecord.DueDate.Time) {
 		return fmt.Errorf("la referencia de pago ha expirado (venció el %s)", paymentRecord.DueDate.Time.Format("2006-01-02"))
 	}
 
@@ -372,9 +374,10 @@ func validateMPSignature(xSignature, xRequestID string, body []byte, secret stri
 	for _, p := range parts {
 		kv := strings.Split(p, "=")
 		if len(kv) == 2 {
-			if kv[0] == "ts" {
+			switch kv[0] {
+			case "ts":
 				ts = kv[1]
-			} else if kv[0] == "v1" {
+			case "v1":
 				v1 = kv[1]
 			}
 		}

@@ -297,18 +297,3 @@ func newHandlerTestContext(method string, target string) (*httptest.ResponseReco
 	ctx.Request, _ = http.NewRequest(method, target, nil)
 	return recorder, ctx
 }
-
-func assertErrorResponse(t *testing.T, recorder *httptest.ResponseRecorder, wantStatus int, wantError string) {
-	if recorder.Code != wantStatus {
-		t.Fatalf("status code = %d, want %d", recorder.Code, wantStatus)
-	}
-
-	var body struct {
-		Error string `json:"error"`
-	}
-	json.Unmarshal(recorder.Body.Bytes(), &body)
-
-	if body.Error != wantError {
-		t.Fatalf("error = %q, want %q", body.Error, wantError)
-	}
-}
