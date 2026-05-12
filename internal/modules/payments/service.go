@@ -110,14 +110,25 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	if contract.TransactionType == "rent" {
 		lastPeriod, err := txRepo.GetLastPaidPeriod(ctx, req.ContractID)
 		if err != nil || !lastPeriod.Valid {
-			now := time.Now()
-			billingPeriod = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+			billingPeriod = contract.StartDate.Time
 		} else {
-			billingPeriod = lastPeriod.Time.AddDate(0, 1, 0)
+			// Subsequent payments: calculate based on the period type
+			periodName := strings.ToLower(contract.PeriodName.String)
+			switch periodName {
+			case "daily", "diario":
+				billingPeriod = lastPeriod.Time.AddDate(0, 0, 1)
+			case "weekly", "semanal":
+				billingPeriod = lastPeriod.Time.AddDate(0, 0, 7)
+			case "yearly", "anual":
+				billingPeriod = lastPeriod.Time.AddDate(1, 0, 0)
+			default: // monthly or default
+				billingPeriod = lastPeriod.Time.AddDate(0, 1, 0)
+			}
 		}
 	} else {
+		// Non-rent (sale)
 		now := time.Now()
-		billingPeriod = time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		billingPeriod = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	}
 
 	existingCompleted, err := txRepo.GetPaymentByContract(ctx, req.ContractID, PaymentStatusCompleted)
@@ -169,7 +180,7 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		},
 		Token:        req.Token,
 		Installments: installments,
-		Description:  fmt.Sprintf("Pago contrato #%d - Periodo %s", req.ContractID, billingPeriod.Format("2006-01")),
+		Description:  fmt.Sprintf("Pago contrato #%d - Periodo %s", req.ContractID, billingPeriod.Format("2006-01-02")),
 	}
 
 	if req.IssuerID != "" {
@@ -177,13 +188,16 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	}
 
 	var mpResp *payment.Response
-	if s.mpAccessToken == "TEST-TOKEN" || s.mpAccessToken == "TEST-REJECTED" || s.mpAccessToken == "TEST-PENDING" || s.mpAccessToken == "TEST-REFUNDED" {
-		mpResp = &payment.Response{ID: 123, Status: "approved"}
+	// Simulate payment if AccessToken is a test string OR if the request Token is "TEST-TOKEN"
+	if s.mpAccessToken == "TEST-TOKEN" || req.Token == "TEST-TOKEN" || s.mpAccessToken == "TEST-REJECTED" || s.mpAccessToken == "TEST-PENDING" || s.mpAccessToken == "TEST-REFUNDED" {
+		mpResp = &payment.Response{ID: 123456789, Status: "approved", StatusDetail: "accredited"}
 		if s.mpAccessToken == "TEST-REJECTED" {
 			mpResp.Status = "rejected"
+			mpResp.StatusDetail = "cc_rejected_bad_filled_security_code"
 		}
 		if s.mpAccessToken == "TEST-PENDING" {
 			mpResp.Status = "pending"
+			mpResp.StatusDetail = "pending_waiting_payment"
 		}
 	} else {
 		mpResp, err = mpClient.Create(ctx, mpReq)

@@ -352,6 +352,7 @@
 - `contract_id` (SERIAL, PK)
 - `transaction_id` (INT, FK -> transactions)
 - `parent_contract_id` (INT, FK -> contracts, NULL)
+- `period_id` (INT, FK -> rent_periods, NULL)
 - `currency` (CHAR 3)
 - `agreed_amount` (DECIMAL 15,2)
 - `storage_key` (VARCHAR 255)
