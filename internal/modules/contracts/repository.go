@@ -17,7 +17,6 @@ type ContractRepository interface {
 	CheckContractExistsByTransactionID(ctx context.Context, transactionID int32) (bool, error)
 	ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error)
 	GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error)
-	GetUserRole(ctx context.Context, userID int32) (int32, error)
 }
 
 type repository struct {
@@ -34,7 +33,7 @@ func NewRepository(db *pgxpool.Pool) ContractRepository {
 
 func (r *repository) CreateContract(ctx context.Context, input CreateContractInput, storageKey string) (sqlcgen.Contract, error) {
 	contractUUID := uuid.New()
-	
+
 	amount := pgtype.Numeric{}
 	amount.Scan(fmt.Sprintf("%f", input.AgreedAmount))
 
@@ -73,8 +72,4 @@ func (r *repository) ListContracts(ctx context.Context, params sqlcgen.ListContr
 
 func (r *repository) GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error) {
 	return r.queries.GetContractByUUID(ctx, pgtype.UUID{Bytes: contractUUID, Valid: true})
-}
-
-func (r *repository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	return r.queries.GetUserRole(ctx, userID)
 }

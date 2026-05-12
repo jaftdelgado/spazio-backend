@@ -42,8 +42,8 @@ type Service interface {
 	ConfirmPendingPayment(ctx context.Context, userID int32, paymentUUID uuid.UUID) error
 	HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error
 
-	ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error)
-	GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error)
+	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) (ListPaymentsResult, error)
+	GetPaymentByID(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error)
 }
 
 type service struct {
@@ -394,12 +394,7 @@ func validateMPSignature(xSignature, xRequestID string, body []byte, secret stri
 	return expectedSignature == v1
 }
 
-func (s *service) ListPayments(ctx context.Context, userID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
-	roleID, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil {
-		return ListPaymentsResult{}, fmt.Errorf("list payments: %w", err)
-	}
-
+func (s *service) ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
 	if !isSupportedRole(roleID) {
 		return ListPaymentsResult{}, ErrUnsupportedRole
 	}
@@ -424,17 +419,12 @@ func (s *service) ListPayments(ctx context.Context, userID int32, input ListPaym
 	}, nil
 }
 
-func (s *service) GetPaymentByID(ctx context.Context, userID int32, paymentID int32) (PaymentDetail, error) {
+func (s *service) GetPaymentByID(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error) {
 	paymentRecord, err := s.repo.GetPaymentByID(ctx, paymentID)
 	if err != nil {
 		if errors.Is(err, ErrPaymentNotFound) {
 			return PaymentDetail{}, ErrPaymentNotFound
 		}
-		return PaymentDetail{}, fmt.Errorf("get payment by id: %w", err)
-	}
-
-	roleID, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil {
 		return PaymentDetail{}, fmt.Errorf("get payment by id: %w", err)
 	}
 

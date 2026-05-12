@@ -33,10 +33,10 @@ type ListVisitsFilter struct {
 type Service interface {
 	GetAvailableSlots(ctx context.Context, propertyID int32, date time.Time) ([]TimeSlot, error)
 	ScheduleVisit(ctx context.Context, clientID int32, propertyID int32, visitDate time.Time) (VisitResponse, error)
-	ListUserVisits(ctx context.Context, userID int32, filter ListVisitsFilter) ([]VisitResponse, error)
-	ConfirmVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error
-	RescheduleVisit(ctx context.Context, userID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error)
-	CompleteVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error
+	ListUserVisits(ctx context.Context, userID int32, roleID int32, filter ListVisitsFilter) ([]VisitResponse, error)
+	ConfirmVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
+	RescheduleVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error)
+	CompleteVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 }
 
 type service struct {
@@ -248,12 +248,7 @@ func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, cl
 	}, nil
 }
 
-func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListVisitsFilter) ([]VisitResponse, error) {
-	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *service) ListUserVisits(ctx context.Context, userID int32, role int32, filter ListVisitsFilter) ([]VisitResponse, error) {
 	params := sqlcgen.ListVisitsParams{}
 
 	if filter.StatusID != nil {
@@ -323,15 +318,10 @@ func (s *service) ListUserVisits(ctx context.Context, userID int32, filter ListV
 	return res, nil
 }
 
-func (s *service) ConfirmVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error {
+func (s *service) ConfirmVisit(ctx context.Context, userID int32, role int32, visitUUID uuid.UUID) error {
 	visit, err := s.repo.GetVisitByUUID(ctx, visitUUID)
 	if err != nil {
 		return errors.New("visita no encontrada")
-	}
-
-	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil {
-		return err
 	}
 
 	currentStatus := visit.StatusID
@@ -373,7 +363,7 @@ func (s *service) ConfirmVisit(ctx context.Context, userID int32, visitUUID uuid
 	})
 }
 
-func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error) {
+func (s *service) RescheduleVisit(ctx context.Context, userID int32, role int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error) {
 	tx, err := s.repo.Begin(ctx)
 	if err != nil {
 		return VisitResponse{}, fmt.Errorf("fallo al iniciar transacción: %w", err)
@@ -389,11 +379,6 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 
 	if oldVisit.StatusID == StatusCancelled {
 		return VisitResponse{}, errors.New("no se puede reagendar una cita ya cancelada")
-	}
-
-	role, err := txRepo.GetUserRole(ctx, userID)
-	if err != nil {
-		return VisitResponse{}, err
 	}
 
 	canReschedule := (role == 1) || (role == 3 && oldVisit.ClientID == userID) || (role == 2 && oldVisit.AgentID.Valid && oldVisit.AgentID.Int32 == userID)
@@ -426,15 +411,10 @@ func (s *service) RescheduleVisit(ctx context.Context, userID int32, visitUUID u
 	return newVisit, nil
 }
 
-func (s *service) CompleteVisit(ctx context.Context, userID int32, visitUUID uuid.UUID) error {
+func (s *service) CompleteVisit(ctx context.Context, userID int32, role int32, visitUUID uuid.UUID) error {
 	visit, err := s.repo.GetVisitByUUID(ctx, visitUUID)
 	if err != nil {
 		return errors.New("visita no encontrada")
-	}
-
-	role, err := s.repo.GetUserRole(ctx, userID)
-	if err != nil {
-		return err
 	}
 
 	if role != 1 && role != 2 {

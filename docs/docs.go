@@ -197,10 +197,7 @@ const docTemplate = `{
         },
         "/api/v1/contracts": {
             "get": {
-                "description": "Returns a paginated list of contracts. Admins and Agents see all, Owners see only their own. Supports filtering by type, status, date range, and text search.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Returns a paginated list of contracts. Admins and Agents see all, Owners see only their own. The authenticated user is resolved from the bearer token.",
                 "produces": [
                     "application/json"
                 ],
@@ -211,8 +208,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authenticated user ID",
-                        "name": "X-User-ID",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -290,7 +287,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint. Supports multiple contracts per transaction.",
+                "description": "Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -304,8 +301,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authenticated user ID",
-                        "name": "X-User-ID",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -349,10 +346,7 @@ const docTemplate = `{
         },
         "/api/v1/contracts/{uuid}": {
             "get": {
-                "description": "Returns the full details of a contract, including the PDF URL.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Returns the full details of a contract, including the PDF URL, using the authenticated session.",
                 "produces": [
                     "application/json"
                 ],
@@ -363,8 +357,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Authenticated user ID",
-                        "name": "X-User-ID",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -522,7 +516,7 @@ const docTemplate = `{
         },
         "/api/v1/payments": {
             "get": {
-                "description": "Returns payments visible to the authenticated user.",
+                "description": "Returns payments visible to the authenticated user resolved from the bearer token.",
                 "produces": [
                     "application/json"
                 ],
@@ -532,9 +526,9 @@ const docTemplate = `{
                 "summary": "List payments",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "Numeric ID of the authenticated user",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -629,9 +623,35 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/payments/webhook": {
+            "post": {
+                "description": "Webhook receiver for asynchronous payment updates.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Payments"
+                ],
+                "summary": "Handle MercadoPago Webhooks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/payments/{payment_id}": {
             "get": {
-                "description": "Returns one payment detail.",
+                "description": "Returns one payment detail visible to the authenticated user resolved from the bearer token.",
                 "produces": [
                     "application/json"
                 ],
@@ -641,9 +661,9 @@ const docTemplate = `{
                 "summary": "Get payment detail",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "Numeric ID of the authenticated user",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -880,59 +900,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/properties/{id}/availability": {
-            "get": {
-                "description": "Get available 1-hour slots for a property on a specific date",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "visits"
-                ],
-                "summary": "Get property availability",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Property ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Date (YYYY-MM-DD). Defaults to today.",
-                        "name": "date",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/visits.TimeSlot"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/properties/{uuid}": {
             "get": {
                 "description": "Returns property base data, subtype, and location for the given UUID. When full=true, the response also includes consolidated prices, price history, photos, services, and clauses. Deleted properties are treated as not found.",
@@ -1103,6 +1070,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/properties/{uuid}/availability": {
+            "get": {
+                "description": "Get available 1-hour slots for a property on a specific date",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "visits"
+                ],
+                "summary": "Get property availability",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Property ID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Date (YYYY-MM-DD). Defaults to today.",
+                        "name": "date",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/visits.TimeSlot"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/properties/{uuid}/clauses": {
             "get": {
                 "description": "Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array.",
@@ -1206,10 +1226,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/history": {
             "get": {
-                "description": "Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own. The requester identity is resolved from the bearer token.",
                 "produces": [
                     "application/json"
                 ],
@@ -1227,15 +1244,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "User ID for RBAC validation",
-                        "name": "X-User-ID",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Role ID (1: Admin, 2: Agent, 3: Client)",
-                        "name": "X-Role-ID",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     }
@@ -1248,7 +1258,13 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Invalid UUID or missing required headers",
+                        "description": "Invalid UUID",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1708,10 +1724,7 @@ const docTemplate = `{
         },
         "/api/v1/visits": {
             "get": {
-                "description": "List visits according to user role (Admin, Agent, Client). Supports filtering by status, property and date. Requires X-User-ID header.",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "List visits according to the authenticated user role (Admin, Agent, Client). Supports filtering by status, property and date.",
                 "produces": [
                     "application/json"
                 ],
@@ -1721,9 +1734,9 @@ const docTemplate = `{
                 "summary": "List user visits",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -1765,7 +1778,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new visit request in 'Pending' status. Requires X-User-ID header.",
+                "description": "Create a new visit request in 'Pending' status for the authenticated user.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1778,9 +1791,9 @@ const docTemplate = `{
                 "summary": "Schedule a visit",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -1818,7 +1831,7 @@ const docTemplate = `{
         },
         "/api/v1/visits/{uuid}/complete": {
             "patch": {
-                "description": "Mark a confirmed visit as completed. Only for Agents or Admin. Requires X-User-ID header.",
+                "description": "Mark a confirmed visit as completed. Only for Agents or Admin from the authenticated session.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1838,9 +1851,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     }
@@ -1872,7 +1885,7 @@ const docTemplate = `{
         },
         "/api/v1/visits/{uuid}/confirm": {
             "patch": {
-                "description": "Transition a visit status towards 'Confirmed' by Client or Agent. Requires X-User-ID header.",
+                "description": "Transition a visit status towards 'Confirmed' by Client or Agent using the authenticated session.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1892,9 +1905,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     }
@@ -1926,7 +1939,7 @@ const docTemplate = `{
         },
         "/api/v1/visits/{uuid}/reschedule": {
             "patch": {
-                "description": "Cancels the old visit and creates a new one with the new date. Requires X-User-ID header.",
+                "description": "Cancels the old visit and creates a new one with the new date for the authenticated user.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1946,9 +1959,9 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "User ID",
-                        "name": "X-User-ID",
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
                         "in": "header",
                         "required": true
                     },
@@ -2808,25 +2821,42 @@ const docTemplate = `{
             "required": [
                 "amount",
                 "contract_id",
+                "currency",
                 "gateway_id",
+                "payer_email",
                 "payment_method_id"
             ],
             "properties": {
                 "amount": {
                     "type": "number"
                 },
-                "card_number": {
-                    "description": "Para simulación",
-                    "type": "string"
-                },
                 "contract_id": {
                     "type": "integer"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
                 },
                 "gateway_id": {
                     "type": "integer"
                 },
+                "gateway_method_id": {
+                    "type": "string"
+                },
+                "installments": {
+                    "type": "integer"
+                },
+                "issuer_id": {
+                    "type": "string"
+                },
+                "payer_email": {
+                    "type": "string"
+                },
                 "payment_method_id": {
                     "type": "integer"
+                },
+                "token": {
+                    "type": "string"
                 }
             }
         },

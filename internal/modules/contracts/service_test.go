@@ -16,7 +16,6 @@ type mockContractRepo struct {
 	exists bool
 	data   sqlcgen.GetContractByUUIDRow
 	txData sqlcgen.GetContractDataByTransactionIDRow
-	role   int32
 	list   []sqlcgen.ListContractsRow
 	err    error
 }
@@ -35,10 +34,6 @@ func (m *mockContractRepo) GetPropertyClausesByTransactionID(ctx context.Context
 
 func (m *mockContractRepo) CreateContract(ctx context.Context, input CreateContractInput, storageKey string) (sqlcgen.Contract, error) {
 	return sqlcgen.Contract{}, nil
-}
-
-func (m *mockContractRepo) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	return m.role, m.err
 }
 
 func (m *mockContractRepo) ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error) {
@@ -61,10 +56,10 @@ func (m *mockStorage) PublicURL(ctx context.Context, key string) (string, error)
 
 func TestGenerateContract_ServiceLogic(t *testing.T) {
 	ctx := context.Background()
-	
+
 	amount := pgtype.Numeric{}
 	amount.Scan("1500.00")
-	
+
 	validData := sqlcgen.GetContractDataByTransactionIDRow{
 		TransactionID:    1,
 		OwnerID:          102,
@@ -97,10 +92,10 @@ func TestGenerateContract_ServiceLogic(t *testing.T) {
 			repo: &mockContractRepo{txData: validData},
 		},
 		{
-			name:   "not owner",
-			userID: 999,
-			input:  CreateContractInput{TransactionID: 1},
-			repo:   &mockContractRepo{txData: validData},
+			name:    "not owner",
+			userID:  999,
+			input:   CreateContractInput{TransactionID: 1},
+			repo:    &mockContractRepo{txData: validData},
 			wantErr: "solo el propietario de la propiedad puede generar el contrato",
 		},
 	}
@@ -108,7 +103,7 @@ func TestGenerateContract_ServiceLogic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(tt.repo, &mockStorage{})
-			
+
 			_, err := svc.GenerateContract(ctx, tt.userID, tt.input)
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {
@@ -125,7 +120,7 @@ func TestGenerateContract_ServiceLogic(t *testing.T) {
 
 func TestListContracts_ServiceLogic(t *testing.T) {
 	ctx := context.Background()
-	
+
 	tests := []struct {
 		name   string
 		userID int32
@@ -136,13 +131,13 @@ func TestListContracts_ServiceLogic(t *testing.T) {
 			name:   "admin sees all",
 			userID: 1,
 			role:   1,
-			repo:   &mockContractRepo{role: 1, list: []sqlcgen.ListContractsRow{{ContractID: 1}}},
+			repo:   &mockContractRepo{list: []sqlcgen.ListContractsRow{{ContractID: 1}}},
 		},
 		{
 			name:   "owner sees own",
 			userID: 102,
 			role:   3,
-			repo:   &mockContractRepo{role: 3, list: []sqlcgen.ListContractsRow{{ContractID: 1, OwnerID: 102}}},
+			repo:   &mockContractRepo{list: []sqlcgen.ListContractsRow{{ContractID: 1, OwnerID: 102}}},
 		},
 	}
 
@@ -150,7 +145,7 @@ func TestListContracts_ServiceLogic(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(tt.repo, &mockStorage{})
 			filter := ListContractsFilter{Page: 1, Limit: 10}
-			_, err := svc.ListContracts(ctx, tt.userID, filter)
+			_, err := svc.ListContracts(ctx, tt.userID, tt.role, filter)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -161,7 +156,7 @@ func TestListContracts_ServiceLogic(t *testing.T) {
 func TestGetContractDetail_ServiceLogic(t *testing.T) {
 	ctx := context.Background()
 	contractUUID := uuid.New()
-	
+
 	tests := []struct {
 		name    string
 		userID  int32
@@ -173,19 +168,19 @@ func TestGetContractDetail_ServiceLogic(t *testing.T) {
 			name:   "success admin",
 			userID: 1,
 			role:   1,
-			repo:   &mockContractRepo{role: 1, data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}}},
+			repo:   &mockContractRepo{data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}}},
 		},
 		{
 			name:   "success owner",
 			userID: 102,
 			role:   3,
-			repo:   &mockContractRepo{role: 3, data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}, OwnerID: 102}},
+			repo:   &mockContractRepo{data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}, OwnerID: 102}},
 		},
 		{
-			name:   "unauthorized",
-			userID: 999,
-			role:   3,
-			repo:   &mockContractRepo{role: 3, data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}, OwnerID: 102}},
+			name:    "unauthorized",
+			userID:  999,
+			role:    3,
+			repo:    &mockContractRepo{data: sqlcgen.GetContractByUUIDRow{ContractUuid: pgtype.UUID{Bytes: contractUUID, Valid: true}, OwnerID: 102}},
 			wantErr: "no tiene permiso para ver este contrato",
 		},
 	}
@@ -193,7 +188,7 @@ func TestGetContractDetail_ServiceLogic(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := NewService(tt.repo, &mockStorage{})
-			_, err := svc.GetContractDetail(ctx, tt.userID, contractUUID)
+			_, err := svc.GetContractDetail(ctx, tt.userID, tt.role, contractUUID)
 			if tt.wantErr != "" {
 				if err == nil || err.Error() != tt.wantErr {
 					t.Errorf("expected error %q, got %v", tt.wantErr, err)

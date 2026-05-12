@@ -82,11 +82,6 @@ func (m *MockRepository) GetPaymentByID(ctx context.Context, paymentID int32) (P
 	return args.Get(0).(PaymentDetail), args.Error(1)
 }
 
-func (m *MockRepository) GetUserRole(ctx context.Context, userID int32) (int32, error) {
-	args := m.Called(ctx, userID)
-	return args.Get(0).(int32), args.Error(1)
-}
-
 func (m *MockRepository) WithTx(tx pgx.Tx) Repository {
 	return m
 }
@@ -548,7 +543,7 @@ func TestConfirmPendingPayment_Extended(t *testing.T) {
 	t.Run("Expired", func(t *testing.T) {
 		repo.On("GetPaymentByUUID", ctx, uID).Return(sqlcgen.GetPaymentByUUIDRow{
 			ClientID: clientID, StatusID: PaymentStatusPending,
-			DueDate: pgtype.Date{Time: time.Now().Add(-1 * time.Hour), Valid: true},
+			DueDate: pgtype.Date{Time: time.Now().Add(-24 * time.Hour), Valid: true},
 		}, nil).Once()
 		err := svc.ConfirmPendingPayment(ctx, clientID, uID)
 		assert.Error(t, err)
@@ -556,24 +551,11 @@ func TestConfirmPendingPayment_Extended(t *testing.T) {
 	})
 }
 
-func TestService_ListPayments_GetUserRoleFails(t *testing.T) {
-	repo := new(MockRepository)
-	svc := NewService(repo, "TEST-TOKEN", "TEST-SECRET")
-
-	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int32(0), errors.New("role lookup failed"))
-
-	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "list payments:")
-}
-
 func TestService_ListPayments_UnsupportedRole(t *testing.T) {
 	repo := new(MockRepository)
 	svc := NewService(repo, "TEST-TOKEN", "TEST-SECRET")
 
-	repo.On("GetUserRole", mock.Anything, int32(7)).Return(int32(99), nil)
-
-	_, err := svc.ListPayments(context.Background(), 7, ListPaymentsInput{Limit: 20, Offset: 0})
+	_, err := svc.ListPayments(context.Background(), 7, 99, ListPaymentsInput{Limit: 20, Offset: 0})
 	assert.ErrorIs(t, err, ErrUnsupportedRole)
 }
 
@@ -582,10 +564,9 @@ func TestService_ListPayments_RepositoryListFails(t *testing.T) {
 	svc := NewService(repo, "TEST-TOKEN", "TEST-SECRET")
 	input := ListPaymentsInput{Limit: 20, Offset: 0}
 
-	repo.On("GetUserRole", mock.Anything, int32(7)).Return(roleAdminID, nil)
 	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return(nil, errors.New("db down"))
 
-	_, err := svc.ListPayments(context.Background(), 7, input)
+	_, err := svc.ListPayments(context.Background(), 7, roleAdminID, input)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "list payments:")
 }
@@ -595,10 +576,9 @@ func TestService_ListPayments_EmptyResult(t *testing.T) {
 	svc := NewService(repo, "TEST-TOKEN", "TEST-SECRET")
 	input := ListPaymentsInput{Limit: 20, Offset: 0}
 
-	repo.On("GetUserRole", mock.Anything, int32(7)).Return(roleAdminID, nil)
 	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return([]PaymentListItem{}, nil)
 
-	result, err := svc.ListPayments(context.Background(), 7, input)
+	result, err := svc.ListPayments(context.Background(), 7, roleAdminID, input)
 	assert.NoError(t, err)
 	assert.Empty(t, result.Data)
 	assert.Equal(t, int64(0), result.Pagination.Total)
@@ -609,13 +589,12 @@ func TestService_ListPayments_TotalFromFirstItem(t *testing.T) {
 	svc := NewService(repo, "TEST-TOKEN", "TEST-SECRET")
 	input := ListPaymentsInput{Limit: 20, Offset: 0}
 
-	repo.On("GetUserRole", mock.Anything, int32(7)).Return(roleAdminID, nil)
 	repo.On("ListPayments", mock.Anything, int32(7), roleAdminID, input).Return([]PaymentListItem{
 		{PaymentID: 1, TotalCount: 84},
 		{PaymentID: 2, TotalCount: 84},
 	}, nil)
 
-	result, err := svc.ListPayments(context.Background(), 7, input)
+	result, err := svc.ListPayments(context.Background(), 7, roleAdminID, input)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(84), result.Pagination.Total)
 }
@@ -626,7 +605,7 @@ func TestService_GetPaymentByID_PaymentNotFound(t *testing.T) {
 
 	repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{}, ErrPaymentNotFound)
 
-	_, err := svc.GetPaymentByID(context.Background(), 7, 1)
+	_, err := svc.GetPaymentByID(context.Background(), 7, roleAdminID, 1)
 	assert.ErrorIs(t, err, ErrPaymentNotFound)
 }
 
@@ -637,36 +616,25 @@ func TestService_GetPaymentByID_Roles(t *testing.T) {
 
 	t.Run("Admin Success", func(t *testing.T) {
 		repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 99}, nil).Once()
-		repo.On("GetUserRole", mock.Anything, int32(1)).Return(roleAdminID, nil).Once()
-		_, err := svc.GetPaymentByID(ctx, 1, 1)
+		_, err := svc.GetPaymentByID(ctx, 1, roleAdminID, 1)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Agent Forbidden", func(t *testing.T) {
 		repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 99}, nil).Once()
-		repo.On("GetUserRole", mock.Anything, int32(2)).Return(roleAgentID, nil).Once()
-		_, err := svc.GetPaymentByID(ctx, 2, 1) // ID 2 != 99
+		_, err := svc.GetPaymentByID(ctx, 2, roleAgentID, 1)
 		assert.ErrorIs(t, err, ErrPaymentForbidden)
 	})
 
 	t.Run("Client Forbidden", func(t *testing.T) {
 		repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1, ClientID: 7, AgentID: 99}, nil).Once()
-		repo.On("GetUserRole", mock.Anything, int32(3)).Return(roleClientID, nil).Once()
-		_, err := svc.GetPaymentByID(ctx, 3, 1) // ID 3 != 7
+		_, err := svc.GetPaymentByID(ctx, 3, roleClientID, 1)
 		assert.ErrorIs(t, err, ErrPaymentForbidden)
 	})
 
 	t.Run("Unsupported Role", func(t *testing.T) {
 		repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1}, nil).Once()
-		repo.On("GetUserRole", mock.Anything, int32(4)).Return(int32(99), nil).Once()
-		_, err := svc.GetPaymentByID(ctx, 4, 1)
+		_, err := svc.GetPaymentByID(ctx, 4, 99, 1)
 		assert.ErrorIs(t, err, ErrUnsupportedRole)
-	})
-
-	t.Run("Role Lookup Error", func(t *testing.T) {
-		repo.On("GetPaymentByID", mock.Anything, int32(1)).Return(PaymentDetail{PaymentID: 1}, nil).Once()
-		repo.On("GetUserRole", mock.Anything, int32(1)).Return(int32(0), errors.New("fail")).Once()
-		_, err := svc.GetPaymentByID(ctx, 1, 1)
-		assert.Error(t, err)
 	})
 }

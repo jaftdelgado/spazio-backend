@@ -24,8 +24,8 @@ import (
 
 type ContractService interface {
 	GenerateContract(ctx context.Context, userID int32, input CreateContractInput) (CreateContractResult, error)
-	ListContracts(ctx context.Context, userID int32, filter ListContractsFilter) ([]ContractListItem, error)
-	GetContractDetail(ctx context.Context, userID int32, contractUUID uuid.UUID) (ContractDetail, error)
+	ListContracts(ctx context.Context, userID int32, roleID int32, filter ListContractsFilter) ([]ContractListItem, error)
+	GetContractDetail(ctx context.Context, userID int32, roleID int32, contractUUID uuid.UUID) (ContractDetail, error)
 }
 
 type ContractStorage interface {
@@ -45,12 +45,7 @@ func NewService(repository ContractRepository, storage ContractStorage) Contract
 	}
 }
 
-func (s *service) ListContracts(ctx context.Context, userID int32, filter ListContractsFilter) ([]ContractListItem, error) {
-	roleID, err := s.repository.GetUserRole(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user role: %w", err)
-	}
-
+func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32, filter ListContractsFilter) ([]ContractListItem, error) {
 	params := sqlcgen.ListContractsParams{
 		Limit:  filter.Limit,
 		Offset: (filter.Page - 1) * filter.Limit,
@@ -116,12 +111,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, filter ListCo
 	return result, nil
 }
 
-func (s *service) GetContractDetail(ctx context.Context, userID int32, contractUUID uuid.UUID) (ContractDetail, error) {
-	roleID, err := s.repository.GetUserRole(ctx, userID)
-	if err != nil {
-		return ContractDetail{}, fmt.Errorf("get user role: %w", err)
-	}
-
+func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID int32, contractUUID uuid.UUID) (ContractDetail, error) {
 	row, err := s.repository.GetContractByUUID(ctx, contractUUID)
 	if err != nil {
 		return ContractDetail{}, fmt.Errorf("get contract by uuid: %w", err)

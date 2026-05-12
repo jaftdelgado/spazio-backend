@@ -22,11 +22,11 @@ func (m *mockContractService) GenerateContract(ctx context.Context, userID int32
 	return m.res, m.err
 }
 
-func (m *mockContractService) ListContracts(ctx context.Context, userID int32, filter ListContractsFilter) ([]ContractListItem, error) {
+func (m *mockContractService) ListContracts(ctx context.Context, userID int32, roleID int32, filter ListContractsFilter) ([]ContractListItem, error) {
 	return []ContractListItem{{ContractUUID: "uuid-123"}}, m.err
 }
 
-func (m *mockContractService) GetContractDetail(ctx context.Context, userID int32, contractUUID uuid.UUID) (ContractDetail, error) {
+func (m *mockContractService) GetContractDetail(ctx context.Context, userID int32, roleID int32, contractUUID uuid.UUID) (ContractDetail, error) {
 	return ContractDetail{ContractUUID: "uuid-123"}, m.err
 }
 
@@ -36,7 +36,6 @@ func TestGenerateContractHandler(t *testing.T) {
 	tests := []struct {
 		name           string
 		payload        any
-		userIDHeader   string
 		mock           *mockContractService
 		wantStatusCode int
 	}{
@@ -48,21 +47,18 @@ func TestGenerateContractHandler(t *testing.T) {
 				AgreedAmount:  1500,
 				StartDate:     time.Now(),
 			},
-			userIDHeader:   "102",
 			mock:           &mockContractService{res: CreateContractResult{ContractUUID: "uuid-123"}},
 			wantStatusCode: http.StatusCreated,
 		},
 		{
-			name:           "missing user id",
+			name:           "missing auth context",
 			payload:        CreateContractInput{TransactionID: 100},
-			userIDHeader:   "",
 			mock:           &mockContractService{},
-			wantStatusCode: http.StatusBadRequest,
+			wantStatusCode: http.StatusUnauthorized,
 		},
 		{
 			name:           "invalid transaction id",
 			payload:        CreateContractInput{TransactionID: 0},
-			userIDHeader:   "102",
 			mock:           &mockContractService{},
 			wantStatusCode: http.StatusBadRequest,
 		},
@@ -72,14 +68,16 @@ func TestGenerateContractHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
-			
+
 			body, _ := json.Marshal(tt.payload)
 			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/contracts", bytes.NewReader(body))
-			ctx.Request.Header.Set("X-User-ID", tt.userIDHeader)
-			
+			if tt.name != "missing auth context" {
+				setContractAuth(ctx, 102, 1)
+			}
+
 			handler := NewHandler(tt.mock)
 			handler.generateContract(ctx)
-			
+
 			if recorder.Code != tt.wantStatusCode {
 				t.Errorf("handler.generateContract() status = %d, want %d", recorder.Code, tt.wantStatusCode)
 			}
@@ -91,13 +89,11 @@ func TestListContractsHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
 		name           string
-		userIDHeader   string
 		mock           *mockContractService
 		wantStatusCode int
 	}{
 		{
 			name:           "success",
-			userIDHeader:   "1",
 			mock:           &mockContractService{},
 			wantStatusCode: http.StatusOK,
 		},
@@ -107,7 +103,7 @@ func TestListContractsHandler(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/contracts", nil)
-			ctx.Request.Header.Set("X-User-ID", tt.userIDHeader)
+			setContractAuth(ctx, 1, 1)
 			handler := NewHandler(tt.mock)
 			handler.listContracts(ctx)
 			if recorder.Code != tt.wantStatusCode {
@@ -122,14 +118,12 @@ func TestGetContractHandler(t *testing.T) {
 	contractUUID := "f47ac10b-58cc-4372-a567-0e02b2c3d479"
 	tests := []struct {
 		name           string
-		userIDHeader   string
 		contractUUID   string
 		mock           *mockContractService
 		wantStatusCode int
 	}{
 		{
 			name:           "success",
-			userIDHeader:   "1",
 			contractUUID:   contractUUID,
 			mock:           &mockContractService{},
 			wantStatusCode: http.StatusOK,
@@ -140,7 +134,7 @@ func TestGetContractHandler(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/v1/contracts/"+tt.contractUUID, nil)
-			ctx.Request.Header.Set("X-User-ID", tt.userIDHeader)
+			setContractAuth(ctx, 1, 1)
 			ctx.Params = []gin.Param{{Key: "uuid", Value: tt.contractUUID}}
 			handler := NewHandler(tt.mock)
 			handler.getContract(ctx)
@@ -149,4 +143,12 @@ func TestGetContractHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func setContractAuth(ctx *gin.Context, userID int32, roleID int32) {
+	ctx.Set("user_id", userID)
+	ctx.Set("role_id", roleID)
+	ctx.Set("user_role", "admin")
+	ctx.Set("user_uuid", "uuid-123")
+	ctx.Set("user_email", "user@example.com")
 }

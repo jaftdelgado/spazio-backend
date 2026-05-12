@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -130,10 +131,10 @@ func (h *Handler) processPayment(c *gin.Context) {
 
 // listPayments godoc
 // @Summary      List payments
-// @Description  Returns payments visible to the authenticated user.
+// @Description  Returns payments visible to the authenticated user resolved from the bearer token.
 // @Tags         Payments
 // @Produce      json
-// @Param        X-User-ID    header    int                          true   "Numeric ID of the authenticated user"
+// @Param        Authorization  header    string                       true   "Bearer access token"
 // @Param        property_id  query     int                          false  "Filter by property ID"
 // @Param        status_id    query     int                          false  "Filter by payment status ID"
 // @Param        date_from    query     string                       false  "Minimum due date in YYYY-MM-DD format"
@@ -147,6 +148,10 @@ func (h *Handler) listPayments(c *gin.Context) {
 	if !ok {
 		return
 	}
+	roleID, ok := resolveAuthenticatedRoleID(c)
+	if !ok {
+		return
+	}
 
 	input, err := resolveListPaymentsInput(c)
 	if err != nil {
@@ -154,7 +159,7 @@ func (h *Handler) listPayments(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListPayments(c.Request.Context(), userID, input)
+	result, err := h.service.ListPayments(c.Request.Context(), userID, roleID, input)
 	if err != nil {
 		if errors.Is(err, ErrPaymentForbidden) || errors.Is(err, ErrUnsupportedRole) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
@@ -170,15 +175,19 @@ func (h *Handler) listPayments(c *gin.Context) {
 
 // getPaymentByID godoc
 // @Summary      Get payment detail
-// @Description  Returns one payment detail.
+// @Description  Returns one payment detail visible to the authenticated user resolved from the bearer token.
 // @Tags         Payments
 // @Produce      json
-// @Param        X-User-ID   header    int                     true  "Numeric ID of the authenticated user"
+// @Param        Authorization  header    string                  true  "Bearer access token"
 // @Param        payment_id  path      int                     true  "Payment ID"
 // @Success      200         {object}  PaymentDetail
 // @Router       /api/v1/payments/{payment_id} [get]
 func (h *Handler) getPaymentByID(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
+	if !ok {
+		return
+	}
+	roleID, ok := resolveAuthenticatedRoleID(c)
 	if !ok {
 		return
 	}
@@ -189,7 +198,7 @@ func (h *Handler) getPaymentByID(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetPaymentByID(c.Request.Context(), userID, paymentID)
+	result, err := h.service.GetPaymentByID(c.Request.Context(), userID, roleID, paymentID)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrPaymentNotFound):
@@ -206,24 +215,23 @@ func (h *Handler) getPaymentByID(c *gin.Context) {
 }
 
 func resolveAuthenticatedUserID(c *gin.Context) (int32, bool) {
-	rawUserID := strings.TrimSpace(c.GetHeader("X-User-ID"))
-	if rawUserID == "" {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
 		shared.Unauthorized(c)
 		return 0, false
 	}
 
-	userID, err := strconv.ParseInt(rawUserID, 10, 32)
+	return userID, true
+}
+
+func resolveAuthenticatedRoleID(c *gin.Context) (int32, bool) {
+	roleID, err := middleware.AuthenticatedRoleID(c)
 	if err != nil {
-		shared.BadRequest(c, errors.New("X-User-ID must be a valid integer"))
+		shared.Unauthorized(c)
 		return 0, false
 	}
 
-	if userID <= 0 {
-		shared.BadRequest(c, errors.New("X-User-ID must be a positive integer"))
-		return 0, false
-	}
-
-	return int32(userID), true
+	return roleID, true
 }
 
 func validatePaymentRequest(req RegisterPaymentRequest) error {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -73,10 +74,10 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 			c, r := gin.CreateTestContext(w)
 
 			r.GET("/api/v1/properties", h.listProperties)
-			
+
 			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties"+tt.queryParams, nil)
 			c.Request = req
-			
+
 			r.ServeHTTP(w, req)
 
 			if w.Code != tt.wantStatus {
@@ -98,10 +99,10 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 
 // Mock definitions for Service
 type mockPropertyService struct {
-	PropertyService // Embed to satisfy interface
-	listPropertiesFunc func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
-	getPropertyFunc    func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
-	getFullPropertyFunc func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
+	PropertyService        // Embed to satisfy interface
+	listPropertiesFunc     func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
+	getPropertyFunc        func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	getFullPropertyFunc    func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	getPropertyHistoryFunc func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
 }
 
@@ -123,44 +124,44 @@ func (m *mockPropertyService) GetPropertyHistory(ctx context.Context, propertyUU
 
 func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 	tests := []struct {
-		name        string
+		name         string
 		propertyUUID string
-		headers     map[string]string
-		mockResult  GetPropertyHistoryResult
-		mockErr     error
-		wantStatus  int
+		headers      map[string]string
+		mockResult   GetPropertyHistoryResult
+		mockErr      error
+		wantStatus   int
 	}{
 		{
 			name:         "returns history successfully",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			headers:      map[string]string{},
 			mockResult:   GetPropertyHistoryResult{Data: []PropertyStatusHistoryData{{HistoryID: 1}}},
 			wantStatus:   http.StatusOK,
 		},
 		{
-			name:         "missing X-User-ID header",
+			name:         "missing auth context",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{"X-Role-ID": "1"},
-			wantStatus:   http.StatusBadRequest,
+			headers:      map[string]string{},
+			wantStatus:   http.StatusUnauthorized,
 		},
 		{
 			name:         "forbidden error from service",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{"X-User-ID": "2", "X-Role-ID": "3"},
+			headers:      map[string]string{},
 			mockErr:      fmt.Errorf("forbidden: access denied"),
 			wantStatus:   http.StatusForbidden,
 		},
 		{
 			name:         "property not found",
 			propertyUUID: "non-existent",
-			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			headers:      map[string]string{},
 			mockErr:      ErrPropertyNotFound,
 			wantStatus:   http.StatusNotFound,
 		},
 		{
 			name:         "internal server error",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{"X-User-ID": "1", "X-Role-ID": "1"},
+			headers:      map[string]string{},
 			mockErr:      fmt.Errorf("random error"),
 			wantStatus:   http.StatusInternalServerError,
 		},
@@ -177,14 +178,33 @@ func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 			h := NewHandler(mockSvc)
 			w := httptest.NewRecorder()
 			_, r := gin.CreateTestContext(w)
+			r.Use(func(c *gin.Context) {
+				if userID := c.GetHeader("X-Test-User-ID"); userID != "" {
+					if parsedUserID, err := strconv.ParseInt(userID, 10, 32); err == nil {
+						c.Set("user_id", int32(parsedUserID))
+					}
+				}
+				if roleID := c.GetHeader("X-Test-Role-ID"); roleID != "" {
+					if parsedRoleID, err := strconv.ParseInt(roleID, 10, 32); err == nil {
+						c.Set("role_id", int32(parsedRoleID))
+					}
+				}
+				if c.GetHeader("X-Test-User-ID") != "" {
+					c.Set("user_role", "admin")
+					c.Set("user_uuid", "uuid-123")
+					c.Set("user_email", "user@example.com")
+				}
+				c.Next()
+			})
 
 			r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
 
 			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.propertyUUID+"/history", nil)
-			for k, v := range tt.headers {
-				req.Header.Set(k, v)
+			if tt.name != "missing auth context" {
+				req.Header.Set("X-Test-User-ID", "1")
+				req.Header.Set("X-Test-Role-ID", "1")
 			}
-			
+
 			r.ServeHTTP(w, req)
 
 			if w.Code != tt.wantStatus {

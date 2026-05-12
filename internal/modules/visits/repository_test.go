@@ -99,11 +99,6 @@ func TestRepository_Methods(t *testing.T) {
 		_, _ = repo.GetVisitByUUID(ctx, uuid.New())
 	})
 
-	t.Run("GetUserRole", func(t *testing.T) {
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything).Return(new(MockRow)).Once()
-		_, _ = repo.GetUserRole(ctx, 1)
-	})
-
 	t.Run("ListVisits", func(t *testing.T) {
 		db.On("Query", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("err")).Once()
 		_, _ = repo.ListVisits(ctx, sqlcgen.ListVisitsParams{})

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -39,23 +40,34 @@ func Auth(supabaseURL, supabaseAnonKey string, db *pgxpool.Pool) gin.HandlerFunc
 			return
 		}
 
-		c.Set("user_uuid", identity.UserUUID)
-		c.Set("user_email", identity.Email)
-
+		var userID int32
+		var roleID int32
 		var roleName string
 		query := `
-			SELECT r.name 
+			SELECT u.user_id, u.role_id, r.name
 			FROM users u 
 			JOIN roles r ON u.role_id = r.role_id 
 			WHERE u.deleted_at IS NULL
 				AND (u.user_uuid = $1 OR u.email = $2)`
 
-		err = db.QueryRow(c.Request.Context(), query, identity.UserUUID, identity.Email).Scan(&roleName)
+		err = db.QueryRow(c.Request.Context(), query, identity.UserUUID, identity.Email).Scan(&userID, &roleID, &roleName)
 		if err != nil {
-			roleName = "user"
+			if err == pgx.ErrNoRows {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+				c.Abort()
+				return
+			}
+
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not resolve authenticated user"})
+			c.Abort()
+			return
 		}
 
-		c.Set("user_role", roleName)
+		c.Set(contextUserIDKey, userID)
+		c.Set(contextRoleIDKey, roleID)
+		c.Set(contextRoleNameKey, roleName)
+		c.Set(contextUserUUIDKey, identity.UserUUID)
+		c.Set(contextUserEmailKey, identity.Email)
 
 		c.Next()
 	}
