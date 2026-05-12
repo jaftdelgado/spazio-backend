@@ -52,7 +52,7 @@ SELECT EXISTS (
 -- name: GetPropertyClausesByTransactionID :many
 SELECT 
     c.name AS clause_name,
-    c.description AS clause_description,
+    c.code AS clause_description,
     pc.boolean_value,
     pc.integer_value,
     pc.min_value,

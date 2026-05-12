@@ -361,19 +361,31 @@ definitions:
     properties:
       amount:
         type: number
-      card_number:
-        description: Para simulación
-        type: string
       contract_id:
         type: integer
+      currency:
+        example: MXN
+        type: string
       gateway_id:
         type: integer
+      gateway_method_id:
+        type: string
+      installments:
+        type: integer
+      issuer_id:
+        type: string
+      payer_email:
+        type: string
       payment_method_id:
         type: integer
+      token:
+        type: string
     required:
     - amount
     - contract_id
+    - currency
     - gateway_id
+    - payer_email
     - payment_method_id
     type: object
   properties.ActiveRentPriceData:
@@ -1672,6 +1684,23 @@ paths:
       summary: Confirm a pending payment
       tags:
       - Payments
+  /api/v1/payments/webhook:
+    post:
+      consumes:
+      - application/json
+      description: Webhook receiver for asynchronous payment updates.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Handle MercadoPago Webhooks
+      tags:
+      - Payments
   /api/v1/properties:
     get:
       description: Returns a paginated list of property cards. Supports filtering
@@ -1790,41 +1819,6 @@ paths:
       summary: Register a new property
       tags:
       - Properties
-  /api/v1/properties/{id}/availability:
-    get:
-      consumes:
-      - application/json
-      description: Get available 1-hour slots for a property on a specific date
-      parameters:
-      - description: Property ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Date (YYYY-MM-DD). Defaults to today.
-        in: query
-        name: date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/visits.TimeSlot'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Get property availability
-      tags:
-      - visits
   /api/v1/properties/{uuid}:
     delete:
       consumes:
@@ -1945,6 +1939,41 @@ paths:
       summary: Update property
       tags:
       - Properties
+  /api/v1/properties/{uuid}/availability:
+    get:
+      consumes:
+      - application/json
+      description: Get available 1-hour slots for a property on a specific date
+      parameters:
+      - description: Property ID
+        in: path
+        name: uuid
+        required: true
+        type: integer
+      - description: Date (YYYY-MM-DD). Defaults to today.
+        in: query
+        name: date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/visits.TimeSlot'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Get property availability
+      tags:
+      - visits
   /api/v1/properties/{uuid}/clauses:
     get:
       description: Returns the clauses linked to a property by UUID. When the property
