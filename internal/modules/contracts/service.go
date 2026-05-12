@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 	"github.com/johnfercher/maroto/v2"
 	"github.com/johnfercher/maroto/v2/pkg/components/col"
 	"github.com/johnfercher/maroto/v2/pkg/components/line"
@@ -18,7 +20,6 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/consts/align"
 	"github.com/johnfercher/maroto/v2/pkg/consts/fontstyle"
 	"github.com/johnfercher/maroto/v2/pkg/props"
-	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
 type ContractService interface {
@@ -93,7 +94,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, filter ListCo
 	result := make([]ContractListItem, len(rows))
 	for i, row := range rows {
 		amount, _ := row.AgreedAmount.Float64Value()
-		
+
 		clientName := ""
 		if cn, ok := row.ClientName.(string); ok {
 			clientName = cn
@@ -131,7 +132,7 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, contractU
 	}
 
 	amount, _ := row.AgreedAmount.Float64Value()
-	
+
 	pdfURL, _ := s.storage.PublicURL(ctx, row.StorageKey)
 
 	var endDate *time.Time
@@ -140,16 +141,16 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, contractU
 	}
 
 	return ContractDetail{
-		ContractUUID:    fmt.Sprintf("%x-%x-%x-%x-%x", row.ContractUuid.Bytes[0:4], row.ContractUuid.Bytes[4:6], row.ContractUuid.Bytes[6:8], row.ContractUuid.Bytes[8:10], row.ContractUuid.Bytes[10:16]),
-		PropertyTitle:   row.PropertyTitle,
-		OwnerName:       row.OwnerFirstName + " " + row.OwnerLastName,
-		ClientName:      row.ClientFirstName + " " + row.ClientLastName,
-		AgreedAmount:    amount.Float64,
-		Currency:        row.Currency,
-		StartDate:       row.StartDate.Time,
-		EndDate:         endDate,
-		Status:          row.StatusName,
-		PDFUrl:          pdfURL,
+		ContractUUID:  fmt.Sprintf("%x-%x-%x-%x-%x", row.ContractUuid.Bytes[0:4], row.ContractUuid.Bytes[4:6], row.ContractUuid.Bytes[6:8], row.ContractUuid.Bytes[8:10], row.ContractUuid.Bytes[10:16]),
+		PropertyTitle: row.PropertyTitle,
+		OwnerName:     row.OwnerFirstName + " " + row.OwnerLastName,
+		ClientName:    row.ClientFirstName + " " + row.ClientLastName,
+		AgreedAmount:  amount.Float64,
+		Currency:      row.Currency,
+		StartDate:     row.StartDate.Time,
+		EndDate:       endDate,
+		Status:        row.StatusName,
+		PDFUrl:        pdfURL,
 	}, nil
 }
 
@@ -173,8 +174,8 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 	}
 
 	contractUUID := uuid.New()
-	
-	pdfBytes, err := s.generatePDF(ctx, data, clauses, input, contractUUID)
+
+	pdfBytes, err := s.generatePDF(data, clauses, input, contractUUID)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("generate pdf: %w", err)
 	}
@@ -196,7 +197,7 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 	}, nil
 }
 
-func (s *service) generatePDF(ctx context.Context, data sqlcgen.GetContractDataByTransactionIDRow, clauses []sqlcgen.GetPropertyClausesByTransactionIDRow, input CreateContractInput, contractUUID uuid.UUID) ([]byte, error) {
+func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, clauses []sqlcgen.GetPropertyClausesByTransactionIDRow, input CreateContractInput, contractUUID uuid.UUID) ([]byte, error) {
 	duration := "Indefinida"
 	if input.EndDate != nil {
 		days := int(input.EndDate.Sub(input.StartDate).Hours() / 24)
@@ -365,11 +366,15 @@ func (s *service) generatePDF(ctx context.Context, data sqlcgen.GetContractDataB
 					),
 				),
 			)
+			description := ""
 			if c.ClauseDescription.Valid {
+				description = strings.TrimSpace(c.ClauseDescription.String)
+			}
+			if description != "" {
 				m.AddRows(
 					row.New(8).Add(
 						col.New(12).Add(
-							text.New(fmt.Sprintf("   (%s)", c.ClauseDescription.String), props.Text{Size: 9, Style: fontstyle.Italic}),
+							text.New(fmt.Sprintf("   (%s)", description), props.Text{Size: 9, Style: fontstyle.Italic}),
 						),
 					),
 				)
@@ -414,11 +419,4 @@ func (s *service) generatePDF(ctx context.Context, data sqlcgen.GetContractDataB
 	}
 
 	return document.GetBytes(), nil
-}
-
-func formatEndDate(t *time.Time) string {
-	if t == nil {
-		return "N/A"
-	}
-	return t.Format("2006-01-02")
 }
