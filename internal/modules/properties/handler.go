@@ -23,20 +23,27 @@ func NewHandler(service PropertyService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.POST("/api/v1/properties", middleware.RequireRole("admin"), h.createProperty)
-	r.GET("/api/v1/properties", h.listProperties)
-	r.GET("/api/v1/properties/:uuid", h.getProperty)
-	r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
-	r.PATCH("/api/v1/properties/:uuid", h.updateProperty)
-	r.DELETE("/api/v1/properties/:uuid", middleware.RequireRole("admin"), h.deleteProperty)
-	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
-	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
-	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)
-	r.PUT("/api/v1/properties/:uuid/photos", h.updatePhotos)
-	r.GET("/api/v1/properties/:uuid/services", h.getServices)
-	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
-	r.GET("/api/v1/properties/:uuid/prices", h.getPrices)
-	r.PUT("/api/v1/properties/:uuid/prices", h.updatePrices)
+	properties := r.Group("/api/v1/properties")
+
+	adminOnly := properties.Group("")
+	adminOnly.Use(middleware.RequireRole("admin"))
+	{
+		adminOnly.POST("", h.createProperty)
+		adminOnly.PATCH("/:uuid", h.updateProperty)
+		adminOnly.DELETE("/:uuid", h.deleteProperty)
+		adminOnly.PUT("/:uuid/clauses", h.updateClauses)
+		adminOnly.PUT("/:uuid/photos", h.updatePhotos)
+		adminOnly.PUT("/:uuid/services", h.updateServices)
+		adminOnly.PUT("/:uuid/prices", h.updatePrices)
+	}
+
+	properties.GET("", h.listProperties)
+	properties.GET("/:uuid", h.getProperty)
+	properties.GET("/:uuid/history", h.getPropertyHistory)
+	properties.GET("/:uuid/clauses", h.getClauses)
+	properties.GET("/:uuid/photos", h.getPhotos)
+	properties.GET("/:uuid/services", h.getServices)
+	properties.GET("/:uuid/prices", h.getPrices)
 }
 
 // createProperty godoc

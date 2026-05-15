@@ -13,6 +13,9 @@ import (
 )
 
 // TestHandler_UpdateProperty tests the updateProperty handler scenarios in table-driven format.
+// Note: 401 for missing auth context is enforced by middleware.Auth
+// and 403 by middleware.RequireRole("admin") at the route level.
+// Handler-level tests assume authenticated context is already set.
 func TestHandler_UpdateProperty(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -222,6 +225,9 @@ func TestHandler_UpdateProperty(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			ctx.Request = req
 			ctx.Params = gin.Params{{Key: "uuid", Value: tt.uuid}}
+			ctx.Set("user_id", int32(10))
+			ctx.Set("role_id", int32(1))
+			ctx.Set("user_role", "Admin")
 
 			handler := NewHandler(svcMock)
 			handler.updateProperty(ctx)

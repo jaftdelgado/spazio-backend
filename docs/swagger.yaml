@@ -1900,8 +1900,9 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Update property base data, subtype and location. Only editable
-        fields are allowed.
+      description: |-
+        Updates property base data, subtype and location.
+        Requires an authenticated admin session.
       parameters:
       - description: Property UUID
         in: path
@@ -1933,6 +1934,8 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Update property
       tags:
       - Properties

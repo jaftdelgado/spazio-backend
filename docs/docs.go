@@ -1023,7 +1023,12 @@ const docTemplate = `{
                 }
             },
             "patch": {
-                "description": "Update property base data, subtype and location. Only editable fields are allowed.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates property base data, subtype and location.\nRequires an authenticated admin session.",
                 "consumes": [
                     "application/json"
                 ],

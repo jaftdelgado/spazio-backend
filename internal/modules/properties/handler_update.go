@@ -12,10 +12,12 @@ import (
 
 // updateProperty godoc
 // @Summary      Update property
-// @Description  Update property base data, subtype and location. Only editable fields are allowed.
+// @Description  Updates property base data, subtype and location.
+// @Description  Requires an authenticated admin session.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        uuid     path     string               true  "Property UUID"
 // @Param        request  body     UpdatePropertyInput  true  "Update payload"
 // @Success      200      {object} UpdatePropertyResult
