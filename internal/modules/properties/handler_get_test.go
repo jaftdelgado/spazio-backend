@@ -100,10 +100,18 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 // Mock definitions for Service
 type mockPropertyService struct {
 	PropertyService        // Embed to satisfy interface
+	createPropertyFunc     func(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error)
 	listPropertiesFunc     func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
 	getPropertyFunc        func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	getFullPropertyFunc    func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
 	getPropertyHistoryFunc func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+}
+
+func (m *mockPropertyService) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
+	if m.createPropertyFunc != nil {
+		return m.createPropertyFunc(ctx, userID, input)
+	}
+	return CreatePropertyResult{}, nil
 }
 
 func (m *mockPropertyService) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {

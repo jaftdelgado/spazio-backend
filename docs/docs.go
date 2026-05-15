@@ -856,7 +856,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3041,10 +3046,6 @@ const docTemplate = `{
                     "example": 200
                 },
                 "modality_id": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "owner_id": {
                     "type": "integer",
                     "example": 1
                 },

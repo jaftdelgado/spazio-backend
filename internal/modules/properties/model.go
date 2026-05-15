@@ -40,7 +40,7 @@ type GetPropertyHistoryResult struct {
 
 // CreatePropertyInput is the request payload required to register a property.
 type CreatePropertyInput struct {
-	OwnerID        int32                       `json:"owner_id" example:"1"`
+	OwnerID        int32                       `json:"-"`
 	Subtype        string                      `json:"subtype" example:"residential"`
 	Title          string                      `json:"title" example:"Casa en Xalapa"`
 	Description    string                      `json:"description" example:"Spacious residential property near downtown"`
@@ -543,7 +543,7 @@ type PropertyRepository interface {
 
 // PropertyService defines application logic operations for properties.
 type PropertyService interface {
-	CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error)
 	ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
 	GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
 	UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error

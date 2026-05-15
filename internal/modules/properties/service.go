@@ -30,7 +30,9 @@ func NewService(repository PropertyRepository, r2Client propertyPhotoStorage) Pr
 	}
 }
 
-func (s *service) CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
+func (s *service) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
+	input.OwnerID = userID
+
 	subtype, err := s.repository.GetPropertySubtype(ctx, input.PropertyTypeID)
 	if err != nil {
 		return CreatePropertyResult{}, fmt.Errorf("get property subtype: %w", err)

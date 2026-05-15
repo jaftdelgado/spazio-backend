@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -22,7 +23,7 @@ func NewHandler(service PropertyService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.POST("/api/v1/properties", h.createProperty)
+	r.POST("/api/v1/properties", middleware.RequireRole("admin"), h.createProperty)
 	r.GET("/api/v1/properties", h.listProperties)
 	r.GET("/api/v1/properties/:uuid", h.getProperty)
 	r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
@@ -40,17 +41,24 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 // createProperty godoc
 // @Summary      Register a new property
-// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.
+// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        request  body      CreatePropertyInput   true  "Property payload"
 // @Success      201      {object}  CreatePropertyResult  "Property created"
 // @Failure      400      {object}  shared.ErrorResponse  "Invalid input"
 // @Failure      500      {object}  shared.ErrorResponse  "Internal error"
 // @Router       /api/v1/properties [post]
 func (h *Handler) createProperty(c *gin.Context) {
-	if err := rejectForbiddenPayloadFields(c, "category", "subtype"); err != nil {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return
+	}
+
+	if err := rejectForbiddenPayloadFields(c, "category", "subtype", "owner_id"); err != nil {
 		shared.BadRequest(c, err)
 		return
 	}
@@ -68,7 +76,7 @@ func (h *Handler) createProperty(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.CreateProperty(c.Request.Context(), req)
+	result, err := h.service.CreateProperty(c.Request.Context(), userID, req)
 	if err != nil {
 		var validationErr ValidationError
 		if errors.As(err, &validationErr) {
@@ -122,7 +130,6 @@ func trimOptionalString(value *string) *string {
 
 func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	if err := shared.Validate([]shared.ValidationRule{
-		{Fail: req.OwnerID <= 0, Msg: "owner_id must be greater than 0"},
 		{Fail: req.Title == "", Msg: "title is required"},
 		{Fail: req.PropertyTypeID <= 0, Msg: "property_type_id must be greater than 0"},
 		{Fail: req.ModalityID <= 0, Msg: "modality_id must be greater than 0"},

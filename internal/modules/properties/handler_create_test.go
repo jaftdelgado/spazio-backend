@@ -3,19 +3,17 @@ package properties
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"errors"
 
 	"github.com/gin-gonic/gin"
 )
 
 // minimalValidBody is the minimum valid JSON payload for createProperty.
 const minimalValidBody = `{
-	"owner_id": 1,
 	"title": "Casa",
 	"property_type_id": 1,
 	"modality_id": 1,
@@ -42,12 +40,17 @@ func TestHandler_CreateProperty(t *testing.T) {
 		// Forbidden fields
 		{
 			name:       "returns bad request when category is forbidden",
-			body:       `{"category":"x","owner_id":1}`,
+			body:       `{"category":"x"}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when subtype is forbidden",
-			body:       `{"subtype":"residential","owner_id":1}`,
+			body:       `{"subtype":"residential"}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns bad request when owner id is forbidden",
+			body:       `{"owner_id":1}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		// Binding
@@ -63,100 +66,95 @@ func TestHandler_CreateProperty(t *testing.T) {
 		},
 		// Base field validations
 		{
-			name:       "returns bad request when owner id is zero",
-			body:       `{"owner_id":0,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when owner id is negative",
-			body:       `{"owner_id":-1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
-			wantStatus: http.StatusBadRequest,
-		},
-		{
 			name:       "returns bad request when title is empty after sanitization",
-			body:       `{"owner_id":1,"title":"   ","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"   ","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when property type id is zero",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":0,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":0,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when modality id is zero",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":0,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":0,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location city id is zero",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":0,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":0,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location street is empty",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"   ","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"   ","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location exterior number is empty",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"   ","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"   ","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location latitude is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","longitude":-96.9,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location longitude is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"is_public_address":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when location public address flag is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		// Optional price validations
 		{
 			name:       "returns bad request when sale price amount is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"currency":"MXN","is_negotiable":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"currency":"MXN","is_negotiable":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when sale price currency is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"sale_price":100000,"is_negotiable":true}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"sale_price":100000,"is_negotiable":true}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when sale price negotiable flag is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"sale_price":100000,"currency":"MXN"}}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"sale_price":{"sale_price":100000,"currency":"MXN"}}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when rent price period id is zero",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":0,"rent_price":8000,"currency":"MXN","is_negotiable":false}]}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":0,"rent_price":8000,"currency":"MXN","is_negotiable":false}]}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when rent price amount is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"currency":"MXN","is_negotiable":false}]}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"currency":"MXN","is_negotiable":false}]}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when rent price currency is empty",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"rent_price":8000,"currency":"","is_negotiable":false}]}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"rent_price":8000,"currency":"","is_negotiable":false}]}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when rent price negotiable flag is missing",
-			body:       `{"owner_id":1,"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"rent_price":8000,"currency":"MXN"}]}`,
+			body:       `{"title":"Casa","property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true},"rent_prices":[{"period_id":1,"rent_price":8000,"currency":"MXN"}]}`,
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns unauthorized when auth context is missing",
+			body:       minimalValidBody,
+			wantStatus: http.StatusUnauthorized,
 		},
 		// Service errors
 		{
@@ -183,9 +181,12 @@ func TestHandler_CreateProperty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svcMock := &mockServiceForClauses{
-				createPropertyFunc: func(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
+				createPropertyFunc: func(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
 					if tt.mockErr != nil {
 						return CreatePropertyResult{}, tt.mockErr
+					}
+					if userID != 10 {
+						t.Fatalf("userID = %d, want 10", userID)
 					}
 					return CreatePropertyResult{Data: CreatePropertyResultData{PropertyUUID: "abc-123"}}, nil
 				},
@@ -196,6 +197,11 @@ func TestHandler_CreateProperty(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/properties", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
 			ctx.Request = req
+			if tt.name != "returns unauthorized when auth context is missing" {
+				ctx.Set("user_id", int32(10))
+				ctx.Set("role_id", int32(1))
+				ctx.Set("user_role", "admin")
+			}
 
 			handler := NewHandler(svcMock)
 			handler.createProperty(ctx)
