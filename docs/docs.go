@@ -958,7 +958,12 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Soft deletes a property by UUID. The request must include confirm=true and a valid changed_by_user_id. The operation deletes linked photo objects from storage before applying database updates. Only properties with available status can be deleted.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft deletes a property by UUID. Requires confirm=true. The authenticated admin is recorded as the author of the status change. The operation deletes linked photo objects from storage before applying database updates. Only properties with available status can be deleted.",
                 "consumes": [
                     "application/json"
                 ],
@@ -3189,10 +3194,6 @@ const docTemplate = `{
         "properties.DeletePropertyInput": {
             "type": "object",
             "properties": {
-                "changed_by_user_id": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "confirm": {
                     "type": "boolean",
                     "example": true

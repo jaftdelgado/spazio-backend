@@ -28,7 +28,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.GET("/api/v1/properties/:uuid", h.getProperty)
 	r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
 	r.PATCH("/api/v1/properties/:uuid", h.updateProperty)
-	r.DELETE("/api/v1/properties/:uuid", h.deleteProperty)
+	r.DELETE("/api/v1/properties/:uuid", middleware.RequireRole("admin"), h.deleteProperty)
 	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
 	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
 	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)

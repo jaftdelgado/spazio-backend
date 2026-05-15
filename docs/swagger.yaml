@@ -618,9 +618,6 @@ definitions:
     type: object
   properties.DeletePropertyInput:
     properties:
-      changed_by_user_id:
-        example: 1
-        type: integer
       confirm:
         example: true
         type: boolean
@@ -1821,10 +1818,10 @@ paths:
     delete:
       consumes:
       - application/json
-      description: Soft deletes a property by UUID. The request must include confirm=true
-        and a valid changed_by_user_id. The operation deletes linked photo objects
-        from storage before applying database updates. Only properties with available
-        status can be deleted.
+      description: Soft deletes a property by UUID. Requires confirm=true. The authenticated
+        admin is recorded as the author of the status change. The operation deletes
+        linked photo objects from storage before applying database updates. Only properties
+        with available status can be deleted.
       parameters:
       - description: Property UUID
         in: path
@@ -1858,6 +1855,8 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete property
       tags:
       - Properties

@@ -381,7 +381,7 @@ type UpdatePropertyResult struct {
 // DeletePropertyInput is the request payload used to soft delete a property.
 type DeletePropertyInput struct {
 	Confirm         bool  `json:"confirm" example:"true"`
-	ChangedByUserID int32 `json:"changed_by_user_id" example:"1"`
+	ChangedByUserID int32 `json:"-"`
 }
 
 // PropertyClauseData represents a linked clause with its stored value payload.
