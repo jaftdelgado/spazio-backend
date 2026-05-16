@@ -3,10 +3,9 @@ package properties
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -20,16 +19,20 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 	tests := []struct {
 		name           string
 		queryParams    string
+		setAuth        bool
 		mockResult     ListPropertiesResult
 		mockErr        error
 		wantStatus     int
 		expectMinPrice float64
 		expectMaxPrice float64
 		expectBedrooms int32
+		expectUserID   int32
+		expectRoleID   int32
 	}{
 		{
 			name:        "valid search with all CU-12 filters",
 			queryParams: "?min_price=1000&max_price=5000&min_bedrooms=3&q=xalapa",
+			setAuth:     true,
 			mockResult: ListPropertiesResult{
 				Data: []PropertyCardData{{PropertyUUID: "abc", Title: "Casa Xalapa"}},
 				Meta: ListPropertiesMeta{TotalCount: 1, TotalPages: 1},
@@ -38,20 +41,30 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 			expectMinPrice: 1000,
 			expectMaxPrice: 5000,
 			expectBedrooms: 3,
+			expectUserID:   10,
+			expectRoleID:   RoleAdminID,
+		},
+		{
+			name:        "returns unauthorized when auth context is missing",
+			queryParams: "",
+			wantStatus:  http.StatusUnauthorized,
 		},
 		{
 			name:        "invalid min_price format",
 			queryParams: "?min_price=invalid",
+			setAuth:     true,
 			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "invalid min_bedrooms format",
 			queryParams: "?min_bedrooms=-1",
+			setAuth:     true,
 			wantStatus:  http.StatusBadRequest,
 		},
 		{
 			name:        "page size too large",
 			queryParams: "?page_size=101",
+			setAuth:     true,
 			wantStatus:  http.StatusBadRequest,
 		},
 	}
@@ -62,7 +75,10 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 				listPropertiesFunc: func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
 					if tt.name == "valid search with all CU-12 filters" {
 						if input.MinPrice != tt.expectMinPrice || input.MaxPrice != tt.expectMaxPrice || input.MinBedrooms != tt.expectBedrooms {
-							return ListPropertiesResult{}, fmt.Errorf("params mismatch: got price[%v-%v] beds[%v]", input.MinPrice, input.MaxPrice, input.MinBedrooms)
+							return ListPropertiesResult{}, errors.New("filter mismatch")
+						}
+						if input.UserID != tt.expectUserID || input.RoleID != tt.expectRoleID {
+							return ListPropertiesResult{}, errors.New("auth context mismatch")
 						}
 					}
 					return tt.mockResult, tt.mockErr
@@ -71,17 +87,19 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 
 			h := NewHandler(mockSvc)
 			w := httptest.NewRecorder()
-			c, r := gin.CreateTestContext(w)
-
-			r.GET("/api/v1/properties", h.listProperties)
-
-			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties"+tt.queryParams, nil)
+			c, _ := gin.CreateTestContext(w)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/properties"+tt.queryParams, nil)
 			c.Request = req
+			if tt.setAuth {
+				c.Set("user_id", int32(10))
+				c.Set("role_id", int32(RoleAdminID))
+				c.Set("user_role", "Admin")
+			}
 
-			r.ServeHTTP(w, req)
+			h.listProperties(c)
 
 			if w.Code != tt.wantStatus {
-				t.Errorf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
+				t.Fatalf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
 			}
 
 			if tt.wantStatus == http.StatusOK {
@@ -90,43 +108,252 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 					t.Fatalf("decode response: %v", err)
 				}
 				if len(res.Data) != len(tt.mockResult.Data) {
-					t.Errorf("data length: got %d, want %d", len(res.Data), len(tt.mockResult.Data))
+					t.Fatalf("data length: got %d, want %d", len(res.Data), len(tt.mockResult.Data))
 				}
 			}
 		})
 	}
 }
 
-// Mock definitions for Service
 type mockPropertyService struct {
-	PropertyService        // Embed to satisfy interface
+	createPropertyFunc     func(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error)
 	listPropertiesFunc     func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
-	getPropertyFunc        func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
-	getFullPropertyFunc    func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
-	getPropertyHistoryFunc func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+	getPropertyForRoleFunc func(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error)
+	getPricesHistoryFunc   func(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
+	getPropertyHistoryFunc func(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error)
+}
+
+func (m *mockPropertyService) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
+	if m.createPropertyFunc != nil {
+		return m.createPropertyFunc(ctx, userID, input)
+	}
+	return CreatePropertyResult{}, nil
 }
 
 func (m *mockPropertyService) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
-	return m.listPropertiesFunc(ctx, input)
+	if m.listPropertiesFunc != nil {
+		return m.listPropertiesFunc(ctx, input)
+	}
+	return ListPropertiesResult{}, nil
 }
 
-func (m *mockPropertyService) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
-	return m.getPropertyFunc(ctx, propertyUUID)
+func (m *mockPropertyService) GetClauses(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error) {
+	return GetPropertyClausesResult{}, nil
 }
 
-func (m *mockPropertyService) GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error) {
-	return m.getFullPropertyFunc(ctx, propertyUUID)
+func (m *mockPropertyService) UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error {
+	return nil
 }
 
-func (m *mockPropertyService) GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
-	return m.getPropertyHistoryFunc(ctx, propertyUUID, requesterID, requesterRoleID)
+func (m *mockPropertyService) GetPhotos(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error) {
+	return GetPropertyPhotosResult{}, nil
+}
+
+func (m *mockPropertyService) UpdatePhotos(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error {
+	return nil
+}
+
+func (m *mockPropertyService) GetServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error) {
+	return GetPropertyServicesResult{}, nil
+}
+
+func (m *mockPropertyService) UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error {
+	return nil
+}
+
+func (m *mockPropertyService) GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error) {
+	return GetPropertyPricesResult{}, nil
+}
+
+func (m *mockPropertyService) GetPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {
+	if m.getPricesHistoryFunc != nil {
+		return m.getPricesHistoryFunc(ctx, propertyUUID)
+	}
+	return GetPropertyPricesHistoryResult{}, nil
+}
+
+func (m *mockPropertyService) UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error {
+	return nil
+}
+
+func (m *mockPropertyService) GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
+	if m.getPropertyForRoleFunc != nil {
+		return m.getPropertyForRoleFunc(ctx, propertyUUID, userID, roleID)
+	}
+	return GetPropertyResult{}, nil
+}
+
+func (m *mockPropertyService) UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error) {
+	return UpdatePropertyResult{}, nil
+}
+
+func (m *mockPropertyService) DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error {
+	return nil
+}
+
+func (m *mockPropertyService) GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error) {
+	if m.getPropertyHistoryFunc != nil {
+		return m.getPropertyHistoryFunc(ctx, propertyUUID)
+	}
+	return GetPropertyHistoryResult{}, nil
+}
+
+func TestHandler_GetProperty(t *testing.T) {
+	validUUID := "123e4567-e89b-12d3-a456-426614174000"
+
+	tests := []struct {
+		name       string
+		uuid       string
+		setAuth    bool
+		mockResult GetPropertyResult
+		mockErr    error
+		wantStatus int
+	}{
+		{
+			name:       "returns bad request when uuid is empty",
+			uuid:       "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns unauthorized when auth context is missing",
+			uuid:       validUUID,
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "returns forbidden when property is not assigned to agent",
+			uuid:       validUUID,
+			setAuth:    true,
+			mockErr:    errors.New("forbidden: property not assigned to agent"),
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "returns not found when property does not exist",
+			uuid:       validUUID,
+			setAuth:    true,
+			mockErr:    ErrPropertyNotFound,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "returns internal server error when service fails",
+			uuid:       validUUID,
+			setAuth:    true,
+			mockErr:    errors.New("db"),
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:    "returns ok with property data",
+			uuid:    validUUID,
+			setAuth: true,
+			mockResult: GetPropertyResult{
+				Data: GetPropertyData{
+					PropertyUUID: validUUID,
+					Title:        "Casa",
+					RegisteredBy: "Admin User",
+				},
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svcMock := &mockPropertyService{
+				getPropertyForRoleFunc: func(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
+					if tt.setAuth {
+						if userID != 10 || roleID != RoleAdminID {
+							t.Fatalf("auth values: got userID=%d roleID=%d", userID, roleID)
+						}
+					}
+					return tt.mockResult, tt.mockErr
+				},
+			}
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.uuid, nil)
+			ctx.Request = req
+			ctx.Params = gin.Params{{Key: "uuid", Value: tt.uuid}}
+			if tt.setAuth {
+				ctx.Set("user_id", int32(10))
+				ctx.Set("role_id", int32(RoleAdminID))
+				ctx.Set("user_role", "Admin")
+			}
+
+			handler := NewHandler(svcMock)
+			handler.getProperty(ctx)
+
+			if recorder.Code != tt.wantStatus {
+				t.Fatalf("status: got %d, want %d", recorder.Code, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestHandler_GetPricesHistory(t *testing.T) {
+	validUUID := "123e4567-e89b-12d3-a456-426614174000"
+
+	tests := []struct {
+		name       string
+		uuid       string
+		mockResult GetPropertyPricesHistoryResult
+		mockErr    error
+		wantStatus int
+	}{
+		{
+			name:       "returns bad request when uuid is empty",
+			uuid:       "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "returns not found when property does not exist",
+			uuid:       validUUID,
+			mockErr:    ErrPropertyNotFound,
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "returns internal server error when service fails",
+			uuid:       validUUID,
+			mockErr:    errors.New("db"),
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name: "returns ok with prices history data",
+			uuid: validUUID,
+			mockResult: GetPropertyPricesHistoryResult{
+				Data: []PropertyPriceHistoryData{{PriceType: "sale", Amount: 1000}},
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svcMock := &mockPropertyService{
+				getPricesHistoryFunc: func(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {
+					return tt.mockResult, tt.mockErr
+				},
+			}
+
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.uuid+"/prices/history", nil)
+			ctx.Request = req
+			ctx.Params = gin.Params{{Key: "uuid", Value: tt.uuid}}
+
+			handler := NewHandler(svcMock)
+			handler.getPricesHistory(ctx)
+
+			if recorder.Code != tt.wantStatus {
+				t.Fatalf("status: got %d, want %d", recorder.Code, tt.wantStatus)
+			}
+		})
+	}
 }
 
 func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 	tests := []struct {
 		name         string
 		propertyUUID string
-		headers      map[string]string
 		mockResult   GetPropertyHistoryResult
 		mockErr      error
 		wantStatus   int
@@ -134,35 +361,19 @@ func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 		{
 			name:         "returns history successfully",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{},
 			mockResult:   GetPropertyHistoryResult{Data: []PropertyStatusHistoryData{{HistoryID: 1}}},
 			wantStatus:   http.StatusOK,
 		},
 		{
-			name:         "missing auth context",
-			propertyUUID: "abc-123",
-			headers:      map[string]string{},
-			wantStatus:   http.StatusUnauthorized,
-		},
-		{
-			name:         "forbidden error from service",
-			propertyUUID: "abc-123",
-			headers:      map[string]string{},
-			mockErr:      fmt.Errorf("forbidden: access denied"),
-			wantStatus:   http.StatusForbidden,
-		},
-		{
 			name:         "property not found",
 			propertyUUID: "non-existent",
-			headers:      map[string]string{},
 			mockErr:      ErrPropertyNotFound,
 			wantStatus:   http.StatusNotFound,
 		},
 		{
 			name:         "internal server error",
 			propertyUUID: "abc-123",
-			headers:      map[string]string{},
-			mockErr:      fmt.Errorf("random error"),
+			mockErr:      errors.New("random error"),
 			wantStatus:   http.StatusInternalServerError,
 		},
 	}
@@ -170,45 +381,22 @@ func TestHandler_GetPropertyHistory_CU18(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSvc := &mockPropertyService{
-				getPropertyHistoryFunc: func(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+				getPropertyHistoryFunc: func(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error) {
 					return tt.mockResult, tt.mockErr
 				},
 			}
 
 			h := NewHandler(mockSvc)
 			w := httptest.NewRecorder()
-			_, r := gin.CreateTestContext(w)
-			r.Use(func(c *gin.Context) {
-				if userID := c.GetHeader("X-Test-User-ID"); userID != "" {
-					if parsedUserID, err := strconv.ParseInt(userID, 10, 32); err == nil {
-						c.Set("user_id", int32(parsedUserID))
-					}
-				}
-				if roleID := c.GetHeader("X-Test-Role-ID"); roleID != "" {
-					if parsedRoleID, err := strconv.ParseInt(roleID, 10, 32); err == nil {
-						c.Set("role_id", int32(parsedRoleID))
-					}
-				}
-				if c.GetHeader("X-Test-User-ID") != "" {
-					c.Set("user_role", "admin")
-					c.Set("user_uuid", "uuid-123")
-					c.Set("user_email", "user@example.com")
-				}
-				c.Next()
-			})
+			c, _ := gin.CreateTestContext(w)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.propertyUUID+"/history", nil)
+			c.Request = req
+			c.Params = gin.Params{{Key: "uuid", Value: tt.propertyUUID}}
 
-			r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
-
-			req, _ := http.NewRequest(http.MethodGet, "/api/v1/properties/"+tt.propertyUUID+"/history", nil)
-			if tt.name != "missing auth context" {
-				req.Header.Set("X-Test-User-ID", "1")
-				req.Header.Set("X-Test-Role-ID", "1")
-			}
-
-			r.ServeHTTP(w, req)
+			h.getPropertyHistory(c)
 
 			if w.Code != tt.wantStatus {
-				t.Errorf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
+				t.Fatalf("status: got %d, want %d. Body: %s", w.Code, tt.wantStatus, w.Body.String())
 			}
 		})
 	}

@@ -267,31 +267,31 @@ type mockServiceForClauses struct {
 	updateClausesFunc func(ctx context.Context, uuid string, input UpdatePropertyClausesInput) error
 
 	// Implement remaining interface methods with no-ops
-	createPropertyFunc  func(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
-	listPropertiesFunc  func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
-	getPhotosFunc       func(ctx context.Context, uuid string) (GetPropertyPhotosResult, error)
-	updatePhotosFunc    func(ctx context.Context, uuid string, input UpdatePropertyPhotosInput) error
-	getServicesFunc     func(ctx context.Context, uuid string) (GetPropertyServicesResult, error)
-	updateServicesFunc  func(ctx context.Context, uuid string, input UpdatePropertyServicesInput) error
-	getPricesFunc       func(ctx context.Context, uuid string) (GetPropertyPricesResult, error)
-	updatePricesFunc    func(ctx context.Context, uuid string, input UpdatePropertyPricesInput) error
-	getPropertyFunc     func(ctx context.Context, uuid string) (GetPropertyResult, error)
-	getFullPropertyFunc func(ctx context.Context, uuid string) (GetPropertyFullResult, error)
-	updatePropertyFunc  func(ctx context.Context, uuid string, input UpdatePropertyInput) (UpdatePropertyResult, error)
-	deletePropertyFunc  func(ctx context.Context, uuid string, input DeletePropertyInput) error
-	getPropertyHistoryFunc func(ctx context.Context, uuid string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+	createPropertyFunc     func(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error)
+	listPropertiesFunc     func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error)
+	getPhotosFunc          func(ctx context.Context, uuid string) (GetPropertyPhotosResult, error)
+	updatePhotosFunc       func(ctx context.Context, uuid string, input UpdatePropertyPhotosInput) error
+	getServicesFunc        func(ctx context.Context, uuid string) (GetPropertyServicesResult, error)
+	updateServicesFunc     func(ctx context.Context, uuid string, input UpdatePropertyServicesInput) error
+	getPricesFunc          func(ctx context.Context, uuid string) (GetPropertyPricesResult, error)
+	getPricesHistoryFunc   func(ctx context.Context, uuid string) (GetPropertyPricesHistoryResult, error)
+	updatePricesFunc       func(ctx context.Context, uuid string, input UpdatePropertyPricesInput) error
+	getPropertyForRoleFunc func(ctx context.Context, uuid string, userID int32, roleID int32) (GetPropertyResult, error)
+	updatePropertyFunc     func(ctx context.Context, uuid string, input UpdatePropertyInput) (UpdatePropertyResult, error)
+	deletePropertyFunc     func(ctx context.Context, uuid string, input DeletePropertyInput) error
+	getPropertyHistoryFunc func(ctx context.Context, uuid string) (GetPropertyHistoryResult, error)
 }
 
-func (m *mockServiceForClauses) GetPropertyHistory(ctx context.Context, uuid string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
+func (m *mockServiceForClauses) GetPropertyHistory(ctx context.Context, uuid string) (GetPropertyHistoryResult, error) {
 	if m.getPropertyHistoryFunc != nil {
-		return m.getPropertyHistoryFunc(ctx, uuid, requesterID, requesterRoleID)
+		return m.getPropertyHistoryFunc(ctx, uuid)
 	}
 	return GetPropertyHistoryResult{}, nil
 }
 
-func (m *mockServiceForClauses) CreateProperty(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
+func (m *mockServiceForClauses) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
 	if m.createPropertyFunc != nil {
-		return m.createPropertyFunc(ctx, input)
+		return m.createPropertyFunc(ctx, userID, input)
 	}
 	return CreatePropertyResult{}, nil
 }
@@ -352,6 +352,13 @@ func (m *mockServiceForClauses) GetPrices(ctx context.Context, uuid string) (Get
 	return GetPropertyPricesResult{}, nil
 }
 
+func (m *mockServiceForClauses) GetPricesHistory(ctx context.Context, uuid string) (GetPropertyPricesHistoryResult, error) {
+	if m.getPricesHistoryFunc != nil {
+		return m.getPricesHistoryFunc(ctx, uuid)
+	}
+	return GetPropertyPricesHistoryResult{}, nil
+}
+
 func (m *mockServiceForClauses) UpdatePrices(ctx context.Context, uuid string, input UpdatePropertyPricesInput) error {
 	if m.updatePricesFunc != nil {
 		return m.updatePricesFunc(ctx, uuid, input)
@@ -359,18 +366,11 @@ func (m *mockServiceForClauses) UpdatePrices(ctx context.Context, uuid string, i
 	return nil
 }
 
-func (m *mockServiceForClauses) GetProperty(ctx context.Context, uuid string) (GetPropertyResult, error) {
-	if m.getPropertyFunc != nil {
-		return m.getPropertyFunc(ctx, uuid)
+func (m *mockServiceForClauses) GetPropertyForRole(ctx context.Context, uuid string, userID int32, roleID int32) (GetPropertyResult, error) {
+	if m.getPropertyForRoleFunc != nil {
+		return m.getPropertyForRoleFunc(ctx, uuid, userID, roleID)
 	}
 	return GetPropertyResult{}, nil
-}
-
-func (m *mockServiceForClauses) GetFullProperty(ctx context.Context, uuid string) (GetPropertyFullResult, error) {
-	if m.getFullPropertyFunc != nil {
-		return m.getFullPropertyFunc(ctx, uuid)
-	}
-	return GetPropertyFullResult{}, nil
 }
 
 func (m *mockServiceForClauses) UpdateProperty(ctx context.Context, uuid string, input UpdatePropertyInput) (UpdatePropertyResult, error) {

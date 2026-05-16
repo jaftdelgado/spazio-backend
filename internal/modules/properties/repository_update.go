@@ -29,7 +29,7 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 	}
 
 	// Read current state
-	baseRow, err := queries.GetPropertyBaseByID(ctx, propertyID)
+	baseRow, err := queries.GetPropertyBaseByUUID(ctx, pgtype.UUID{Bytes: parsedUUID, Valid: true})
 	if err != nil {
 		if errorsIsPgxNoRows(err) {
 			return UpdatePropertyResult{}, ErrPropertyNotFound

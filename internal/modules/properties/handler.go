@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -22,35 +23,54 @@ func NewHandler(service PropertyService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.POST("/api/v1/properties", h.createProperty)
-	r.GET("/api/v1/properties", h.listProperties)
-	r.GET("/api/v1/properties/:uuid", h.getProperty)
-	r.GET("/api/v1/properties/:uuid/history", h.getPropertyHistory)
-	r.PATCH("/api/v1/properties/:uuid", h.updateProperty)
-	r.DELETE("/api/v1/properties/:uuid", h.deleteProperty)
-	r.GET("/api/v1/properties/:uuid/clauses", h.getClauses)
-	r.PUT("/api/v1/properties/:uuid/clauses", h.updateClauses)
-	r.GET("/api/v1/properties/:uuid/photos", h.getPhotos)
-	r.PUT("/api/v1/properties/:uuid/photos", h.updatePhotos)
-	r.GET("/api/v1/properties/:uuid/services", h.getServices)
-	r.PUT("/api/v1/properties/:uuid/services", h.updateServices)
-	r.GET("/api/v1/properties/:uuid/prices", h.getPrices)
-	r.PUT("/api/v1/properties/:uuid/prices", h.updatePrices)
+	properties := r.Group("/api/v1/properties")
+
+	adminOnly := properties.Group("")
+	adminOnly.Use(middleware.RequireRole("admin"))
+	{
+		adminOnly.POST("", h.createProperty)
+		adminOnly.PATCH("/:uuid", h.updateProperty)
+		adminOnly.DELETE("/:uuid", h.deleteProperty)
+		adminOnly.PUT("/:uuid/clauses", h.updateClauses)
+		adminOnly.PUT("/:uuid/photos", h.updatePhotos)
+		adminOnly.PUT("/:uuid/services", h.updateServices)
+		adminOnly.PUT("/:uuid/prices", h.updatePrices)
+		adminOnly.GET("/:uuid/history", h.getPropertyHistory)
+		adminOnly.GET("/:uuid/prices/history", h.getPricesHistory)
+	}
+
+	adminOrAgent := properties.Group("")
+	adminOrAgent.Use(middleware.RequireRole("admin", "agent"))
+	{
+		adminOrAgent.GET("", h.listProperties)
+		adminOrAgent.GET("/:uuid", h.getProperty)
+		adminOrAgent.GET("/:uuid/photos", h.getPhotos)
+		adminOrAgent.GET("/:uuid/services", h.getServices)
+		adminOrAgent.GET("/:uuid/clauses", h.getClauses)
+		adminOrAgent.GET("/:uuid/prices", h.getPrices)
+	}
 }
 
 // createProperty godoc
 // @Summary      Register a new property
-// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically.
+// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        request  body      CreatePropertyInput   true  "Property payload"
 // @Success      201      {object}  CreatePropertyResult  "Property created"
 // @Failure      400      {object}  shared.ErrorResponse  "Invalid input"
 // @Failure      500      {object}  shared.ErrorResponse  "Internal error"
 // @Router       /api/v1/properties [post]
 func (h *Handler) createProperty(c *gin.Context) {
-	if err := rejectForbiddenPayloadFields(c, "category", "subtype"); err != nil {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return
+	}
+
+	if err := rejectForbiddenPayloadFields(c, "category", "subtype", "owner_id"); err != nil {
 		shared.BadRequest(c, err)
 		return
 	}
@@ -68,7 +88,7 @@ func (h *Handler) createProperty(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.CreateProperty(c.Request.Context(), req)
+	result, err := h.service.CreateProperty(c.Request.Context(), userID, req)
 	if err != nil {
 		var validationErr ValidationError
 		if errors.As(err, &validationErr) {
@@ -122,7 +142,6 @@ func trimOptionalString(value *string) *string {
 
 func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	if err := shared.Validate([]shared.ValidationRule{
-		{Fail: req.OwnerID <= 0, Msg: "owner_id must be greater than 0"},
 		{Fail: req.Title == "", Msg: "title is required"},
 		{Fail: req.PropertyTypeID <= 0, Msg: "property_type_id must be greater than 0"},
 		{Fail: req.ModalityID <= 0, Msg: "modality_id must be greater than 0"},

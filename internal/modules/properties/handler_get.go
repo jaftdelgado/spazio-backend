@@ -20,13 +20,14 @@ const (
 
 // listProperties godoc
 // @Summary      List properties with advanced filters
-// @Description  Returns a paginated list of property cards. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
+// @Description  Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
 // @Tags         Properties
 // @Produce      json
+// @Security     BearerAuth
 // @Param        page              query     int                   false  "Page number (starts at 1)" default(1)
 // @Param        page_size         query     int                   false  "Items per page (max 100)" default(20)
 // @Param        q                 query     string                false  "Search term (matches title, address, city, state, country)"
-// @Param        status_id         query     []int                 false  "Filter by status IDs (Available=2 by default for clients)"
+// @Param        status_id         query     []int                 false  "Filter by status IDs (defaults to Available=2 when omitted)"
 // @Param        property_type_id  query     int                   false  "Filter by property type ID"
 // @Param        modality_id       query     int                   false  "Filter by modality ID"
 // @Param        country_id        query     int                   false  "Filter by country ID"
@@ -39,9 +40,23 @@ const (
 // @Param        order             query     string                false  "Sort order: asc, desc"
 // @Success      200               {object}  ListPropertiesResult  "Paginated list of property cards"
 // @Failure      400               {object}  shared.ErrorResponse  "Invalid input parameters"
+// @Failure      401               {object}  shared.ErrorResponse  "Missing or invalid authenticated session"
+// @Failure      403               {object}  shared.ErrorResponse  "Forbidden"
 // @Failure      500               {object}  shared.ErrorResponse  "Internal server error"
 // @Router       /api/v1/properties [get]
 func (h *Handler) listProperties(c *gin.Context) {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return
+	}
+
+	roleID, err := middleware.AuthenticatedRoleID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return
+	}
+
 	page, err := resolveOptionalPropertyInt(strings.TrimSpace(c.Query("page")), defaultPropertiesPage, "page")
 	if err != nil {
 		shared.BadRequest(c, err)
@@ -129,6 +144,8 @@ func (h *Handler) listProperties(c *gin.Context) {
 		MinPrice:       minPrice,
 		MaxPrice:       maxPrice,
 		MinBedrooms:    int32(minBedrooms),
+		UserID:         userID,
+		RoleID:         roleID,
 		Sort:           sortField,
 		Order:          resolvePropertySortOrder(sortOrder),
 	})
@@ -143,19 +160,55 @@ func (h *Handler) listProperties(c *gin.Context) {
 
 // getPropertyHistory godoc
 // @Summary      Get property status history
-// @Description  Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own. The requester identity is resolved from the bearer token.
+// @Description  Returns the chronological history of status changes for a specific property. Requires an authenticated admin session.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid       path      string                true  "Property UUID"
-// @Param        Authorization  header    string                true  "Bearer access token"
+// @Security     BearerAuth
+// @Param        uuid       path      string                    true  "Property UUID"
 // @Success      200        {object}  GetPropertyHistoryResult  "Chronological status history retrieved successfully"
 // @Failure      400        {object}  shared.ErrorResponse      "Invalid UUID"
 // @Failure      401        {object}  shared.ErrorResponse      "Missing or invalid authenticated session"
-// @Failure      403        {object}  shared.ErrorResponse      "Forbidden: You are not authorized to view this history"
+// @Failure      403        {object}  shared.ErrorResponse      "Forbidden"
 // @Failure      404        {object}  shared.ErrorResponse      "Property not found"
 // @Failure      500        {object}  shared.ErrorResponse      "Internal server error"
 // @Router       /api/v1/properties/{uuid}/history [get]
 func (h *Handler) getPropertyHistory(c *gin.Context) {
+	propertyUUID := strings.TrimSpace(c.Param("uuid"))
+	if propertyUUID == "" {
+		shared.BadRequest(c, errors.New("uuid is required"))
+		return
+	}
+
+	result, err := h.service.GetPropertyHistory(c.Request.Context(), propertyUUID)
+	if err != nil {
+		if errors.Is(err, ErrPropertyNotFound) {
+			shared.NotFound(c, err.Error())
+			return
+		}
+
+		log.Printf("get property history: %v", err)
+		shared.InternalError(c, "could not get property history")
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// getProperty godoc
+// @Summary      Get property by UUID
+// @Description  Returns property base data, subtype, and location for the given UUID. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
+// @Tags         Properties
+// @Produce      json
+// @Security     BearerAuth
+// @Param        uuid  path      string                true   "Property UUID"
+// @Success      200   {object}  GetPropertyResult     "Property data"
+// @Failure      400   {object}  shared.ErrorResponse  "Invalid path parameter"
+// @Failure      401   {object}  shared.ErrorResponse  "Missing or invalid authenticated session"
+// @Failure      403   {object}  shared.ErrorResponse  "Forbidden"
+// @Failure      404   {object}  shared.ErrorResponse  "Property not found"
+// @Failure      500   {object}  shared.ErrorResponse  "Internal error"
+// @Router       /api/v1/properties/{uuid} [get]
+func (h *Handler) getProperty(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
 	if propertyUUID == "" {
 		shared.BadRequest(c, errors.New("uuid is required"))
@@ -174,7 +227,7 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GetPropertyHistory(c.Request.Context(), propertyUUID, userID, roleID)
+	result, err := h.service.GetPropertyForRole(c.Request.Context(), propertyUUID, userID, roleID)
 	if err != nil {
 		if errors.Is(err, ErrPropertyNotFound) {
 			shared.NotFound(c, err.Error())
@@ -185,65 +238,44 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property history: %v", err)
-		shared.InternalError(c, "could not get property history")
+		log.Printf("get property: %v", err)
+		shared.InternalError(c, "could not get property")
 		return
 	}
 
 	c.JSON(http.StatusOK, result)
 }
 
-// getProperty godoc
-// @Summary      Get property by UUID
-// @Description  Returns property base data, subtype, and location for the given UUID. When full=true, the response also includes consolidated prices, price history, photos, services, and clauses. Deleted properties are treated as not found.
+// getPricesHistory godoc
+// @Summary      Get property prices history
+// @Description  Returns the complete price history for a property. Requires admin role.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid  path      string                true   "Property UUID"
-// @Param        full  query     bool                  false  "Include prices, history, photos, services, and clauses"
-// @Success      200   {object}  GetPropertyResult     "Property data"
-// @Failure      400   {object}  shared.ErrorResponse  "Invalid path parameter"
-// @Failure      404   {object}  shared.ErrorResponse  "Property not found"
-// @Failure      500   {object}  shared.ErrorResponse  "Internal error"
-// @Router       /api/v1/properties/{uuid} [get]
-func (h *Handler) getProperty(c *gin.Context) {
+// @Security     BearerAuth
+// @Param        uuid  path      string                         true  "Property UUID"
+// @Success      200   {object}  GetPropertyPricesHistoryResult "Property prices history"
+// @Failure      400   {object}  shared.ErrorResponse           "Invalid path parameter"
+// @Failure      401   {object}  shared.ErrorResponse           "Missing or invalid authenticated session"
+// @Failure      403   {object}  shared.ErrorResponse           "Forbidden"
+// @Failure      404   {object}  shared.ErrorResponse           "Property not found"
+// @Failure      500   {object}  shared.ErrorResponse           "Internal error"
+// @Router       /api/v1/properties/{uuid}/prices/history [get]
+func (h *Handler) getPricesHistory(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
 	if propertyUUID == "" {
 		shared.BadRequest(c, errors.New("uuid is required"))
 		return
 	}
 
-	full, err := resolveOptionalBoolQuery(strings.TrimSpace(c.Query("full")), false, "full")
-	if err != nil {
-		shared.BadRequest(c, err)
-		return
-	}
-
-	if full {
-		result, err := h.service.GetFullProperty(c.Request.Context(), propertyUUID)
-		if err != nil {
-			if errors.Is(err, ErrPropertyNotFound) {
-				shared.NotFound(c, err.Error())
-				return
-			}
-
-			log.Printf("get full property: %v", err)
-			shared.InternalError(c, "could not get property")
-			return
-		}
-
-		c.JSON(http.StatusOK, result)
-		return
-	}
-
-	result, err := h.service.GetProperty(c.Request.Context(), propertyUUID)
+	result, err := h.service.GetPricesHistory(c.Request.Context(), propertyUUID)
 	if err != nil {
 		if errors.Is(err, ErrPropertyNotFound) {
 			shared.NotFound(c, err.Error())
 			return
 		}
 
-		log.Printf("get property: %v", err)
-		shared.InternalError(c, "could not get property")
+		log.Printf("get property prices history: %v", err)
+		shared.InternalError(c, "could not get property prices history")
 		return
 	}
 
@@ -279,20 +311,6 @@ func resolveOptionalPositivePropertyInt(rawValue string, field string) (int, err
 
 	return value, nil
 }
-
-func resolveOptionalBoolQuery(rawValue string, fallback bool, field string) (bool, error) {
-	if rawValue == "" {
-		return fallback, nil
-	}
-
-	value, err := strconv.ParseBool(rawValue)
-	if err != nil {
-		return false, errors.New(field + " must be a valid boolean")
-	}
-
-	return value, nil
-}
-
 func resolveStatusIDs(rawValues []string) ([]int32, error) {
 	statusIDs := make([]int32, 0, len(rawValues))
 	for _, rawValue := range rawValues {

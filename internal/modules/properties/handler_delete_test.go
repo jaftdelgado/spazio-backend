@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 
 func TestHandler_DeleteProperty(t *testing.T) {
 	validUUID := "123e4567-e89b-12d3-a456-426614174000"
-	validBody := DeletePropertyInput{Confirm: true, ChangedByUserID: 1}
+	validBody := DeletePropertyInput{Confirm: true}
 
 	tests := []struct {
 		name             string
@@ -32,6 +32,12 @@ func TestHandler_DeleteProperty(t *testing.T) {
 		wantBodyContains string
 	}{
 		{
+			name:       "returns unauthorized when auth context is missing",
+			uuid:       validUUID,
+			body:       DeletePropertyInput{Confirm: true},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
 			name:       "returns bad request when uuid is empty",
 			uuid:       "",
 			body:       validBody,
@@ -40,19 +46,13 @@ func TestHandler_DeleteProperty(t *testing.T) {
 		{
 			name:       "returns bad request when json is invalid",
 			uuid:       validUUID,
-			rawBody:    `{"confirm": true, "changed_by_user_id":}`,
+			rawBody:    `{"confirm": true,}`,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "returns bad request when confirm is false",
 			uuid:       validUUID,
-			body:       DeletePropertyInput{Confirm: false, ChangedByUserID: 1},
-			wantStatus: http.StatusBadRequest,
-		},
-		{
-			name:       "returns bad request when changed by user id is zero",
-			uuid:       validUUID,
-			body:       DeletePropertyInput{Confirm: true, ChangedByUserID: 0},
+			body:       DeletePropertyInput{Confirm: false},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -88,7 +88,10 @@ func TestHandler_DeleteProperty(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			customMock := &mockServiceForClauses{
-				deletePropertyFunc: func(_ context.Context, _ string, _ DeletePropertyInput) error {
+				deletePropertyFunc: func(_ context.Context, uuid string, input DeletePropertyInput) error {
+					if tt.wantStatus == http.StatusOK && input.ChangedByUserID != 10 {
+						t.Fatalf("ChangedByUserID = %d, want 10", input.ChangedByUserID)
+					}
 					return tt.serviceErr
 				},
 			}
@@ -111,6 +114,11 @@ func TestHandler_DeleteProperty(t *testing.T) {
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/properties/"+tt.uuid, bytes.NewReader(bodyBytes))
 			req.Header.Set("Content-Type", "application/json")
 			ctx.Request = req
+			if tt.name != "returns unauthorized when auth context is missing" {
+				ctx.Set("user_id", int32(10))
+				ctx.Set("role_id", int32(1))
+				ctx.Set("user_role", "Admin")
+			}
 
 			handler := NewHandler(customMock)
 			handler.deleteProperty(ctx)
@@ -135,19 +143,13 @@ func TestHandler_DeleteProperty_ValidateDeletePropertyRequest(t *testing.T) {
 	}{
 		{
 			name:       "confirm must be true",
-			input:      DeletePropertyInput{Confirm: false, ChangedByUserID: 1},
+			input:      DeletePropertyInput{Confirm: false},
 			wantErr:    true,
 			wantErrMsg: "confirm must be true",
 		},
 		{
-			name:       "changed_by_user_id must be greater than 0",
-			input:      DeletePropertyInput{Confirm: true, ChangedByUserID: 0},
-			wantErr:    true,
-			wantErrMsg: "changed_by_user_id must be greater than 0",
-		},
-		{
 			name:    "valid request",
-			input:   DeletePropertyInput{Confirm: true, ChangedByUserID: 10},
+			input:   DeletePropertyInput{Confirm: true},
 			wantErr: false,
 		},
 	}

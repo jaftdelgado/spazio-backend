@@ -675,7 +675,7 @@ func TestService_CreateProperty(t *testing.T) {
 
 			svc := NewService(repo, &mockPropertyPhotoStorage{})
 			input := tt.buildInput()
-			result, err := svc.CreateProperty(context.Background(), input)
+			result, err := svc.CreateProperty(context.Background(), 77, input)
 
 			if tt.wantErr {
 				if err == nil {

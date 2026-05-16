@@ -7,15 +7,17 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
 // deleteProperty godoc
 // @Summary      Delete property
-// @Description  Soft deletes a property by UUID. The request must include confirm=true and a valid changed_by_user_id. The operation deletes linked photo objects from storage before applying database updates. Only properties with available status can be deleted.
+// @Description  Soft deletes a property by UUID. Requires confirm=true. The authenticated admin is recorded as the author of the status change. The operation deletes linked photo objects from storage before applying database updates. Only properties with available status can be deleted.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
+// @Security     BearerAuth
 // @Param        uuid     path      string               true  "Property UUID"
 // @Param        request  body      DeletePropertyInput  true  "Delete payload"
 // @Success      200      {object}  map[string]string    "Property deleted"
@@ -24,6 +26,12 @@ import (
 // @Failure      500      {object}  shared.ErrorResponse "Internal error"
 // @Router       /api/v1/properties/{uuid} [delete]
 func (h *Handler) deleteProperty(c *gin.Context) {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return
+	}
+
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
 	if propertyUUID == "" {
 		shared.BadRequest(c, errors.New("uuid is required"))
@@ -35,6 +43,8 @@ func (h *Handler) deleteProperty(c *gin.Context) {
 		shared.BadRequest(c, err)
 		return
 	}
+
+	req.ChangedByUserID = userID
 
 	if err := validateDeletePropertyRequest(req); err != nil {
 		shared.BadRequest(c, err)
@@ -64,10 +74,6 @@ func (h *Handler) deleteProperty(c *gin.Context) {
 func validateDeletePropertyRequest(req DeletePropertyInput) error {
 	if !req.Confirm {
 		return errors.New("confirm must be true")
-	}
-
-	if req.ChangedByUserID <= 0 {
-		return errors.New("changed_by_user_id must be greater than 0")
 	}
 
 	return nil

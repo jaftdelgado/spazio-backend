@@ -519,9 +519,6 @@ definitions:
       modality_id:
         example: 1
         type: integer
-      owner_id:
-        example: 1
-        type: integer
       property_type_id:
         example: 1
         type: integer
@@ -621,9 +618,6 @@ definitions:
     type: object
   properties.DeletePropertyInput:
     properties:
-      changed_by_user_id:
-        example: 1
-        type: integer
       confirm:
         example: true
         type: boolean
@@ -649,11 +643,11 @@ definitions:
         type: number
       modality_id:
         type: integer
-      owner_id:
-        type: integer
       property_type_id:
         type: integer
       property_uuid:
+        type: string
+      registered_by:
         type: string
       residential:
         $ref: '#/definitions/properties.ResidentialData'
@@ -686,6 +680,13 @@ definitions:
         type: array
       sale_price:
         $ref: '#/definitions/properties.ActiveSalePriceData'
+    type: object
+  properties.GetPropertyPricesHistoryResult:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/properties.PropertyPriceHistoryData'
+        type: array
     type: object
   properties.GetPropertyPricesResult:
     properties:
@@ -869,6 +870,36 @@ definitions:
         type: integer
       storage_key:
         example: properties/123/front.jpg
+        type: string
+    type: object
+  properties.PropertyPriceHistoryData:
+    properties:
+      amount:
+        example: 1500000
+        type: number
+      currency:
+        example: MXN
+        type: string
+      deposit:
+        example: 50000
+        type: number
+      is_current:
+        example: true
+        type: boolean
+      is_negotiable:
+        example: true
+        type: boolean
+      period_name:
+        example: Monthly
+        type: string
+      price_type:
+        example: sale
+        type: string
+      valid_from:
+        example: "2026-05-02T10:00:00Z"
+        type: string
+      valid_until:
+        example: "2026-06-02T10:00:00Z"
         type: string
     type: object
   properties.PropertyStatusHistoryData:
@@ -1701,11 +1732,12 @@ paths:
       - Payments
   /api/v1/properties:
     get:
-      description: Returns a paginated list of property cards. Supports filtering
-        by search query, status, property type, modality, location (country, state,
-        city), price range, and minimum bedrooms. Price selection logic prioritizes
-        sale price, then the best current rent price (Monthly > Annual > Weekly >
-        Daily).
+      description: Returns a paginated list of property cards. Administrators can
+        view non-deleted properties, while agents can only view properties assigned
+        in property_agents. Supports filtering by search query, status, property type,
+        modality, location (country, state, city), price range, and minimum bedrooms.
+        Price selection logic prioritizes sale price, then the best current rent price
+        (Monthly > Annual > Weekly > Daily).
       parameters:
       - default: 1
         description: Page number (starts at 1)
@@ -1722,7 +1754,7 @@ paths:
         name: q
         type: string
       - collectionFormat: csv
-        description: Filter by status IDs (Available=2 by default for clients)
+        description: Filter by status IDs (defaults to Available=2 when omitted)
         in: query
         items:
           type: integer
@@ -1779,10 +1811,20 @@ paths:
           description: Invalid input parameters
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing or invalid authenticated session
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "500":
           description: Internal server error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: List properties with advanced filters
       tags:
       - Properties
@@ -1791,7 +1833,8 @@ paths:
       - application/json
       description: Registers a property and all related records in a single database
         transaction. The backend generates the property UUID and stores subtype, location,
-        pricing, services, and clauses atomically.
+        pricing, services, and clauses atomically. The authenticated user is set as
+        the owner.
       parameters:
       - description: Property payload
         in: body
@@ -1814,6 +1857,8 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Register a new property
       tags:
       - Properties
@@ -1821,10 +1866,10 @@ paths:
     delete:
       consumes:
       - application/json
-      description: Soft deletes a property by UUID. The request must include confirm=true
-        and a valid changed_by_user_id. The operation deletes linked photo objects
-        from storage before applying database updates. Only properties with available
-        status can be deleted.
+      description: Soft deletes a property by UUID. Requires confirm=true. The authenticated
+        admin is recorded as the author of the status change. The operation deletes
+        linked photo objects from storage before applying database updates. Only properties
+        with available status can be deleted.
       parameters:
       - description: Property UUID
         in: path
@@ -1858,24 +1903,21 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Delete property
       tags:
       - Properties
     get:
       description: Returns property base data, subtype, and location for the given
-        UUID. When full=true, the response also includes consolidated prices, price
-        history, photos, services, and clauses. Deleted properties are treated as
-        not found.
+        UUID. Administrators can view all fields including registered_by. Agents can
+        only access assigned properties and do not receive registered_by.
       parameters:
       - description: Property UUID
         in: path
         name: uuid
         required: true
         type: string
-      - description: Include prices, history, photos, services, and clauses
-        in: query
-        name: full
-        type: boolean
       produces:
       - application/json
       responses:
@@ -1887,6 +1929,14 @@ paths:
           description: Invalid path parameter
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing or invalid authenticated session
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "404":
           description: Property not found
           schema:
@@ -1895,14 +1945,17 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get property by UUID
       tags:
       - Properties
     patch:
       consumes:
       - application/json
-      description: Update property base data, subtype and location. Only editable
-        fields are allowed.
+      description: |-
+        Updates property base data, subtype and location.
+        Requires an authenticated admin session.
       parameters:
       - description: Property UUID
         in: path
@@ -1934,6 +1987,8 @@ paths:
           description: Internal error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Update property
       tags:
       - Properties
@@ -2044,18 +2099,11 @@ paths:
   /api/v1/properties/{uuid}/history:
     get:
       description: Returns the chronological history of status changes for a specific
-        property. Administrators can view any property history, while Agents or Clients
-        can only view history of properties they own. The requester identity is resolved
-        from the bearer token.
+        property. Requires an authenticated admin session.
       parameters:
       - description: Property UUID
         in: path
         name: uuid
-        required: true
-        type: string
-      - description: Bearer access token
-        in: header
-        name: Authorization
         required: true
         type: string
       produces:
@@ -2074,7 +2122,7 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "403":
-          description: 'Forbidden: You are not authorized to view this history'
+          description: Forbidden
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "404":
@@ -2085,6 +2133,8 @@ paths:
           description: Internal server error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get property status history
       tags:
       - Properties
@@ -2231,6 +2281,48 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Update property prices
+      tags:
+      - Properties
+  /api/v1/properties/{uuid}/prices/history:
+    get:
+      description: Returns the complete price history for a property. Requires admin
+        role.
+      parameters:
+      - description: Property UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Property prices history
+          schema:
+            $ref: '#/definitions/properties.GetPropertyPricesHistoryResult'
+        "400":
+          description: Invalid path parameter
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing or invalid authenticated session
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Property not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get property prices history
       tags:
       - Properties
   /api/v1/properties/{uuid}/services:
