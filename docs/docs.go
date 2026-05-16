@@ -734,7 +734,12 @@ const docTemplate = `{
         },
         "/api/v1/properties": {
             "get": {
-                "description": "Returns a paginated list of property cards. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
                 "produces": [
                     "application/json"
                 ],
@@ -769,7 +774,7 @@ const docTemplate = `{
                             "type": "integer"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter by status IDs (Available=2 by default for clients)",
+                        "description": "Filter by status IDs (defaults to Available=2 when omitted)",
                         "name": "status_id",
                         "in": "query"
                     },
@@ -847,6 +852,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -907,7 +924,12 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}": {
             "get": {
-                "description": "Returns property base data, subtype, and location for the given UUID. When full=true, the response also includes consolidated prices, price history, photos, services, and clauses. Deleted properties are treated as not found.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns property base data, subtype, and location for the given UUID. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
                 "produces": [
                     "application/json"
                 ],
@@ -922,12 +944,6 @@ const docTemplate = `{
                         "name": "uuid",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Include prices, history, photos, services, and clauses",
-                        "name": "full",
-                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -939,6 +955,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1241,7 +1269,12 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/history": {
             "get": {
-                "description": "Returns the chronological history of status changes for a specific property. Administrators can view any property history, while Agents or Clients can only view history of properties they own. The requester identity is resolved from the bearer token.",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the chronological history of status changes for a specific property. Requires an authenticated admin session.",
                 "produces": [
                     "application/json"
                 ],
@@ -1255,13 +1288,6 @@ const docTemplate = `{
                         "description": "Property UUID",
                         "name": "uuid",
                         "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Bearer access token",
-                        "name": "Authorization",
-                        "in": "header",
                         "required": true
                     }
                 ],
@@ -1285,7 +1311,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden: You are not authorized to view this history",
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1488,6 +1514,70 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/properties/{uuid}/prices/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the complete price history for a property. Requires admin role.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Properties"
+                ],
+                "summary": "Get property prices history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Property UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Property prices history",
+                        "schema": {
+                            "$ref": "#/definitions/properties.GetPropertyPricesHistoryResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid path parameter",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -3237,13 +3327,13 @@ const docTemplate = `{
                 "modality_id": {
                     "type": "integer"
                 },
-                "owner_id": {
-                    "type": "integer"
-                },
                 "property_type_id": {
                     "type": "integer"
                 },
                 "property_uuid": {
+                    "type": "string"
+                },
+                "registered_by": {
                     "type": "string"
                 },
                 "residential": {
@@ -3293,6 +3383,17 @@ const docTemplate = `{
                 },
                 "sale_price": {
                     "$ref": "#/definitions/properties.ActiveSalePriceData"
+                }
+            }
+        },
+        "properties.GetPropertyPricesHistoryResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/properties.PropertyPriceHistoryData"
+                    }
                 }
             }
         },
@@ -3562,6 +3663,47 @@ const docTemplate = `{
                 "storage_key": {
                     "type": "string",
                     "example": "properties/123/front.jpg"
+                }
+            }
+        },
+        "properties.PropertyPriceHistoryData": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number",
+                    "example": 1500000
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "number",
+                    "example": 50000
+                },
+                "is_current": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "is_negotiable": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "period_name": {
+                    "type": "string",
+                    "example": "Monthly"
+                },
+                "price_type": {
+                    "type": "string",
+                    "example": "sale"
+                },
+                "valid_from": {
+                    "type": "string",
+                    "example": "2026-05-02T10:00:00Z"
+                },
+                "valid_until": {
+                    "type": "string",
+                    "example": "2026-06-02T10:00:00Z"
                 }
             }
         },

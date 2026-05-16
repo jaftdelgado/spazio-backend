@@ -4,28 +4,31 @@ import "context"
 
 // Mock PropertyRepository implementation for service tests
 type mockPropertyRepository struct {
-	getModalityNameFunc        func(ctx context.Context, modalityID int32) (string, error)
-	getAllowedPeriodsFunc      func(ctx context.Context, propertyTypeID int32) (map[int32]struct{}, error)
-	getPropertySubtypeFunc     func(ctx context.Context, propertyTypeID int32) (string, error)
-	getClauseValueTypesFunc    func(ctx context.Context, clauseIDs []int32) (map[int32]int32, error)
-	createPropertyFunc         func(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
-	listPropertiesFunc         func(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error)
-	getPropertyClausesFunc     func(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
-	updatePropertyClausesFunc  func(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
-	getPropertyPhotosFunc      func(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
-	updatePropertyPhotosFunc   func(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error
-	getPropertyServicesFunc    func(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
-	updatePropertyServicesFunc func(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
-	getPropertyPricesFunc      func(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
-	updatePropertyPricesFunc   func(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
-	getPropertyFunc            func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
-	getFullPropertyFunc        func(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
-	updatePropertyFunc         func(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
-	getPropertyStorageKeysFunc func(ctx context.Context, propertyID int32) ([]string, error)
-	deletePropertyFunc         func(ctx context.Context, propertyID int32, changedByUserID int32) error
+	getModalityNameFunc           func(ctx context.Context, modalityID int32) (string, error)
+	getAllowedPeriodsFunc         func(ctx context.Context, propertyTypeID int32) (map[int32]struct{}, error)
+	getPropertySubtypeFunc        func(ctx context.Context, propertyTypeID int32) (string, error)
+	getClauseValueTypesFunc       func(ctx context.Context, clauseIDs []int32) (map[int32]int32, error)
+	createPropertyFunc            func(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error)
+	listPropertiesFunc            func(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error)
+	getPropertyClausesFunc        func(ctx context.Context, propertyUUID string) (GetPropertyClausesResult, error)
+	updatePropertyClausesFunc     func(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error
+	getPropertyPhotosFunc         func(ctx context.Context, propertyUUID string) (GetPropertyPhotosResult, error)
+	updatePropertyPhotosFunc      func(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error
+	getPropertyServicesFunc       func(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
+	updatePropertyServicesFunc    func(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
+	getPropertyPricesFunc         func(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
+	getPropertyPricesHistoryFunc  func(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
+	updatePropertyPricesFunc      func(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
+	getPropertyFunc               func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	getPropertyByUUIDFunc         func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	isPropertyAssignedToAgentFunc func(ctx context.Context, propertyID int32, agentID int32) (bool, error)
+	listPropertiesForAgentFunc    func(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error)
+	updatePropertyFunc            func(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
+	getPropertyStorageKeysFunc    func(ctx context.Context, propertyID int32) ([]string, error)
+	deletePropertyFunc            func(ctx context.Context, propertyID int32, changedByUserID int32) error
 
 	// CU-18
-	getPropertyOwnerByUUIDFunc   func(ctx context.Context, propertyUUID string) (int32, error)
+	getPropertyOwnerByUUIDFunc    func(ctx context.Context, propertyUUID string) (int32, error)
 	listPropertyStatusHistoryFunc func(ctx context.Context, propertyUUID string) ([]PropertyStatusHistoryData, error)
 }
 
@@ -134,6 +137,13 @@ func (m *mockPropertyRepository) GetPropertyPrices(ctx context.Context, property
 	return GetPropertyPricesResult{}, nil
 }
 
+func (m *mockPropertyRepository) GetPropertyPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {
+	if m.getPropertyPricesHistoryFunc != nil {
+		return m.getPropertyPricesHistoryFunc(ctx, propertyUUID)
+	}
+	return GetPropertyPricesHistoryResult{}, nil
+}
+
 func (m *mockPropertyRepository) UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error {
 	if m.updatePropertyPricesFunc != nil {
 		return m.updatePropertyPricesFunc(ctx, propertyUUID, input)
@@ -148,11 +158,25 @@ func (m *mockPropertyRepository) GetProperty(ctx context.Context, propertyUUID s
 	return GetPropertyResult{}, nil
 }
 
-func (m *mockPropertyRepository) GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error) {
-	if m.getFullPropertyFunc != nil {
-		return m.getFullPropertyFunc(ctx, propertyUUID)
+func (m *mockPropertyRepository) GetPropertyByUUID(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
+	if m.getPropertyByUUIDFunc != nil {
+		return m.getPropertyByUUIDFunc(ctx, propertyUUID)
 	}
-	return GetPropertyFullResult{}, nil
+	return GetPropertyResult{}, nil
+}
+
+func (m *mockPropertyRepository) IsPropertyAssignedToAgent(ctx context.Context, propertyID int32, agentID int32) (bool, error) {
+	if m.isPropertyAssignedToAgentFunc != nil {
+		return m.isPropertyAssignedToAgentFunc(ctx, propertyID, agentID)
+	}
+	return false, nil
+}
+
+func (m *mockPropertyRepository) ListPropertiesForAgent(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
+	if m.listPropertiesForAgentFunc != nil {
+		return m.listPropertiesForAgentFunc(ctx, input)
+	}
+	return nil, 0, nil
 }
 
 func (m *mockPropertyRepository) UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error) {

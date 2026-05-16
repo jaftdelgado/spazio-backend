@@ -35,15 +35,20 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		adminOnly.PUT("/:uuid/photos", h.updatePhotos)
 		adminOnly.PUT("/:uuid/services", h.updateServices)
 		adminOnly.PUT("/:uuid/prices", h.updatePrices)
+		adminOnly.GET("/:uuid/history", h.getPropertyHistory)
+		adminOnly.GET("/:uuid/prices/history", h.getPricesHistory)
 	}
 
-	properties.GET("", h.listProperties)
-	properties.GET("/:uuid", h.getProperty)
-	properties.GET("/:uuid/history", h.getPropertyHistory)
-	properties.GET("/:uuid/clauses", h.getClauses)
-	properties.GET("/:uuid/photos", h.getPhotos)
-	properties.GET("/:uuid/services", h.getServices)
-	properties.GET("/:uuid/prices", h.getPrices)
+	adminOrAgent := properties.Group("")
+	adminOrAgent.Use(middleware.RequireRole("admin", "agent"))
+	{
+		adminOrAgent.GET("", h.listProperties)
+		adminOrAgent.GET("/:uuid", h.getProperty)
+		adminOrAgent.GET("/:uuid/photos", h.getPhotos)
+		adminOrAgent.GET("/:uuid/services", h.getServices)
+		adminOrAgent.GET("/:uuid/clauses", h.getClauses)
+		adminOrAgent.GET("/:uuid/prices", h.getPrices)
+	}
 }
 
 // createProperty godoc

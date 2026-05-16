@@ -3,11 +3,9 @@ package properties
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/big"
-	"sort"
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,19 +26,12 @@ func (r *repository) ListPropertyStatusHistory(ctx context.Context, propertyUUID
 
 	history := make([]PropertyStatusHistoryData, 0, len(rows))
 	for _, row := range rows {
-		changedByName := ""
-		if row.ChangedByName != nil {
-			if s, ok := row.ChangedByName.(string); ok {
-				changedByName = s
-			}
-		}
-
 		history = append(history, PropertyStatusHistoryData{
 			HistoryID:          row.HistoryID,
 			PropertyUUID:       propertyUUID,
 			PreviousStatusName: row.PreviousStatusName,
 			NewStatusName:      row.NewStatusName,
-			ChangedByName:      changedByName,
+			ChangedByName:      stringValueFromUnknown(row.ChangedByName),
 			ChangedAt:          row.ChangedAt.Time,
 		})
 	}
@@ -68,9 +59,16 @@ func (r *repository) GetPropertyOwnerByUUID(ctx context.Context, propertyUUID st
 }
 
 func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
+	statusIDs := input.StatusIDs
+	if statusIDs == nil {
+		statusIDs = []int32{}
+	}
+
+	log.Printf("DEBUG ListProperties: statusIDs=%v minPrice=%v maxPrice=%v", statusIDs, input.MinPrice, input.MaxPrice)
+
 	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
 		SearchQuery:    input.Query,
-		StatusIds:      input.StatusIDs,
+		StatusIds:      statusIDs,
 		PropertyTypeID: input.PropertyTypeID,
 		ModalityID:     input.ModalityID,
 		CountryID:      input.CountryID,
@@ -104,25 +102,75 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 	return properties, rows[0].TotalCount, nil
 }
 
+func (r *repository) ListPropertiesForAgent(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error) {
+	statusIDs := input.StatusIDs
+	if statusIDs == nil {
+		statusIDs = []int32{}
+	}
+
+	rows, err := r.queries.ListPropertiesCardsForAgent(ctx, sqlcgen.ListPropertiesCardsForAgentParams{
+		AgentID:        input.UserID,
+		SearchQuery:    input.Query,
+		StatusIds:      statusIDs,
+		PropertyTypeID: input.PropertyTypeID,
+		ModalityID:     input.ModalityID,
+		CountryID:      input.CountryID,
+		StateID:        input.StateID,
+		CityID:         input.CityID,
+		MinPrice:       float64ToNumeric(input.MinPrice),
+		MaxPrice:       float64ToNumeric(input.MaxPrice),
+		MinBedrooms:    input.MinBedrooms,
+		SortField:      input.Sort,
+		SortOrder:      input.Order,
+		PageOffset:     resolvePageOffset(input.Page, input.PageSize),
+		PageSize:       input.PageSize,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("list properties for agent: %w", err)
+	}
+
+	properties := make([]PropertyCardData, 0, len(rows))
+	for _, row := range rows {
+		property, err := propertyCardDataFromAgentRow(row)
+		if err != nil {
+			return nil, 0, err
+		}
+		properties = append(properties, property)
+	}
+
+	if len(rows) == 0 {
+		return properties, 0, nil
+	}
+
+	return properties, rows[0].TotalCount, nil
+}
+
 func float64ToNumeric(val float64) pgtype.Numeric {
 	if val == 0 {
-		return pgtype.Numeric{Valid: false}
+		return pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true}
 	}
 	return pgtype.Numeric{Int: big.NewInt(int64(val * 100)), Exp: -2, Valid: true}
 }
 
 func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
-	parsedUUID, err := uuid.Parse(propertyUUID)
-	if err != nil {
+	return r.GetPropertyByUUID(ctx, propertyUUID)
+}
+
+func (r *repository) GetPropertyByUUID(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
+	var pgUUID pgtype.UUID
+	if err := pgUUID.Scan(propertyUUID); err != nil {
 		return GetPropertyResult{}, fmt.Errorf("parse property uuid: %w", err)
 	}
 
-	propertyID, err := getPropertyIDByUUID(ctx, r.queries, parsedUUID)
+	baseRow, err := r.queries.GetPropertyBaseByUUID(ctx, pgUUID)
 	if err != nil {
-		return GetPropertyResult{}, err
+		if errorsIsPgxNoRows(err) {
+			return GetPropertyResult{}, ErrPropertyNotFound
+		}
+		return GetPropertyResult{}, fmt.Errorf("get property base: %w", err)
 	}
 
-	data, err := r.getPropertyDataByID(ctx, propertyID)
+	data, err := r.getPropertyDataFromBaseRow(ctx, baseRow)
 	if err != nil {
 		return GetPropertyResult{}, err
 	}
@@ -130,97 +178,42 @@ func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetP
 	return GetPropertyResult{Data: data}, nil
 }
 
-func (r *repository) GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error) {
-	parsedUUID, err := uuid.Parse(propertyUUID)
+func (r *repository) IsPropertyAssignedToAgent(ctx context.Context, propertyID int32, agentID int32) (bool, error) {
+	assigned, err := r.queries.IsPropertyAssignedToAgent(ctx, sqlcgen.IsPropertyAssignedToAgentParams{
+		PropertyID: propertyID,
+		AgentID:    agentID,
+	})
 	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("parse property uuid: %w", err)
+		return false, fmt.Errorf("check property assignment: %w", err)
 	}
 
-	propertyID, err := getPropertyIDByUUID(ctx, r.queries, parsedUUID)
-	if err != nil {
-		return GetPropertyFullResult{}, err
-	}
-
-	baseData, err := r.getPropertyDataByID(ctx, propertyID)
-	if err != nil {
-		return GetPropertyFullResult{}, err
-	}
-
-	priceRows, err := r.queries.ListPropertyPriceTimeline(ctx, propertyID)
-	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("list property price timeline: %w", err)
-	}
-
-	photosRows, err := r.queries.ListPropertyPhotos(ctx, propertyID)
-	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("list property photos: %w", err)
-	}
-
-	serviceRows, err := r.queries.ListPropertyServiceIDs(ctx, propertyID)
-	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("list property services: %w", err)
-	}
-
-	clauseRows, err := r.queries.ListPropertyClauses(ctx, propertyID)
-	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("list property clauses: %w", err)
-	}
-
-	prices, err := buildFullPropertyPrices(baseData.ModalityID, priceRows)
-	if err != nil {
-		return GetPropertyFullResult{}, err
-	}
-
-	photos := make([]PropertyPhotoData, 0, len(photosRows))
-	for _, row := range photosRows {
-		photos = append(photos, propertyPhotoDataFromRow(row))
-	}
-
-	services := make([]int32, 0, len(serviceRows))
-	for _, serviceID := range serviceRows {
-		services = append(services, serviceID)
-	}
-
-	clauses := make([]PropertyClauseData, 0, len(clauseRows))
-	for _, row := range clauseRows {
-		clause, err := propertyClauseDataFromRow(row)
-		if err != nil {
-			return GetPropertyFullResult{}, err
-		}
-		clauses = append(clauses, clause)
-	}
-
-	return GetPropertyFullResult{
-		Data: GetPropertyFullData{
-			PropertyUUID:   baseData.PropertyUUID,
-			OwnerID:        baseData.OwnerID,
-			Subtype:        baseData.Subtype,
-			Title:          baseData.Title,
-			Description:    baseData.Description,
-			PropertyTypeID: baseData.PropertyTypeID,
-			ModalityID:     baseData.ModalityID,
-			LotArea:        baseData.LotArea,
-			IsFeatured:     baseData.IsFeatured,
-			Residential:    baseData.Residential,
-			Commercial:     baseData.Commercial,
-			Location:       baseData.Location,
-			Prices:         prices,
-			Photos:         photos,
-			Services:       services,
-			Clauses:        clauses,
-		},
-	}, nil
+	return assigned, nil
 }
 
-func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) (GetPropertyData, error) {
-	baseRow, err := r.queries.GetPropertyBaseByID(ctx, propertyID)
-	if err != nil {
-		if errorsIsPgxNoRows(err) {
-			return GetPropertyData{}, ErrPropertyNotFound
-		}
-		return GetPropertyData{}, fmt.Errorf("get property base: %w", err)
+func (r *repository) GetPropertyPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {
+	var pgUUID pgtype.UUID
+	if err := pgUUID.Scan(propertyUUID); err != nil {
+		return GetPropertyPricesHistoryResult{}, fmt.Errorf("parse property uuid: %w", err)
 	}
 
+	rows, err := r.queries.GetPropertyPricesHistory(ctx, pgUUID)
+	if err != nil {
+		return GetPropertyPricesHistoryResult{}, fmt.Errorf("get property prices history: %w", err)
+	}
+
+	items := make([]PropertyPriceHistoryData, 0, len(rows))
+	for _, row := range rows {
+		item, err := propertyPriceHistoryDataFromHistoryRow(row)
+		if err != nil {
+			return GetPropertyPricesHistoryResult{}, err
+		}
+		items = append(items, item)
+	}
+
+	return GetPropertyPricesHistoryResult{Data: items}, nil
+}
+
+func (r *repository) getPropertyDataFromBaseRow(ctx context.Context, baseRow sqlcgen.GetPropertyBaseByUUIDRow) (GetPropertyData, error) {
 	lotValue, err := baseRow.LotArea.Float64Value()
 	if err != nil {
 		return GetPropertyData{}, fmt.Errorf("convert lot area: %w", err)
@@ -238,7 +231,10 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 		StatusID:       baseRow.StatusID,
 		LotArea:        lotValue.Float64,
 		IsFeatured:     baseRow.IsFeatured,
+		RegisteredBy:   stringValueFromUnknown(baseRow.RegisteredBy),
 	}
+
+	propertyID := baseRow.PropertyID
 
 	if baseRow.Subtype == SubtypeResidential {
 		if resRow, err := r.queries.GetResidentialByPropertyID(ctx, propertyID); err == nil {
@@ -258,10 +254,8 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 				OrientationID:    resRow.OrientationID,
 				IsFurnished:      resRow.IsFurnished,
 			}
-		} else {
-			if !errorsIsPgxNoRows(err) {
-				return GetPropertyData{}, fmt.Errorf("get residential: %w", err)
-			}
+		} else if !errorsIsPgxNoRows(err) {
+			return GetPropertyData{}, fmt.Errorf("get residential: %w", err)
 		}
 	}
 
@@ -279,10 +273,8 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 				ThreePhasePower: comRow.ThreePhasePower,
 				LandUse:         comRow.LandUse,
 			}
-		} else {
-			if !errorsIsPgxNoRows(err) {
-				return GetPropertyData{}, fmt.Errorf("get commercial: %w", err)
-			}
+		} else if !errorsIsPgxNoRows(err) {
+			return GetPropertyData{}, fmt.Errorf("get commercial: %w", err)
 		}
 	}
 
@@ -298,10 +290,8 @@ func (r *repository) getPropertyDataByID(ctx context.Context, propertyID int32) 
 			Longitude:       locRow.Longitude,
 			IsPublicAddress: locRow.IsPublicAddress,
 		}
-	} else {
-		if !errorsIsPgxNoRows(err) {
-			return GetPropertyData{}, fmt.Errorf("get location: %w", err)
-		}
+	} else if !errorsIsPgxNoRows(err) {
+		return GetPropertyData{}, fmt.Errorf("get location: %w", err)
 	}
 
 	return data, nil
@@ -312,53 +302,115 @@ func resolvePageOffset(page, pageSize int32) int32 {
 }
 
 func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardData, error) {
+	return propertyCardDataFromValues(
+		row.PropertyUuid,
+		row.Title,
+		row.CoverPhotoUrl,
+		row.PropertyTypeID,
+		row.PropertyTypeName,
+		row.PropertyTypeIcon,
+		row.ModalityID,
+		row.ModalityName,
+		row.StatusID,
+		row.StatusName,
+		row.DisplayPriceAmount,
+		row.DisplayPriceCurrency,
+		row.DisplayPriceType,
+		row.DisplayPeriodName,
+		row.Bedrooms,
+		row.Bathrooms,
+		row.BuiltArea,
+	)
+}
+
+func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (PropertyCardData, error) {
+	return propertyCardDataFromValues(
+		row.PropertyUuid,
+		row.Title,
+		row.CoverPhotoUrl,
+		row.PropertyTypeID,
+		row.PropertyTypeName,
+		row.PropertyTypeIcon,
+		row.ModalityID,
+		row.ModalityName,
+		row.StatusID,
+		row.StatusName,
+		row.DisplayPriceAmount,
+		row.DisplayPriceCurrency,
+		row.DisplayPriceType,
+		row.DisplayPeriodName,
+		row.Bedrooms,
+		row.Bathrooms,
+		row.BuiltArea,
+	)
+}
+
+func propertyCardDataFromValues(
+	propertyUUID pgtype.UUID,
+	title string,
+	coverPhotoURL pgtype.Text,
+	propertyTypeID int32,
+	propertyTypeName string,
+	propertyTypeIcon pgtype.Text,
+	modalityID int32,
+	modalityName string,
+	statusID int32,
+	statusName string,
+	displayPriceAmount pgtype.Numeric,
+	displayPriceCurrency string,
+	displayPriceType string,
+	displayPeriodName string,
+	bedrooms pgtype.Int2,
+	bathrooms pgtype.Int2,
+	builtArea pgtype.Numeric,
+) (PropertyCardData, error) {
 	card := PropertyCardData{
-		PropertyUUID:  row.PropertyUuid.String(),
-		Title:         row.Title,
-		CoverPhotoURL: stringPointerFromText(row.CoverPhotoUrl),
+		PropertyUUID:  propertyUUID.String(),
+		Title:         title,
+		CoverPhotoURL: stringPointerFromText(coverPhotoURL),
 		PropertyType: PropertyCardTypeData{
-			PropertyTypeID: row.PropertyTypeID,
-			Name:           row.PropertyTypeName,
-			Icon:           stringPointerFromText(row.PropertyTypeIcon),
+			PropertyTypeID: propertyTypeID,
+			Name:           propertyTypeName,
+			Icon:           stringPointerFromText(propertyTypeIcon),
 		},
 		Modality: PropertyCardModalityData{
-			ModalityID: row.ModalityID,
-			Name:       row.ModalityName,
+			ModalityID: modalityID,
+			Name:       modalityName,
 		},
 		Status: PropertyCardStatusData{
-			StatusID: row.StatusID,
-			Name:     row.StatusName,
+			StatusID: statusID,
+			Name:     statusName,
 		},
 	}
 
-	if row.Bedrooms.Valid {
-		v := row.Bedrooms.Int16
+	if bedrooms.Valid {
+		v := bedrooms.Int16
 		card.Bedrooms = &v
 	}
-	if row.Bathrooms.Valid {
-		v := row.Bathrooms.Int16
+	if bathrooms.Valid {
+		v := bathrooms.Int16
 		card.Bathrooms = &v
 	}
-	if row.BuiltArea.Valid {
-		v, _ := row.BuiltArea.Float64Value()
+	if builtArea.Valid {
+		v, _ := builtArea.Float64Value()
 		card.BuiltArea = &v.Float64
 	}
 
-	if row.DisplayPriceAmount.Valid {
-		amount, err := row.DisplayPriceAmount.Float64Value()
+	if displayPriceAmount.Valid {
+		amount, err := displayPriceAmount.Float64Value()
 		if err != nil {
 			return PropertyCardData{}, fmt.Errorf("convert display price amount: %w", err)
 		}
 		if amount.Valid {
 			var periodName *string
-			if row.DisplayPeriodName != "" {
-				periodName = &row.DisplayPeriodName
+			if displayPeriodName != "" {
+				periodName = &displayPeriodName
 			}
 
 			card.Price = &PropertyCardPriceData{
 				Amount:     amount.Float64,
-				Currency:   row.DisplayPriceCurrency,
-				PriceType:  row.DisplayPriceType,
+				Currency:   displayPriceCurrency,
+				PriceType:  displayPriceType,
 				PeriodName: periodName,
 			}
 		}
@@ -367,65 +419,7 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 	return card, nil
 }
 
-func buildFullPropertyPrices(modalityID int32, rows []sqlcgen.ListPropertyPriceTimelineRow) (PropertyFullPricesData, error) {
-	result := PropertyFullPricesData{
-		Current: PropertyCurrentPricesData{
-			Rent: make([]CurrentRentPriceDetailData, 0),
-		},
-		History: make([]PropertyPriceHistoryData, 0, len(rows)),
-	}
-
-	for _, row := range rows {
-		historyItem, err := propertyPriceHistoryDataFromRow(row)
-		if err != nil {
-			return PropertyFullPricesData{}, err
-		}
-		result.History = append(result.History, historyItem)
-
-		if !row.IsCurrent {
-			continue
-		}
-
-		switch row.PriceType {
-		case "sale":
-			if modalityID == ModalityRent {
-				continue
-			}
-
-			result.Current.Sale = &CurrentSalePriceDetailData{
-				Amount:       historyItem.Amount,
-				Currency:     historyItem.Currency,
-				IsNegotiable: historyItem.IsNegotiable,
-				ValidFrom:    historyItem.ValidFrom,
-				ValidUntil:   historyItem.ValidUntil,
-				IsCurrent:    historyItem.IsCurrent,
-			}
-		case "rent":
-			if modalityID == ModalitySale {
-				continue
-			}
-
-			result.Current.Rent = append(result.Current.Rent, CurrentRentPriceDetailData{
-				Amount:       historyItem.Amount,
-				Currency:     historyItem.Currency,
-				PeriodName:   historyItem.PeriodName,
-				IsNegotiable: historyItem.IsNegotiable,
-				Deposit:      historyItem.Deposit,
-				ValidFrom:    historyItem.ValidFrom,
-				ValidUntil:   historyItem.ValidUntil,
-				IsCurrent:    historyItem.IsCurrent,
-			})
-		}
-	}
-
-	sort.Slice(result.Current.Rent, func(i, j int) bool {
-		return periodNamePriority(result.Current.Rent[i].PeriodName) < periodNamePriority(result.Current.Rent[j].PeriodName)
-	})
-
-	return result, nil
-}
-
-func propertyPriceHistoryDataFromRow(row sqlcgen.ListPropertyPriceTimelineRow) (PropertyPriceHistoryData, error) {
+func propertyPriceHistoryDataFromHistoryRow(row sqlcgen.GetPropertyPricesHistoryRow) (PropertyPriceHistoryData, error) {
 	amount, err := row.Amount.Float64Value()
 	if err != nil {
 		return PropertyPriceHistoryData{}, fmt.Errorf("convert property price amount: %w", err)
@@ -459,6 +453,18 @@ func propertyPriceHistoryDataFromRow(row sqlcgen.ListPropertyPriceTimelineRow) (
 	return data, nil
 }
 
+func stringValueFromUnknown(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+
+	if s, ok := value.(string); ok {
+		return s
+	}
+
+	return ""
+}
+
 func timePointerFromTimestamptz(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -466,54 +472,6 @@ func timePointerFromTimestamptz(value pgtype.Timestamptz) *time.Time {
 
 	timeValue := value.Time
 	return &timeValue
-}
-
-func periodNamePriority(periodName *string) int {
-	if periodName == nil {
-		return 100
-	}
-
-	normalized := strings.ToLower(strings.TrimSpace(*periodName))
-	if normalized == "" {
-		return 100
-	}
-
-	words := strings.FieldsFunc(normalized, func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
-	})
-
-	switch {
-	case hasWordWithPrefix(words, "month"), hasWordWithPrefix(words, "mens"), hasExactWord(words, "mes"):
-		return 1
-	case hasExactWord(words, "year"), hasExactWord(words, "año"), hasExactWord(words, "anual"):
-		return 2
-	case hasWordWithPrefix(words, "week"), hasWordWithPrefix(words, "seman"):
-		return 3
-	case hasWordWithPrefix(words, "day"), hasWordWithPrefix(words, "dia"):
-		return 4
-	default:
-		return 100
-	}
-}
-
-func hasExactWord(words []string, target string) bool {
-	for _, word := range words {
-		if word == target {
-			return true
-		}
-	}
-
-	return false
-}
-
-func hasWordWithPrefix(words []string, prefix string) bool {
-	for _, word := range words {
-		if strings.HasPrefix(word, prefix) {
-			return true
-		}
-	}
-
-	return false
 }
 
 func errorsIsPgxNoRows(err error) bool {

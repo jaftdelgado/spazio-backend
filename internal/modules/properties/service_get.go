@@ -6,21 +6,7 @@ import (
 	"fmt"
 )
 
-func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error) {
-	if requesterRoleID != RoleAdminID {
-		ownerID, err := s.repository.GetPropertyOwnerByUUID(ctx, propertyUUID)
-		if err != nil {
-			if errors.Is(err, ErrPropertyNotFound) {
-				return GetPropertyHistoryResult{}, ErrPropertyNotFound
-			}
-			return GetPropertyHistoryResult{}, fmt.Errorf("verify ownership: %w", err)
-		}
-
-		if ownerID != requesterID {
-			return GetPropertyHistoryResult{}, errors.New("forbidden: you can only see history of your own properties")
-		}
-	}
-
+func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error) {
 	data, err := s.repository.ListPropertyStatusHistory(ctx, propertyUUID)
 	if err != nil {
 		return GetPropertyHistoryResult{}, err
@@ -30,11 +16,21 @@ func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string, r
 }
 
 func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
-	if len(input.StatusIDs) == 0 {
+	if len(input.StatusIDs) == 0 && input.RoleID == RoleAgentID {
 		input.StatusIDs = []int32{StatusAvailable}
 	}
 
-	items, total, err := s.repository.ListProperties(ctx, input)
+	var (
+		items []PropertyCardData
+		total int64
+		err   error
+	)
+
+	if input.RoleID == RoleAgentID {
+		items, total, err = s.repository.ListPropertiesForAgent(ctx, input)
+	} else {
+		items, total, err = s.repository.ListProperties(ctx, input)
+	}
 	if err != nil {
 		return ListPropertiesResult{}, fmt.Errorf("list properties: %w", err)
 	}
@@ -54,24 +50,31 @@ func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput)
 	}, nil
 }
 
-func (s *service) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
-	result, err := s.repository.GetProperty(ctx, propertyUUID)
+func (s *service) GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
+	result, err := s.repository.GetPropertyByUUID(ctx, propertyUUID)
 	if err != nil {
 		return GetPropertyResult{}, fmt.Errorf("get property: %w", err)
 	}
 
-	result.Data.OwnerID = 0
+	if roleID == RoleAgentID {
+		assigned, err := s.repository.IsPropertyAssignedToAgent(ctx, result.Data.PropertyID, userID)
+		if err != nil {
+			return GetPropertyResult{}, fmt.Errorf("check agent assignment: %w", err)
+		}
+		if !assigned {
+			return GetPropertyResult{}, errors.New("forbidden: property not assigned to agent")
+		}
+		result.Data.RegisteredBy = ""
+	}
 
 	return result, nil
 }
 
-func (s *service) GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error) {
-	result, err := s.repository.GetFullProperty(ctx, propertyUUID)
+func (s *service) GetPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {
+	result, err := s.repository.GetPropertyPricesHistory(ctx, propertyUUID)
 	if err != nil {
-		return GetPropertyFullResult{}, fmt.Errorf("get full property: %w", err)
+		return GetPropertyPricesHistoryResult{}, fmt.Errorf("get prices history: %w", err)
 	}
-
-	result.Data.OwnerID = 0
 
 	return result, nil
 }

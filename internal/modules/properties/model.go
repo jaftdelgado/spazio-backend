@@ -133,6 +133,8 @@ type ListPropertiesInput struct {
 	MinPrice       float64
 	MaxPrice       float64
 	MinBedrooms    int32
+	UserID         int32
+	RoleID         int32
 }
 
 // ListPropertiesResult is the response payload returned by the properties list endpoint.
@@ -202,16 +204,11 @@ type GetPropertyResult struct {
 	Data GetPropertyData `json:"data"`
 }
 
-// GetPropertyFullResult is the response returned by GET /properties/:uuid?full=true.
-type GetPropertyFullResult struct {
-	Data GetPropertyFullData `json:"data"`
-}
-
 // GetPropertyData contiene los datos base, subtipo y ubicación de la propiedad.
 type GetPropertyData struct {
 	PropertyID     int32            `json:"-"`
 	PropertyUUID   string           `json:"property_uuid"`
-	OwnerID        int32            `json:"owner_id"`
+	OwnerID        int32            `json:"-"`
 	Subtype        string           `json:"subtype"`
 	Title          string           `json:"title"`
 	Description    string           `json:"description"`
@@ -220,63 +217,10 @@ type GetPropertyData struct {
 	StatusID       int32            `json:"status_id"`
 	LotArea        float64          `json:"lot_area"`
 	IsFeatured     bool             `json:"is_featured"`
+	RegisteredBy   string           `json:"registered_by,omitempty"`
 	Residential    *ResidentialData `json:"residential"`
 	Commercial     *CommercialData  `json:"commercial"`
 	Location       *LocationData    `json:"location"`
-}
-
-// GetPropertyFullData contains the base property data plus related resources.
-type GetPropertyFullData struct {
-	PropertyUUID   string                 `json:"property_uuid"`
-	OwnerID        int32                  `json:"owner_id"`
-	Subtype        string                 `json:"subtype"`
-	Title          string                 `json:"title"`
-	Description    string                 `json:"description"`
-	PropertyTypeID int32                  `json:"property_type_id"`
-	ModalityID     int32                  `json:"modality_id"`
-	LotArea        float64                `json:"lot_area"`
-	IsFeatured     bool                   `json:"is_featured"`
-	Residential    *ResidentialData       `json:"residential"`
-	Commercial     *CommercialData        `json:"commercial"`
-	Location       *LocationData          `json:"location"`
-	Prices         PropertyFullPricesData `json:"prices"`
-	Photos         []PropertyPhotoData    `json:"photos"`
-	Services       []int32                `json:"services"`
-	Clauses        []PropertyClauseData   `json:"clauses"`
-}
-
-// PropertyFullPricesData contains current prices and timeline entries for the property.
-type PropertyFullPricesData struct {
-	Current PropertyCurrentPricesData  `json:"current"`
-	History []PropertyPriceHistoryData `json:"history"`
-}
-
-// PropertyCurrentPricesData contains the current prices grouped by sale and rent.
-type PropertyCurrentPricesData struct {
-	Sale *CurrentSalePriceDetailData  `json:"sale"`
-	Rent []CurrentRentPriceDetailData `json:"rent"`
-}
-
-// CurrentSalePriceDetailData contains the current sale price details.
-type CurrentSalePriceDetailData struct {
-	Amount       float64    `json:"amount" example:"1500000"`
-	Currency     string     `json:"currency" example:"MXN"`
-	IsNegotiable bool       `json:"is_negotiable" example:"true"`
-	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
-	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
-	IsCurrent    bool       `json:"is_current" example:"true"`
-}
-
-// CurrentRentPriceDetailData contains a current rent price detail.
-type CurrentRentPriceDetailData struct {
-	Amount       float64    `json:"amount" example:"25000"`
-	Currency     string     `json:"currency" example:"MXN"`
-	PeriodName   *string    `json:"period_name" example:"Monthly"`
-	IsNegotiable bool       `json:"is_negotiable" example:"false"`
-	Deposit      *float64   `json:"deposit,omitempty" example:"50000"`
-	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
-	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
-	IsCurrent    bool       `json:"is_current" example:"true"`
 }
 
 // PropertyPriceHistoryData contains one historical price entry.
@@ -290,6 +234,11 @@ type PropertyPriceHistoryData struct {
 	ValidFrom    time.Time  `json:"valid_from" example:"2026-05-02T10:00:00Z"`
 	ValidUntil   *time.Time `json:"valid_until,omitempty" example:"2026-06-02T10:00:00Z"`
 	IsCurrent    bool       `json:"is_current" example:"true"`
+}
+
+// GetPropertyPricesHistoryResult is the response returned by GET /properties/:uuid/prices/history.
+type GetPropertyPricesHistoryResult struct {
+	Data []PropertyPriceHistoryData `json:"data"`
 }
 
 // ResidentialData contiene los campos del subtipo residencial.
@@ -527,11 +476,14 @@ type PropertyRepository interface {
 	GetPropertyServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdatePropertyServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPropertyPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
+	GetPropertyPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
 	UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 
 	// New persistence operations for GET / PATCH
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
-	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
+	GetPropertyByUUID(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
+	IsPropertyAssignedToAgent(ctx context.Context, propertyID int32, agentID int32) (bool, error)
+	ListPropertiesForAgent(ctx context.Context, input ListPropertiesInput) ([]PropertyCardData, int64, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	GetPropertyStorageKeys(ctx context.Context, propertyID int32) ([]string, error)
 	DeleteProperty(ctx context.Context, propertyID int32, changedByUserID int32) error
@@ -552,15 +504,15 @@ type PropertyService interface {
 	GetServices(ctx context.Context, propertyUUID string) (GetPropertyServicesResult, error)
 	UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error
 	GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
+	GetPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
 	UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 	// New endpoints
-	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
-	GetFullProperty(ctx context.Context, propertyUUID string) (GetPropertyFullResult, error)
+	GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error
 
 	// CU-18
-	GetPropertyHistory(ctx context.Context, propertyUUID string, requesterID int32, requesterRoleID int32) (GetPropertyHistoryResult, error)
+	GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error)
 }
 
 type propertyPhotoStorage interface {

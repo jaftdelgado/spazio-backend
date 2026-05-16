@@ -21,7 +21,7 @@ func RequireRole(allowedRoles ...string) gin.HandlerFunc {
 			}
 		}
 
-		c.JSON(http.StatusForbidden, gin.H{"error": "No tienes permisos para esta acción"})
+		c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to perform this action"})
 		c.Abort()
 	}
 }
