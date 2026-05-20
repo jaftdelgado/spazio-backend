@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strconv"
 	"strings"
@@ -83,6 +84,13 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	contract, err := txRepo.GetContractForPaymentWithLock(ctx, req.ContractID)
 	if err != nil {
 		return PaymentResponse{}, errors.New("no se pudo encontrar la información del contrato")
+	}
+
+	// NEW: Property Availability Check (Only for the first payment)
+	// In your catalog: 2 is Available. 1 is Reserved.
+	completedCount, _ := txRepo.CountCompletedPaymentsForContract(ctx, req.ContractID)
+	if completedCount == 0 && contract.PropertyStatusID != 2 {
+		return PaymentResponse{}, errors.New("la propiedad ya no está disponible para contratación (debe estar en estado Disponible)")
 	}
 
 	if contract.StatusID == ContractStatusBlocked {
@@ -249,6 +257,14 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		return PaymentResponse{}, translateError(err)
 	}
 
+	// Finalize contract state (Transaction Closed, Property Rented/Sold) if it's the first payment
+	if statusID == PaymentStatusCompleted {
+		if err := s.finalizeContractState(ctx, txRepo, req.ContractID, string(contract.TransactionType)); err != nil {
+			log.Printf("ERROR: falló al finalizar estado del contrato %d: %v", req.ContractID, err)
+			// No revertimos el pago, solo logueamos el error de integración
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return PaymentResponse{}, fmt.Errorf("fallo al confirmar transacción: %w", err)
 	}
@@ -374,7 +390,50 @@ func (s *service) HandleWebhook(ctx context.Context, xSignature string, xRequest
 			GatewayStatus:    pgtype.Text{String: mpResp.Status, Valid: true},
 			PaymentDate:      pgtype.Timestamptz{Time: time.Now(), Valid: true},
 		})
+
+		// If payment is approved in webhook, finalize contract state
+		if err == nil && newStatusID == PaymentStatusCompleted {
+			contract, _ := s.repo.GetContractForPayment(ctx, paymentRecord.ContractID)
+			_ = s.finalizeContractState(ctx, s.repo, paymentRecord.ContractID, string(contract.TransactionType))
+		}
+
 		return err
+	}
+
+	return nil
+}
+
+func (s *service) finalizeContractState(ctx context.Context, repo Repository, contractID int32, tType string) error {
+	count, err := repo.CountCompletedPaymentsForContract(ctx, contractID)
+	if err != nil {
+		return err
+	}
+
+	// We only finalize if it's the VERY FIRST completed payment for this contract
+	// (count is 1 because the current payment was already saved as Completed)
+	if count != 1 {
+		return nil
+	}
+
+	// 1. Close Transaction (Status 3 = Closed - according to your catalog)
+	if err := repo.UpdateTransactionStatusByContract(ctx, contractID, 3); err != nil {
+		return fmt.Errorf("close transaction: %w", err)
+	}
+
+	// 2. Update Property Status
+	// Your catalog: 1: Reserved, 2: Available, 3: Sold, 4: Rented
+	newPropStatus := int32(4) // Rented
+	if tType == "sale" {
+		newPropStatus = 3 // Sold
+	}
+
+	if err := repo.UpdatePropertyStatusByContract(ctx, contractID, newPropStatus); err != nil {
+		return fmt.Errorf("update property status: %w", err)
+	}
+
+	// 3. Activate Contract (Status 2 = Active)
+	if err := repo.UpdateContractStatus(ctx, contractID, 2); err != nil {
+		return fmt.Errorf("activate contract: %w", err)
 	}
 
 	return nil

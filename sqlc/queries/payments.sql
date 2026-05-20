@@ -9,12 +9,19 @@ SELECT
     c.currency,
     t.transaction_type,
     c.period_id,
-    rp.name as period_name
+    rp.name as period_name,
+    p.status_id as property_status_id
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
+JOIN properties p ON t.property_id = p.property_id
 LEFT JOIN rent_periods rp ON c.period_id = rp.period_id
 WHERE c.contract_id = $1
 FOR UPDATE OF c;
+
+-- name: UpdateContractStatus :exec
+UPDATE contracts
+SET status_id = $2
+WHERE contract_id = $1;
 
 -- name: GetLastPaidPeriod :one
 SELECT billing_period
@@ -57,7 +64,8 @@ SELECT
     t.client_id, 
     c.agreed_amount,
     c.period_id,
-    rp.name as period_name
+    rp.name as period_name,
+    t.transaction_type
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
 LEFT JOIN rent_periods rp ON c.period_id = rp.period_id
@@ -134,6 +142,25 @@ WHERE
         (sqlc.arg('role_id')::int = 2 AND t.agent_id = sqlc.arg('user_id')::int) OR
         (sqlc.arg('role_id')::int = 3 AND t.client_id = sqlc.arg('user_id')::int)
     );
+
+-- name: CountCompletedPaymentsForContract :one
+SELECT COUNT(*) FROM payments 
+WHERE contract_id = $1 AND status_id = 2;
+
+-- name: UpdateTransactionStatusByContract :exec
+UPDATE transactions
+SET status_id = $2
+WHERE transaction_id = (SELECT transaction_id FROM contracts WHERE contract_id = $1);
+
+-- name: UpdatePropertyStatusByContract :exec
+UPDATE properties
+SET status_id = $2
+WHERE property_id = (
+    SELECT t.property_id 
+    FROM transactions t
+    JOIN contracts c ON t.transaction_id = c.transaction_id
+    WHERE c.contract_id = $1
+);
 
 -- name: GetPaymentByID :one
 SELECT

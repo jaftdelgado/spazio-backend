@@ -11,12 +11,14 @@ import (
 )
 
 type ContractRepository interface {
-	CreateContract(ctx context.Context, input CreateContractInput, storageKey string) (sqlcgen.Contract, error)
+	CreateContract(ctx context.Context, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error)
 	GetContractDataByTransactionID(ctx context.Context, transactionID int32) (sqlcgen.GetContractDataByTransactionIDRow, error)
 	GetPropertyClausesByTransactionID(ctx context.Context, transactionID int32) ([]sqlcgen.GetPropertyClausesByTransactionIDRow, error)
+	GetPropertyServicesByTransactionID(ctx context.Context, transactionID int32) ([]string, error)
 	CheckContractExistsByTransactionID(ctx context.Context, transactionID int32) (bool, error)
 	ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error)
 	GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error)
+	FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error)
 }
 
 type repository struct {
@@ -31,7 +33,7 @@ func NewRepository(db *pgxpool.Pool) ContractRepository {
 	}
 }
 
-func (r *repository) CreateContract(ctx context.Context, input CreateContractInput, storageKey string) (sqlcgen.Contract, error) {
+func (r *repository) CreateContract(ctx context.Context, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
 	contractUUID := uuid.New()
 
 	amount := pgtype.Numeric{}
@@ -42,7 +44,7 @@ func (r *repository) CreateContract(ctx context.Context, input CreateContractInp
 		endDate = pgtype.Date{Time: *input.EndDate, Valid: true}
 	}
 
-	return r.queries.CreateContract(ctx, sqlcgen.CreateContractParams{
+	params := sqlcgen.CreateContractParams{
 		ContractUuid:  pgtype.UUID{Bytes: contractUUID, Valid: true},
 		TransactionID: input.TransactionID,
 		Currency:      input.Currency,
@@ -50,8 +52,29 @@ func (r *repository) CreateContract(ctx context.Context, input CreateContractInp
 		StorageKey:    storageKey,
 		StartDate:     pgtype.Date{Time: input.StartDate, Valid: true},
 		EndDate:       endDate,
-		StatusID:      1,
+		StatusID:      1, // Pending/Draft
+	}
+
+	if parentContractID != nil {
+		params.ParentContractID = pgtype.Int4{Int32: *parentContractID, Valid: true}
+	}
+
+	if input.PeriodID != nil {
+		params.PeriodID = pgtype.Int4{Int32: *input.PeriodID, Valid: true}
+	}
+
+	return r.queries.CreateContract(ctx, params)
+}
+
+func (r *repository) FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error) {
+	id, err := r.queries.FindLatestContractByPropertyAndClient(ctx, sqlcgen.FindLatestContractByPropertyAndClientParams{
+		PropertyID: propertyID,
+		ClientID:   clientID,
 	})
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }
 
 func (r *repository) GetContractDataByTransactionID(ctx context.Context, transactionID int32) (sqlcgen.GetContractDataByTransactionIDRow, error) {
@@ -60,6 +83,10 @@ func (r *repository) GetContractDataByTransactionID(ctx context.Context, transac
 
 func (r *repository) GetPropertyClausesByTransactionID(ctx context.Context, transactionID int32) ([]sqlcgen.GetPropertyClausesByTransactionIDRow, error) {
 	return r.queries.GetPropertyClausesByTransactionID(ctx, transactionID)
+}
+
+func (r *repository) GetPropertyServicesByTransactionID(ctx context.Context, transactionID int32) ([]string, error) {
+	return r.queries.GetPropertyServicesByTransactionID(ctx, transactionID)
 }
 
 func (r *repository) CheckContractExistsByTransactionID(ctx context.Context, transactionID int32) (bool, error) {

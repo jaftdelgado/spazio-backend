@@ -28,6 +28,36 @@ type Repository interface {
 
 	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
 	GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error)
+
+	CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error)
+	UpdateTransactionStatusByContract(ctx context.Context, contractID int32, statusID int32) error
+	UpdatePropertyStatusByContract(ctx context.Context, contractID int32, statusID int32) error
+	UpdateContractStatus(ctx context.Context, contractID int32, statusID int32) error
+}
+
+func (r *repository) CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error) {
+	return r.queries.CountCompletedPaymentsForContract(ctx, contractID)
+}
+
+func (r *repository) UpdateTransactionStatusByContract(ctx context.Context, contractID int32, statusID int32) error {
+	return r.queries.UpdateTransactionStatusByContract(ctx, sqlcgen.UpdateTransactionStatusByContractParams{
+		ContractID: contractID,
+		StatusID:   statusID,
+	})
+}
+
+func (r *repository) UpdatePropertyStatusByContract(ctx context.Context, contractID int32, statusID int32) error {
+	return r.queries.UpdatePropertyStatusByContract(ctx, sqlcgen.UpdatePropertyStatusByContractParams{
+		ContractID: contractID,
+		StatusID:   statusID,
+	})
+}
+
+func (r *repository) UpdateContractStatus(ctx context.Context, contractID int32, statusID int32) error {
+	return r.queries.UpdateContractStatus(ctx, sqlcgen.UpdateContractStatusParams{
+		ContractID: contractID,
+		StatusID:   statusID,
+	})
 }
 
 type repository struct {

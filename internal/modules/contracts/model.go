@@ -3,16 +3,19 @@ package contracts
 import "time"
 
 type CreateContractInput struct {
-	TransactionID int32     `json:"transaction_id"`
-	Currency      string    `json:"currency"`
-	AgreedAmount  float64   `json:"agreed_amount"`
-	StartDate     time.Time `json:"start_date"`
+	TransactionID int32      `json:"transaction_id"`
+	PeriodID      *int32     `json:"period_id"` // Frecuencia de pago (opcional para ventas)
+	Currency      string     `json:"currency"`
+	AgreedAmount  float64    `json:"agreed_amount"`
+	StartDate     time.Time  `json:"start_date"`
 	EndDate       *time.Time `json:"end_date"`
 }
 
 type CreateContractResult struct {
+	ContractID   int32  `json:"contract_id"`
 	ContractUUID string `json:"contract_uuid"`
 	StorageKey   string `json:"storage_key"`
+	PDFUrl       string `json:"pdf_url"`
 }
 
 type ContractDetail struct {
