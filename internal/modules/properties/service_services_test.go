@@ -101,7 +101,7 @@ func TestService_UpdateServices(t *testing.T) {
 	}{
 		{
 			name: "returns error when service id is zero",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{0},
 			},
 			repoErr:        nil,
@@ -110,7 +110,7 @@ func TestService_UpdateServices(t *testing.T) {
 		},
 		{
 			name: "returns error when service id is negative",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{-1},
 			},
 			repoErr:        nil,
@@ -119,49 +119,49 @@ func TestService_UpdateServices(t *testing.T) {
 		},
 		{
 			name: "updates property services successfully with empty service ids",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{},
 			},
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyServicesInput{
+			wantInput: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{},
 			},
 		},
 		{
 			name: "updates property services successfully",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1, 3, 7},
 			},
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyServicesInput{
+			wantInput: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1, 3, 7},
 			},
 		},
 		{
 			name: "returns error when property is not found",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1},
 			},
 			repoErr:        ErrPropertyNotFound,
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyServicesInput{
+			wantInput: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1},
 			},
 		},
 		{
 			name: "returns error when repository fails",
-			input: UpdatePropertyServicesInput{
+			input: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1},
 			},
 			repoErr:        errors.New("db"),
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyServicesInput{
+			wantInput: UpdatePropertyServicesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				ServiceIDs: []int32{1},
 			},
 		},

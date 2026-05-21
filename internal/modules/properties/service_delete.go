@@ -8,6 +8,10 @@ import (
 )
 
 func (s *service) DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error {
+	if err := requireAdminActor(input.Actor); err != nil {
+		return err
+	}
+
 	property, err := s.repository.GetProperty(ctx, propertyUUID)
 	if err != nil {
 		return fmt.Errorf("get property: %w", err)
@@ -24,19 +28,14 @@ func (s *service) DeleteProperty(ctx context.Context, propertyUUID string, input
 		return fmt.Errorf("get property storage keys: %w", err)
 	}
 
-	deletedKeys := make([]string, 0, len(storageKeys))
-	for _, storageKey := range storageKeys {
-		if err := s.r2Client.Delete(ctx, storageKey); err != nil {
-			return errors.New("could not delete property photos from storage")
-		}
-		deletedKeys = append(deletedKeys, storageKey)
+	if err := s.repository.DeleteProperty(ctx, propertyID, input.ChangedByUserID); err != nil {
+		return errors.New("could not complete deletion: database transaction failed")
 	}
 
-	if err := s.repository.DeleteProperty(ctx, propertyID, input.ChangedByUserID); err != nil {
-		for _, storageKey := range deletedKeys {
-			log.Printf("orphaned storage key after transaction failure: %s", storageKey)
+	for _, storageKey := range storageKeys {
+		if err := s.r2Client.Delete(ctx, storageKey); err != nil {
+			log.Printf("property delete storage cleanup failed for property_id=%d storage_key=%s: %v", propertyID, storageKey, err)
 		}
-		return errors.New("could not complete deletion: database transaction failed")
 	}
 
 	return nil

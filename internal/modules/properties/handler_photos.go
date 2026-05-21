@@ -83,6 +83,8 @@ func (h *Handler) updatePhotos(c *gin.Context) {
 		}
 	}
 
+	attachActorContext(c, &req.Actor)
+
 	if err := h.service.UpdatePhotos(c.Request.Context(), propertyUUID, req); err != nil {
 		var validationErr ValidationError
 		if errors.As(err, &validationErr) {

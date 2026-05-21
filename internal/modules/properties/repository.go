@@ -3,6 +3,7 @@ package properties
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -318,4 +319,26 @@ func int4FromPointer(value *int32) pgtype.Int4 {
 	}
 
 	return pgtype.Int4{Int32: *value, Valid: true}
+}
+
+func numericEqualsFloat64(value pgtype.Numeric, candidate float64) (bool, error) {
+	floatValue, err := value.Float64Value()
+	if err != nil {
+		return false, err
+	}
+	if !floatValue.Valid {
+		return false, nil
+	}
+	return math.Abs(floatValue.Float64-candidate) < 1e-9, nil
+}
+
+func optionalStringEqual(current pgtype.Text, next *string) bool {
+	currentValue := stringPointerFromText(current)
+	if currentValue == nil && next == nil {
+		return true
+	}
+	if currentValue == nil || next == nil {
+		return false
+	}
+	return *currentValue == *next
 }

@@ -13,6 +13,7 @@ import (
 const (
 	defaultPopularLimit = 12
 	defaultSearchLimit  = 10
+	maxListLimit        = 50
 )
 
 type Handler struct {
@@ -91,5 +92,6 @@ func resolveLimit(rawLimit string, fallback int) (int, error) {
 func validateListServicesRequest(limit int) error {
 	return shared.Validate([]shared.ValidationRule{
 		{Fail: limit <= 0, Msg: "limit must be greater than 0"},
+		{Fail: limit > maxListLimit, Msg: "limit must be less than or equal to 50"},
 	})
 }

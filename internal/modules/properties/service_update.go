@@ -6,8 +6,9 @@ import (
 )
 
 func (s *service) UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error) {
-	// Basic business validations that require service level can be added here.
-	// For now assume handler performed field-level validations and delegate persistence to repository.
+	if err := requireAdminActor(input.Actor); err != nil {
+		return UpdatePropertyResult{}, err
+	}
 
 	res, err := s.repository.UpdateProperty(ctx, propertyUUID, input)
 	if err != nil {

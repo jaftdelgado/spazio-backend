@@ -102,22 +102,16 @@ func (r *repository) UpdatePropertyPrices(ctx context.Context, propertyUUID stri
 		return err
 	}
 
-	// Get owner ID for changed_by_user_id
-	ownerID, err := r.getOwnerIDFromProperty(ctx, queries, propertyID)
-	if err != nil {
-		return err
-	}
-
 	// Update sale price if provided
 	if input.SalePrice != nil {
-		if err := r.updateSalePriceWithHistory(ctx, queries, propertyID, ownerID, *input.SalePrice); err != nil {
+		if err := r.updateSalePriceWithHistory(ctx, queries, propertyID, input.Actor.UserID, *input.SalePrice); err != nil {
 			return err
 		}
 	}
 
 	// Update rent prices if provided
 	for _, rentPriceUpdate := range input.RentPrices {
-		if err := r.updateRentPriceWithHistory(ctx, queries, propertyID, ownerID, rentPriceUpdate); err != nil {
+		if err := r.updateRentPriceWithHistory(ctx, queries, propertyID, input.Actor.UserID, rentPriceUpdate); err != nil {
 			return err
 		}
 	}
@@ -129,19 +123,7 @@ func (r *repository) UpdatePropertyPrices(ctx context.Context, propertyUUID stri
 	return nil
 }
 
-func (r *repository) getOwnerIDFromProperty(ctx context.Context, queries *sqlcgen.Queries, propertyID int32) (int32, error) {
-	ownerID, err := queries.GetPropertyOwnerID(ctx, propertyID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, ErrPropertyNotFound
-		}
-		return 0, fmt.Errorf("get property owner id: %w", err)
-	}
-
-	return ownerID, nil
-}
-
-func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sqlcgen.Queries, propertyID, ownerID int32, update UpdateSalePriceInput) error {
+func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sqlcgen.Queries, propertyID, changedByUserID int32, update UpdateSalePriceInput) error {
 	// Get current active sale price
 	currentRow, err := queries.ListActiveSalePrice(ctx, propertyID)
 	hasActiveSalePrice := true
@@ -159,12 +141,12 @@ func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sq
 
 	// If there's an active price, check if amount changed
 	if hasActiveSalePrice {
-		currentAmount, err := currentRow.SalePrice.Float64Value()
+		amountChanged, err := numericEqualsFloat64(currentRow.SalePrice, update.SalePrice)
 		if err != nil {
-			return fmt.Errorf("convert current sale price: %w", err)
+			return fmt.Errorf("compare current sale price: %w", err)
 		}
 
-		if currentAmount.Float64 != update.SalePrice {
+		if !amountChanged {
 			// Amount changed: close old record and create new one
 			if err := queries.UpdateSalePriceToInactive(ctx, propertyID); err != nil {
 				return fmt.Errorf("mark sale price inactive: %w", err)
@@ -175,7 +157,7 @@ func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sq
 				SalePrice:       newAmount,
 				Currency:        currentRow.Currency,
 				IsNegotiable:    update.IsNegotiable,
-				ChangedByUserID: ownerID,
+				ChangedByUserID: changedByUserID,
 			}); err != nil {
 				return fmt.Errorf("create sale price history record: %w", err)
 			}
@@ -195,7 +177,7 @@ func (r *repository) updateSalePriceWithHistory(ctx context.Context, queries *sq
 	return nil
 }
 
-func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sqlcgen.Queries, propertyID, ownerID int32, update UpdateRentPriceInput) error {
+func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sqlcgen.Queries, propertyID, changedByUserID int32, update UpdateRentPriceInput) error {
 	// Get current active rent price for this period
 	currentRow, err := queries.ListActiveRentPriceByPeriod(ctx, sqlcgen.ListActiveRentPriceByPeriodParams{
 		PropertyID: propertyID,
@@ -221,12 +203,12 @@ func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sq
 
 	// If there's an active price, check if amount changed
 	if hasActiveRentPrice {
-		currentAmount, err := currentRow.RentPrice.Float64Value()
+		amountChanged, err := numericEqualsFloat64(currentRow.RentPrice, update.RentPrice)
 		if err != nil {
-			return fmt.Errorf("convert current rent price: %w", err)
+			return fmt.Errorf("compare current rent price: %w", err)
 		}
 
-		if currentAmount.Float64 != update.RentPrice {
+		if !amountChanged {
 			// Amount changed: close old record and create new one
 			if err := queries.UpdateRentPriceToInactive(ctx, sqlcgen.UpdateRentPriceToInactiveParams{
 				PropertyID: propertyID,
@@ -242,7 +224,7 @@ func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sq
 				Deposit:         newDeposit,
 				Currency:        currentRow.Currency,
 				IsNegotiable:    update.IsNegotiable,
-				ChangedByUserID: ownerID,
+				ChangedByUserID: changedByUserID,
 			}); err != nil {
 				return fmt.Errorf("create rent price history record: %w", err)
 			}

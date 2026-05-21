@@ -15,6 +15,10 @@ func (s *service) GetPrices(ctx context.Context, propertyUUID string) (GetProper
 }
 
 func (s *service) UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error {
+	if err := requireAdminActor(input.Actor); err != nil {
+		return err
+	}
+
 	if err := validatePriceInputs(input); err != nil {
 		return ValidationError{Message: err.Error()}
 	}

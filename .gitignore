@@ -25,3 +25,6 @@ tmp/
 # Test coverage reports
 coverage.out
 coverage/
+
+# Go cache
+.gocache/

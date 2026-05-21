@@ -51,11 +51,11 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 		baseChanged = true
 	}
 	if input.LotArea != nil {
-		currentLot, err := baseRow.LotArea.Float64Value()
+		changed, err := numericEqualsFloat64(baseRow.LotArea, *input.LotArea)
 		if err != nil {
-			return UpdatePropertyResult{}, fmt.Errorf("convert current lot area: %w", err)
+			return UpdatePropertyResult{}, fmt.Errorf("compare current lot area: %w", err)
 		}
-		if currentLot.Float64 != *input.LotArea {
+		if !changed {
 			baseChanged = true
 		}
 	}
@@ -77,11 +77,11 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 			if *input.Residential.Bedrooms != resRow.Bedrooms || *input.Residential.Bathrooms != resRow.Bathrooms || *input.Residential.Beds != resRow.Beds || *input.Residential.Floors != resRow.Floors || *input.Residential.ParkingSpots != resRow.ParkingSpots {
 				subtypeChanged = true
 			}
-			builtVal, err := resRow.BuiltArea.Float64Value()
+			builtAreaChanged, err := numericEqualsFloat64(resRow.BuiltArea, *input.Residential.BuiltArea)
 			if err != nil {
-				return UpdatePropertyResult{}, fmt.Errorf("convert current built area: %w", err)
+				return UpdatePropertyResult{}, fmt.Errorf("compare current built area: %w", err)
 			}
-			if *input.Residential.BuiltArea != builtVal.Float64 || *input.Residential.ConstructionYear != resRow.ConstructionYear || *input.Residential.OrientationID != resRow.OrientationID || *input.Residential.IsFurnished != resRow.IsFurnished {
+			if !builtAreaChanged || *input.Residential.ConstructionYear != resRow.ConstructionYear || *input.Residential.OrientationID != resRow.OrientationID || *input.Residential.IsFurnished != resRow.IsFurnished {
 				subtypeChanged = true
 			}
 
@@ -114,12 +114,12 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 				return UpdatePropertyResult{}, fmt.Errorf("get commercial: %w", err)
 			}
 
-			chVal, err := comRow.CeilingHeight.Float64Value()
+			ceilingHeightChanged, err := numericEqualsFloat64(comRow.CeilingHeight, *input.Commercial.CeilingHeight)
 			if err != nil {
-				return UpdatePropertyResult{}, fmt.Errorf("convert current ceiling height: %w", err)
+				return UpdatePropertyResult{}, fmt.Errorf("compare current ceiling height: %w", err)
 			}
 
-			if *input.Commercial.CeilingHeight != chVal.Float64 || *input.Commercial.LoadingDocks != comRow.LoadingDocks || *input.Commercial.InternalOffices != comRow.InternalOffices || *input.Commercial.ThreePhasePower != comRow.ThreePhasePower || *input.Commercial.LandUse != comRow.LandUse {
+			if !ceilingHeightChanged || *input.Commercial.LoadingDocks != comRow.LoadingDocks || *input.Commercial.InternalOffices != comRow.InternalOffices || *input.Commercial.ThreePhasePower != comRow.ThreePhasePower || *input.Commercial.LandUse != comRow.LandUse {
 				subtypeChanged = true
 			}
 
@@ -150,7 +150,7 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 			return UpdatePropertyResult{}, fmt.Errorf("get location: %w", err)
 		}
 
-		if locRow.CityID != *input.Location.CityID || locRow.Neighborhood != *input.Location.Neighborhood || locRow.Street != *input.Location.Street || locRow.ExteriorNumber != *input.Location.ExteriorNumber || stringPointerFromText(locRow.InteriorNumber) == nil && input.Location.InteriorNumber != nil || locRow.PostalCode != *input.Location.PostalCode || locRow.IsPublicAddress != *input.Location.IsPublicAddress {
+		if locRow.CityID != *input.Location.CityID || locRow.Neighborhood != *input.Location.Neighborhood || locRow.Street != *input.Location.Street || locRow.ExteriorNumber != *input.Location.ExteriorNumber || !optionalStringEqual(locRow.InteriorNumber, input.Location.InteriorNumber) || locRow.PostalCode != *input.Location.PostalCode || locRow.IsPublicAddress != *input.Location.IsPublicAddress {
 			locationChanged = true
 		} else {
 			// compare coords

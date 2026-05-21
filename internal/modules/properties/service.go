@@ -30,6 +30,16 @@ func NewService(repository PropertyRepository, r2Client propertyPhotoStorage) Pr
 	}
 }
 
+func requireAdminActor(actor ActorContext) error {
+	if actor.UserID <= 0 {
+		return errors.New("missing actor user id")
+	}
+	if actor.RoleID != RoleAdminID {
+		return errors.New("forbidden: admin role is required")
+	}
+	return nil
+}
+
 func (s *service) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
 	input.OwnerID = userID
 

@@ -115,7 +115,7 @@ func TestService_UpdateClauses(t *testing.T) {
 		{
 			name:         "valid clauses, repository returns nil",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -123,7 +123,7 @@ func TestService_UpdateClauses(t *testing.T) {
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyClausesInput{
+			wantInput: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -132,20 +132,20 @@ func TestService_UpdateClauses(t *testing.T) {
 		{
 			name:         "empty clauses, repository called",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{},
 			},
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyClausesInput{
+			wantInput: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{},
 			},
 		},
 		{
 			name:         "returns validation error when clause id is invalid",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 0},
 				},
@@ -166,7 +166,7 @@ func TestService_UpdateClauses(t *testing.T) {
 		{
 			name:         "returns validation error when clause id does not exist",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 999},
 				},
@@ -184,7 +184,7 @@ func TestService_UpdateClauses(t *testing.T) {
 		{
 			name:         "returns error when property is not found",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -192,7 +192,7 @@ func TestService_UpdateClauses(t *testing.T) {
 			repoErr:        ErrPropertyNotFound,
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyClausesInput{
+			wantInput: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -206,7 +206,7 @@ func TestService_UpdateClauses(t *testing.T) {
 		{
 			name:         "returns error when repository fails",
 			propertyUUID: "123e4567-e89b-12d3-a456-426614174000",
-			input: UpdatePropertyClausesInput{
+			input: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -214,7 +214,7 @@ func TestService_UpdateClauses(t *testing.T) {
 			repoErr:        errors.New("transaction failed"),
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyClausesInput{
+			wantInput: UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{ClauseID: 1, BooleanValue: ptrBool(true)},
 				},
@@ -324,7 +324,7 @@ func TestService_UpdateClauses_ValidateClauseValues_RangeValidation(t *testing.T
 			storage := &mockPropertyPhotoStorage{}
 			svc := NewService(repo, storage)
 
-			input := UpdatePropertyClausesInput{
+			input := UpdatePropertyClausesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Clauses: []CreatePropertyClauseInput{
 					{
 						ClauseID: 2,
