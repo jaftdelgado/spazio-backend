@@ -68,7 +68,7 @@ func TestService_UpdateProperty(t *testing.T) {
 
 			svc := NewService(repo, &mockPropertyPhotoStorage{})
 
-			dummyInput := UpdatePropertyInput{
+			dummyInput := UpdatePropertyInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Title: ptrString("New Title"),
 			}
 

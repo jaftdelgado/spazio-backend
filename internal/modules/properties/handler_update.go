@@ -68,11 +68,27 @@ func (h *Handler) updateProperty(c *gin.Context) {
 			shared.BadRequest(c, errors.New("residential.orientation_id must be greater than 0"))
 			return
 		}
+		if *req.Residential.Bedrooms < 0 || *req.Residential.Bathrooms < 0 || *req.Residential.Beds < 0 || *req.Residential.Floors < 0 || *req.Residential.ParkingSpots < 0 {
+			shared.BadRequest(c, errors.New("residential numeric fields must be greater than or equal to 0"))
+			return
+		}
+		if *req.Residential.BuiltArea <= 0 {
+			shared.BadRequest(c, errors.New("residential.built_area must be greater than 0"))
+			return
+		}
 	}
 
 	if req.Commercial != nil {
 		if req.Commercial.CeilingHeight == nil || req.Commercial.LoadingDocks == nil || req.Commercial.InternalOffices == nil || req.Commercial.ThreePhasePower == nil || req.Commercial.LandUse == nil || strings.TrimSpace(*req.Commercial.LandUse) == "" {
 			shared.BadRequest(c, errors.New("all commercial fields are required when commercial is provided"))
+			return
+		}
+		if *req.Commercial.CeilingHeight <= 0 {
+			shared.BadRequest(c, errors.New("commercial.ceiling_height must be greater than 0"))
+			return
+		}
+		if *req.Commercial.LoadingDocks < 0 || *req.Commercial.InternalOffices < 0 {
+			shared.BadRequest(c, errors.New("commercial numeric fields must be greater than or equal to 0"))
 			return
 		}
 	}
@@ -82,7 +98,29 @@ func (h *Handler) updateProperty(c *gin.Context) {
 			shared.BadRequest(c, errors.New("all location fields except interior_number are required when location is provided"))
 			return
 		}
+		if strings.TrimSpace(*req.Location.Neighborhood) == "" {
+			shared.BadRequest(c, errors.New("location.neighborhood is required"))
+			return
+		}
+		if strings.TrimSpace(*req.Location.Street) == "" {
+			shared.BadRequest(c, errors.New("location.street is required"))
+			return
+		}
+		if strings.TrimSpace(*req.Location.ExteriorNumber) == "" {
+			shared.BadRequest(c, errors.New("location.exterior_number is required"))
+			return
+		}
+		if strings.TrimSpace(*req.Location.PostalCode) == "" {
+			shared.BadRequest(c, errors.New("location.postal_code is required"))
+			return
+		}
+		if err := validateCoordinates(*req.Location.Latitude, *req.Location.Longitude); err != nil {
+			shared.BadRequest(c, err)
+			return
+		}
 	}
+
+	attachActorContext(c, &req.Actor)
 
 	result, err := h.service.UpdateProperty(c.Request.Context(), propertyUUID, req)
 	if err != nil {

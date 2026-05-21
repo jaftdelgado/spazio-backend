@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
 const (
@@ -38,7 +39,7 @@ func (h *Handler) listCountries(c *gin.Context) {
 
 	result, err := h.service.ListCountries(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list countries"})
+		shared.InternalError(c, "could not list countries")
 		return
 	}
 
@@ -58,13 +59,17 @@ func (h *Handler) listCountries(c *gin.Context) {
 func (h *Handler) listStates(c *gin.Context) {
 	countryIDStr := strings.TrimSpace(c.Query("country_id"))
 	if countryIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "country_id is required"})
+		shared.BadRequest(c, errors.New("country_id is required"))
 		return
 	}
 
 	countryID, err := strconv.ParseInt(countryIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "country_id must be a valid integer"})
+		shared.BadRequest(c, errors.New("country_id must be a valid integer"))
+		return
+	}
+	if countryID <= 0 {
+		shared.BadRequest(c, errors.New("country_id must be greater than 0"))
 		return
 	}
 
@@ -73,7 +78,7 @@ func (h *Handler) listStates(c *gin.Context) {
 		CountryID: int32(countryID),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list states"})
+		shared.InternalError(c, "could not list states")
 		return
 	}
 
@@ -95,27 +100,31 @@ func (h *Handler) listStates(c *gin.Context) {
 func (h *Handler) listCities(c *gin.Context) {
 	stateIDStr := strings.TrimSpace(c.Query("state_id"))
 	if stateIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "state_id is required"})
+		shared.BadRequest(c, errors.New("state_id is required"))
 		return
 	}
 
 	stateID, err := strconv.ParseInt(stateIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "state_id must be a valid integer"})
+		shared.BadRequest(c, errors.New("state_id must be a valid integer"))
+		return
+	}
+	if stateID <= 0 {
+		shared.BadRequest(c, errors.New("state_id must be greater than 0"))
 		return
 	}
 
 	pageStr := strings.TrimSpace(c.Query("page"))
 	page, err := resolvePage(pageStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		shared.BadRequest(c, err)
 		return
 	}
 
 	pageSizeStr := strings.TrimSpace(c.Query("page_size"))
 	pageSize, err := resolvePageSize(pageSizeStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		shared.BadRequest(c, err)
 		return
 	}
 
@@ -126,7 +135,7 @@ func (h *Handler) listCities(c *gin.Context) {
 		PageSize: int32(pageSize),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not list cities"})
+		shared.InternalError(c, "could not list cities")
 		return
 	}
 

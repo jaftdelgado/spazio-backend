@@ -15,6 +15,10 @@ func (s *service) GetPhotos(ctx context.Context, propertyUUID string) (GetProper
 }
 
 func (s *service) UpdatePhotos(ctx context.Context, propertyUUID string, input UpdatePropertyPhotosInput) error {
+	if err := requireAdminActor(input.Actor); err != nil {
+		return err
+	}
+
 	if err := validatePhotoMetadataInputs(input.Photos); err != nil {
 		return ValidationError{Message: err.Error()}
 	}

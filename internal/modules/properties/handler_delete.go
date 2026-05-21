@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
@@ -26,9 +25,8 @@ import (
 // @Failure      500      {object}  shared.ErrorResponse "Internal error"
 // @Router       /api/v1/properties/{uuid} [delete]
 func (h *Handler) deleteProperty(c *gin.Context) {
-	userID, err := middleware.AuthenticatedUserID(c)
-	if err != nil {
-		shared.Unauthorized(c)
+	userID, roleID, ok := resolveAuthenticatedActor(c)
+	if !ok {
 		return
 	}
 
@@ -45,6 +43,7 @@ func (h *Handler) deleteProperty(c *gin.Context) {
 	}
 
 	req.ChangedByUserID = userID
+	req.Actor = ActorContext{UserID: userID, RoleID: roleID}
 
 	if err := validateDeletePropertyRequest(req); err != nil {
 		shared.BadRequest(c, err)

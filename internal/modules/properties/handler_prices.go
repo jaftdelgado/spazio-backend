@@ -80,6 +80,8 @@ func (h *Handler) updatePrices(c *gin.Context) {
 		return
 	}
 
+	attachActorContext(c, &req.Actor)
+
 	if err := h.service.UpdatePrices(c.Request.Context(), propertyUUID, req); err != nil {
 		var validationErr ValidationError
 		if errors.As(err, &validationErr) {

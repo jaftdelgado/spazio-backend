@@ -285,6 +285,7 @@ type UpdatePropertyInput struct {
 	Residential *UpdateResidentialInput `json:"residential,omitempty"`
 	Commercial  *UpdateCommercialInput  `json:"commercial,omitempty"`
 	Location    *UpdateLocationInput    `json:"location,omitempty"`
+	Actor       ActorContext            `json:"-"`
 }
 
 // UpdateResidentialInput contiene los campos editables del subtipo residencial.
@@ -329,8 +330,9 @@ type UpdatePropertyResult struct {
 
 // DeletePropertyInput is the request payload used to soft delete a property.
 type DeletePropertyInput struct {
-	Confirm         bool  `json:"confirm" example:"true"`
-	ChangedByUserID int32 `json:"-"`
+	Confirm         bool         `json:"confirm" example:"true"`
+	ChangedByUserID int32        `json:"-"`
+	Actor           ActorContext `json:"-"`
 }
 
 // PropertyClauseData represents a linked clause with its stored value payload.
@@ -345,6 +347,7 @@ type PropertyClauseData struct {
 // UpdatePropertyClausesInput is the request payload used to replace the linked clauses of a property.
 type UpdatePropertyClausesInput struct {
 	Clauses []CreatePropertyClauseInput `json:"clauses,omitempty"`
+	Actor   ActorContext                `json:"-"`
 }
 
 // GetPropertyPhotosResult is the response returned by the property photos list endpoint.
@@ -366,6 +369,7 @@ type PropertyPhotoData struct {
 // UpdatePropertyPhotosInput is the request payload used to replace the linked photo metadata of a property.
 type UpdatePropertyPhotosInput struct {
 	Photos []UpdatePhotoMetadataInput `json:"photos,omitempty"`
+	Actor  ActorContext               `json:"-"`
 }
 
 // UpdatePhotoMetadataInput contains the editable fields of a linked photo.
@@ -389,7 +393,8 @@ type GetPropertyServicesData struct {
 
 // UpdatePropertyServicesInput is the request payload used to replace the linked services of a property.
 type UpdatePropertyServicesInput struct {
-	ServiceIDs []int32 `json:"service_ids"`
+	ServiceIDs []int32      `json:"service_ids"`
+	Actor      ActorContext `json:"-"`
 }
 
 // GetPropertyPricesResult is the response returned by the property prices list endpoint.
@@ -423,6 +428,12 @@ type ActiveRentPriceData struct {
 type UpdatePropertyPricesInput struct {
 	SalePrice  *UpdateSalePriceInput  `json:"sale_price,omitempty"`
 	RentPrices []UpdateRentPriceInput `json:"rent_prices,omitempty"`
+	Actor      ActorContext           `json:"-"`
+}
+
+type ActorContext struct {
+	UserID int32
+	RoleID int32
 }
 
 // UpdateSalePriceInput contains the editable fields of a sale price.

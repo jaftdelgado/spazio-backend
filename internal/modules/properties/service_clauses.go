@@ -15,6 +15,10 @@ func (s *service) GetClauses(ctx context.Context, propertyUUID string) (GetPrope
 }
 
 func (s *service) UpdateClauses(ctx context.Context, propertyUUID string, input UpdatePropertyClausesInput) error {
+	if err := requireAdminActor(input.Actor); err != nil {
+		return err
+	}
+
 	if err := validateClauseInputs(input.Clauses); err != nil {
 		return ValidationError{Message: err.Error()}
 	}

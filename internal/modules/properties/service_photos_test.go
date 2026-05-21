@@ -94,7 +94,7 @@ func TestService_UpdatePhotos(t *testing.T) {
 	}{
 		{
 			name: "returns error when photo id is zero",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 0}},
 			},
 			repoErr:        nil,
@@ -103,7 +103,7 @@ func TestService_UpdatePhotos(t *testing.T) {
 		},
 		{
 			name: "returns error when photo ids are duplicated",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1}, {PhotoID: 1}},
 			},
 			repoErr:        nil,
@@ -112,7 +112,7 @@ func TestService_UpdatePhotos(t *testing.T) {
 		},
 		{
 			name: "returns error when no cover photo is provided",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: false}},
 			},
 			repoErr:        nil,
@@ -121,7 +121,7 @@ func TestService_UpdatePhotos(t *testing.T) {
 		},
 		{
 			name: "returns error when multiple cover photos are provided",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}, {PhotoID: 2, IsCover: true}},
 			},
 			repoErr:        nil,
@@ -130,61 +130,61 @@ func TestService_UpdatePhotos(t *testing.T) {
 		},
 		{
 			name: "updates property photos successfully with empty photos",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{},
 			},
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPhotosInput{
+			wantInput: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{},
 			},
 		},
 		{
 			name: "updates property photos successfully",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPhotosInput{
+			wantInput: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 		},
 		{
 			name: "returns validation error when repository validation fails",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 			repoErr:        ValidationError{Message: "invalid photo_id"},
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPhotosInput{
+			wantInput: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 		},
 		{
 			name: "returns error when property is not found",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 			repoErr:        ErrPropertyNotFound,
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPhotosInput{
+			wantInput: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 		},
 		{
 			name: "returns error when repository fails",
-			input: UpdatePropertyPhotosInput{
+			input: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 			repoErr:        errors.New("db"),
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPhotosInput{
+			wantInput: UpdatePropertyPhotosInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				Photos: []UpdatePhotoMetadataInput{{PhotoID: 1, IsCover: true}},
 			},
 		},

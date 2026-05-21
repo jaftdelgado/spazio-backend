@@ -51,6 +51,10 @@ func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput)
 }
 
 func (s *service) GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
+	if roleID != RoleAdminID && roleID != RoleAgentID {
+		return GetPropertyResult{}, errors.New("forbidden: unsupported role")
+	}
+
 	result, err := s.repository.GetPropertyByUUID(ctx, propertyUUID)
 	if err != nil {
 		return GetPropertyResult{}, fmt.Errorf("get property: %w", err)

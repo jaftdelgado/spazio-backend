@@ -80,6 +80,8 @@ func (h *Handler) updateClauses(c *gin.Context) {
 		return
 	}
 
+	attachActorContext(c, &req.Actor)
+
 	if err := h.service.UpdateClauses(c.Request.Context(), propertyUUID, req); err != nil {
 		var validationErr ValidationError
 		if errors.As(err, &validationErr) {

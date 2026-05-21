@@ -1,6 +1,9 @@
 package properties
 
-import "errors"
+import (
+	"errors"
+	"math"
+)
 
 func validateServiceIDs(serviceIDs []int32) error {
 	for i, serviceID := range serviceIDs {
@@ -37,7 +40,21 @@ func validatePriceInputs(input UpdatePropertyPricesInput) error {
 		if rentPrice.RentPrice <= 0 {
 			return errors.New("rent_prices[" + indexString(i) + "].rent_price must be greater than 0")
 		}
+
+		if rentPrice.Deposit != nil && *rentPrice.Deposit < 0 {
+			return errors.New("rent_prices[" + indexString(i) + "].deposit must be greater than or equal to 0")
+		}
 	}
 
+	return nil
+}
+
+func validateCoordinates(latitude, longitude float64) error {
+	if math.IsNaN(latitude) || latitude < -90 || latitude > 90 {
+		return errors.New("location.latitude must be between -90 and 90")
+	}
+	if math.IsNaN(longitude) || longitude < -180 || longitude > 180 {
+		return errors.New("location.longitude must be between -180 and 180")
+	}
 	return nil
 }

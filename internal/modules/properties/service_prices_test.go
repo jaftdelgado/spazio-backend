@@ -108,7 +108,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		// validatePriceInputs failure cases
 		{
 			name: "returns error when sale price is zero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{
 					SalePrice: 0,
 				},
@@ -119,7 +119,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "returns error when sale price is negative",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{
 					SalePrice: -100,
 				},
@@ -130,7 +130,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "returns error when rent price period id is zero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{
 					{PeriodID: 0, RentPrice: 8000},
 				},
@@ -141,7 +141,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "returns error when rent price amount is zero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{
 					{PeriodID: 3, RentPrice: 0},
 				},
@@ -152,7 +152,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "updates sale price successfully",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{
 					SalePrice:    1500000,
 					IsNegotiable: true,
@@ -161,7 +161,7 @@ func TestService_UpdatePrices(t *testing.T) {
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPricesInput{
+			wantInput: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{
 					SalePrice:    1500000,
 					IsNegotiable: true,
@@ -170,7 +170,7 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "updates rent price successfully",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{
 					{PeriodID: 3, RentPrice: 8000, IsNegotiable: false},
 				},
@@ -178,7 +178,7 @@ func TestService_UpdatePrices(t *testing.T) {
 			repoErr:        nil,
 			wantErr:        false,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPricesInput{
+			wantInput: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{
 					{PeriodID: 3, RentPrice: 8000, IsNegotiable: false},
 				},
@@ -186,37 +186,37 @@ func TestService_UpdatePrices(t *testing.T) {
 		},
 		{
 			name: "returns validation error when repository validation fails",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 			repoErr:        ValidationError{Message: "no active price found"},
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPricesInput{
+			wantInput: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 		},
 		{
 			name: "returns error when property is not found",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 			repoErr:        ErrPropertyNotFound,
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPricesInput{
+			wantInput: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 		},
 		{
 			name: "returns error when repository fails",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 			repoErr:        errors.New("db"),
 			wantErr:        true,
 			wantRepoCalled: true,
-			wantInput: UpdatePropertyPricesInput{
+			wantInput: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 1500000},
 			},
 		},
@@ -273,19 +273,19 @@ func TestService_UpdatePrices_ValidationError_IsValidationError(t *testing.T) {
 	}{
 		{
 			name: "TestService_SalePriceAmountZero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				SalePrice: &UpdateSalePriceInput{SalePrice: 0},
 			},
 		},
 		{
 			name: "TestService_RentPricesPeriodIDZero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{{PeriodID: 0, RentPrice: 5000}},
 			},
 		},
 		{
 			name: "TestService_RentPricesAmountZero",
-			input: UpdatePropertyPricesInput{
+			input: UpdatePropertyPricesInput{Actor: ActorContext{UserID: 1, RoleID: RoleAdminID},
 				RentPrices: []UpdateRentPriceInput{{PeriodID: 1, RentPrice: 0}},
 			},
 		},

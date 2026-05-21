@@ -164,6 +164,14 @@ func validateCreatePropertyRequest(req CreatePropertyInput) error {
 		return err
 	}
 
+	if err := validateCoordinates(*req.Location.Latitude, *req.Location.Longitude); err != nil {
+		return err
+	}
+
+	if err := validateCreateSubtypeDomain(req); err != nil {
+		return err
+	}
+
 	if err := validateOptionalPrices(req); err != nil {
 		return err
 	}
@@ -245,6 +253,35 @@ func validateOptionalPrices(req CreatePropertyInput) error {
 		}); err != nil {
 			return err
 		}
+
+		if *rentPrice.RentPrice <= 0 {
+			return errors.New("rent_prices[" + indexString(i) + "].rent_price must be greater than 0")
+		}
+		if rentPrice.Deposit != nil && *rentPrice.Deposit < 0 {
+			return errors.New("rent_prices[" + indexString(i) + "].deposit must be greater than or equal to 0")
+		}
+	}
+
+	return nil
+}
+
+func validateCreateSubtypeDomain(req CreatePropertyInput) error {
+	if req.Residential != nil {
+		if *req.Residential.Bedrooms < 0 || *req.Residential.Bathrooms < 0 || *req.Residential.Beds < 0 || *req.Residential.Floors < 0 || *req.Residential.ParkingSpots < 0 {
+			return errors.New("residential numeric fields must be greater than or equal to 0")
+		}
+		if *req.Residential.BuiltArea <= 0 {
+			return errors.New("residential.built_area must be greater than 0")
+		}
+	}
+
+	if req.Commercial != nil {
+		if *req.Commercial.CeilingHeight <= 0 {
+			return errors.New("commercial.ceiling_height must be greater than 0")
+		}
+		if *req.Commercial.LoadingDocks < 0 || *req.Commercial.InternalOffices < 0 {
+			return errors.New("commercial numeric fields must be greater than or equal to 0")
+		}
 	}
 
 	return nil
@@ -264,6 +301,37 @@ func validateCollections(req CreatePropertyInput) error {
 
 func indexString(index int) string {
 	return strconv.Itoa(index)
+}
+
+func resolveAuthenticatedActor(c *gin.Context) (int32, int32, bool) {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return 0, 0, false
+	}
+
+	roleID, err := middleware.AuthenticatedRoleID(c)
+	if err != nil {
+		shared.Unauthorized(c)
+		return 0, 0, false
+	}
+
+	return userID, roleID, true
+}
+
+func attachActorContext(c *gin.Context, actor *ActorContext) {
+	userID, err := middleware.AuthenticatedUserID(c)
+	if err != nil {
+		return
+	}
+
+	roleID, err := middleware.AuthenticatedRoleID(c)
+	if err != nil {
+		return
+	}
+
+	actor.UserID = userID
+	actor.RoleID = roleID
 }
 
 func rejectForbiddenPayloadFields(c *gin.Context, fields ...string) error {

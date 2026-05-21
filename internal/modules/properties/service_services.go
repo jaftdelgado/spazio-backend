@@ -15,6 +15,10 @@ func (s *service) GetServices(ctx context.Context, propertyUUID string) (GetProp
 }
 
 func (s *service) UpdateServices(ctx context.Context, propertyUUID string, input UpdatePropertyServicesInput) error {
+	if err := requireAdminActor(input.Actor); err != nil {
+		return err
+	}
+
 	if err := validateServiceIDs(input.ServiceIDs); err != nil {
 		return ValidationError{Message: err.Error()}
 	}

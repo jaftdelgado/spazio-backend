@@ -3,7 +3,6 @@ package properties
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/big"
 	"time"
 
@@ -63,8 +62,6 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 	if statusIDs == nil {
 		statusIDs = []int32{}
 	}
-
-	log.Printf("DEBUG ListProperties: statusIDs=%v minPrice=%v maxPrice=%v", statusIDs, input.MinPrice, input.MaxPrice)
 
 	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
 		SearchQuery:    input.Query,
