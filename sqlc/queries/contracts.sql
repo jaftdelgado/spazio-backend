@@ -118,9 +118,9 @@ JOIN contract_status cs ON c.status_id = cs.status_id
 JOIN users u_client ON t.client_id = u_client.user_id
 WHERE c.deleted_at IS NULL
     AND (
-        sqlc.narg('owner_id')::int IS NULL OR 
-        p.owner_id = sqlc.narg('owner_id') OR 
-        t.client_id = sqlc.narg('owner_id')
+        sqlc.narg('filter_user_id')::int IS NULL OR 
+        p.owner_id = sqlc.narg('filter_user_id') OR 
+        t.client_id = sqlc.narg('filter_user_id')
     )
     AND (sqlc.narg('transaction_type')::transaction_type IS NULL OR t.transaction_type = sqlc.narg('transaction_type'))
     AND (sqlc.narg('status_id')::int IS NULL OR c.status_id = sqlc.narg('status_id'))

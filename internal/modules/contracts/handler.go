@@ -2,8 +2,10 @@ package contracts
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -50,8 +52,20 @@ func (h *Handler) listContracts(c *gin.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	// F8: Robust input validation for pagination
+	pageStr := c.DefaultQuery("page", "1")
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		shared.BadRequest(c, fmt.Errorf("invalid page number: %s", pageStr))
+		return
+	}
+
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 || limit > 100 {
+		shared.BadRequest(c, fmt.Errorf("invalid limit: %s", limitStr))
+		return
+	}
 
 	filter := ListContractsFilter{
 		Page:  int32(page),
@@ -62,14 +76,18 @@ func (h *Handler) listContracts(c *gin.Context) {
 		filter.TransactionType = &tType
 	}
 	if sID := c.Query("status_id"); sID != "" {
-		val, _ := strconv.Atoi(sID)
-		v32 := int32(val)
-		filter.StatusID = &v32
+		val, err := strconv.Atoi(sID)
+		if err == nil {
+			v32 := int32(val)
+			filter.StatusID = &v32
+		}
 	}
 	if oID := c.Query("owner_id"); oID != "" {
-		val, _ := strconv.Atoi(oID)
-		v32 := int32(val)
-		filter.OwnerID = &v32
+		val, err := strconv.Atoi(oID)
+		if err == nil {
+			v32 := int32(val)
+			filter.OwnerID = &v32
+		}
 	}
 	if sDate := c.Query("start_date"); sDate != "" {
 		if t, err := time.Parse(time.RFC3339, sDate); err == nil {
@@ -119,7 +137,17 @@ func (h *Handler) getContract(c *gin.Context) {
 
 	result, err := h.service.GetContractDetail(c.Request.Context(), userID, roleID, contractUUID)
 	if err != nil {
-		shared.InternalError(c, err.Error())
+		// F6: Proper error mapping
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "no tiene permiso") {
+			shared.Forbidden(c, errMsg)
+			return
+		}
+		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "no encontrado") {
+			shared.NotFound(c, errMsg)
+			return
+		}
+		shared.InternalError(c, errMsg)
 		return
 	}
 
@@ -152,13 +180,23 @@ func (h *Handler) generateContract(c *gin.Context) {
 	}
 
 	if req.TransactionID <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction_id is required"})
+		shared.BadRequest(c, errors.New("transaction_id is required"))
 		return
 	}
 
 	result, err := h.service.GenerateContract(c.Request.Context(), userID, req)
 	if err != nil {
-		shared.InternalError(c, err.Error())
+		// F6: Proper error mapping
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "no tiene permiso") || strings.Contains(errMsg, "no autorizada") {
+			shared.Forbidden(c, errMsg)
+			return
+		}
+		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "posterior") {
+			shared.BadRequest(c, err)
+			return
+		}
+		shared.InternalError(c, errMsg)
 		return
 	}
 
