@@ -1,10 +1,39 @@
 package payments
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+// Service defines the business logic for the payments module.
+type Service interface {
+	ProcessPayment(ctx context.Context, userID int32, req RegisterPaymentRequest) (PaymentResponse, error)
+	ConfirmPendingPayment(ctx context.Context, userID int32, paymentUUID uuid.UUID) error
+	HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error
+	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) (ListPaymentsResult, error)
+	GetPaymentByID(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error)
+}
+
+const (
+	roleAdminID  int32 = 1
+	roleAgentID  int32 = 2
+	roleClientID int32 = 3
+)
+
+const (
+	PaymentStatusPending   int32 = 1
+	PaymentStatusCompleted int32 = 2
+	PaymentStatusFailed    int32 = 3
+	PaymentStatusRefunded  int32 = 4
+)
+
+const (
+	ContractStatusActive     int32 = 2
+	ContractStatusBlocked    int32 = 3
+	ContractStatusTerminated int32 = 4
 )
 
 var (

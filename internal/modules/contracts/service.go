@@ -51,11 +51,11 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 		Offset: (filter.Page - 1) * filter.Limit,
 	}
 
-	// 1: Admin, 2: Agent
+	// F4: Use semantic FilterUserID. 1: Admin, 2: Agent
 	if roleID != 1 && roleID != 2 {
-		params.OwnerID = pgtype.Int4{Int32: userID, Valid: true}
+		params.FilterUserID = pgtype.Int4{Int32: userID, Valid: true}
 	} else if filter.OwnerID != nil {
-		params.OwnerID = pgtype.Int4{Int32: *filter.OwnerID, Valid: true}
+		params.FilterUserID = pgtype.Int4{Int32: *filter.OwnerID, Valid: true}
 	}
 
 	if filter.TransactionType != nil {
@@ -151,7 +151,10 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 	}
 
 	exists, err := s.repository.CheckContractExistsByTransactionID(ctx, input.TransactionID)
-	if err == nil && exists {
+	if err != nil {
+		return CreateContractResult{}, fmt.Errorf("check contract existence: %w", err)
+	}
+	if exists {
 		return CreateContractResult{}, fmt.Errorf("ya existe un contrato generado para esta transacción")
 	}
 
@@ -160,10 +163,9 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 		return CreateContractResult{}, fmt.Errorf("fetch transaction data: %w", err)
 	}
 
-	// NEW: Financial Security Check
-	// The amount sent by frontend MUST match the final_amount already stored in the transaction
+	// F7: Robust Financial Security Check using integer cents to avoid float precision issues
 	transactionAmount, _ := data.FinalAmount.Float64Value()
-	if input.AgreedAmount != transactionAmount.Float64 {
+	if int64(input.AgreedAmount*100) != int64(transactionAmount.Float64*100) {
 		return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) no coincide con el monto de la transacción (%.2f)", input.AgreedAmount, transactionAmount.Float64)
 	}
 
@@ -178,7 +180,7 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 
 	amenities, err := s.repository.GetPropertyServicesByTransactionID(ctx, input.TransactionID)
 	if err != nil {
-		amenities = []string{} // Non-critical
+		amenities = []string{}
 	}
 
 	var parentContractID *int32
@@ -195,18 +197,38 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 		return CreateContractResult{}, fmt.Errorf("generate pdf: %w", err)
 	}
 
-	storageKey := fmt.Sprintf("contracts/%s.pdf", contractUUID.String())
-	err = s.storage.Upload(ctx, storageKey, "application/pdf", bytes.NewReader(pdfBytes))
+	// F5: Atomic Transaction Implementation
+	tx, err := s.repository.Begin(ctx)
 	if err != nil {
-		return CreateContractResult{}, fmt.Errorf("upload pdf: %w", err)
+		return CreateContractResult{}, fmt.Errorf("begin transaction: %w", err)
 	}
+	defer tx.Rollback(ctx)
 
-	record, err := s.repository.CreateContract(ctx, input, parentContractID, storageKey)
+	repoTx := s.repository.WithTx(tx)
+
+	storageKey := fmt.Sprintf("contracts/%s.pdf", contractUUID.String())
+
+	// Step 1: Insert DB Record first (within transaction)
+	record, err := repoTx.CreateContract(ctx, contractUUID, input, parentContractID, storageKey)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("create contract record: %w", err)
 	}
 
-	pdfURL, _ := s.storage.PublicURL(ctx, storageKey)
+	// Step 2: Upload to R2. If it fails, defer Rollback handles DB consistency.
+	err = s.storage.Upload(ctx, storageKey, "application/pdf", bytes.NewReader(pdfBytes))
+	if err != nil {
+		return CreateContractResult{}, fmt.Errorf("upload pdf to storage: %w", err)
+	}
+
+	// Step 3: Commit
+	if err := tx.Commit(ctx); err != nil {
+		return CreateContractResult{}, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	pdfURL, err := s.storage.PublicURL(ctx, storageKey)
+	if err != nil {
+		pdfURL = "" // Non-critical for return result, but logged if we had a logger
+	}
 
 	return CreateContractResult{
 		ContractID:   record.ContractID,

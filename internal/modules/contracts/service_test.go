@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
@@ -32,9 +33,32 @@ func (m *mockContractRepo) GetPropertyClausesByTransactionID(ctx context.Context
 	return nil, nil
 }
 
-func (m *mockContractRepo) CreateContract(ctx context.Context, input CreateContractInput, storageKey string) (sqlcgen.Contract, error) {
-	return sqlcgen.Contract{}, nil
+func (m *mockContractRepo) CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
+	return sqlcgen.Contract{ContractID: 1}, nil
 }
+
+func (m *mockContractRepo) GetPropertyServicesByTransactionID(ctx context.Context, txID int32) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockContractRepo) FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error) {
+	return 0, nil
+}
+
+func (m *mockContractRepo) Begin(ctx context.Context) (pgx.Tx, error) {
+	return &mockTx{}, nil
+}
+
+func (m *mockContractRepo) WithTx(tx pgx.Tx) ContractRepository {
+	return m
+}
+
+type mockTx struct {
+	pgx.Tx
+}
+
+func (m *mockTx) Commit(ctx context.Context) error { return nil }
+func (m *mockTx) Rollback(ctx context.Context) error { return nil }
 
 func (m *mockContractRepo) ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error) {
 	return m.list, m.err

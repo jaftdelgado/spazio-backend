@@ -1,9 +1,21 @@
 package visits
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+const (
+	StatusPending       = 1
+	StatusWaitingAgent  = 2
+	StatusWaitingClient = 3
+	StatusConfirmed     = 4
+	StatusCancelled     = 5
+	StatusCompleted     = 6
+
+	PropertyStatusAvailable = 2
 )
 
 // AvailabilityRequest represents the query for available slots
@@ -40,4 +52,20 @@ type VisitResponse struct {
 	ClientPhone   string    `json:"client_phone"`
 	CityName      string    `json:"city_name"`
 	Address       string    `json:"address"`
+}
+
+type ListVisitsFilter struct {
+	Date       *time.Time
+	StatusID   *int32
+	PropertyID *int32
+}
+
+// Service defines the business logic for the visits module.
+type Service interface {
+	GetAvailableSlots(ctx context.Context, propertyID int32, date time.Time) ([]TimeSlot, error)
+	ScheduleVisit(ctx context.Context, clientID int32, propertyID int32, visitDate time.Time) (VisitResponse, error)
+	ListUserVisits(ctx context.Context, userID int32, roleID int32, filter ListVisitsFilter) ([]VisitResponse, error)
+	ConfirmVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
+	RescheduleVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error)
+	CompleteVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 }

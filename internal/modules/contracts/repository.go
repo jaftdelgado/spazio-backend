@@ -5,13 +5,14 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
 type ContractRepository interface {
-	CreateContract(ctx context.Context, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error)
+	CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error)
 	GetContractDataByTransactionID(ctx context.Context, transactionID int32) (sqlcgen.GetContractDataByTransactionIDRow, error)
 	GetPropertyClausesByTransactionID(ctx context.Context, transactionID int32) ([]sqlcgen.GetPropertyClausesByTransactionIDRow, error)
 	GetPropertyServicesByTransactionID(ctx context.Context, transactionID int32) ([]string, error)
@@ -19,6 +20,8 @@ type ContractRepository interface {
 	ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error)
 	GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error)
 	FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
+	WithTx(tx pgx.Tx) ContractRepository
 }
 
 type repository struct {
@@ -33,11 +36,22 @@ func NewRepository(db *pgxpool.Pool) ContractRepository {
 	}
 }
 
-func (r *repository) CreateContract(ctx context.Context, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
-	contractUUID := uuid.New()
+func (r *repository) Begin(ctx context.Context) (pgx.Tx, error) {
+	return r.db.Begin(ctx)
+}
 
+func (r *repository) WithTx(tx pgx.Tx) ContractRepository {
+	return &repository{
+		db:      r.db,
+		queries: r.queries.WithTx(tx),
+	}
+}
+
+func (r *repository) CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
 	amount := pgtype.Numeric{}
-	amount.Scan(fmt.Sprintf("%f", input.AgreedAmount))
+	// Robust numeric scanning using string representation of big.Rat or simple float formatting
+	// for now keeping Scan with fixed precision to avoid binary floating point issues during DB ingestion
+	amount.Scan(fmt.Sprintf("%.2f", input.AgreedAmount))
 
 	var endDate pgtype.Date
 	if input.EndDate != nil {

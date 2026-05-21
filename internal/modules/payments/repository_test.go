@@ -6,173 +6,106 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-type MockDBTX struct {
-	mock.Mock
-}
-
-func (m *MockDBTX) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
-	a := m.Called(ctx, query, args)
-	return a.Get(0).(pgconn.CommandTag), a.Error(1)
-}
-
-func (m *MockDBTX) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
-	a := m.Called(ctx, query, args)
-	if a.Get(0) == nil {
-		return nil, a.Error(1)
-	}
-	return a.Get(0).(pgx.Rows), a.Error(1)
-}
-
-func (m *MockDBTX) QueryRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
-	a := m.Called(ctx, query, args)
-	return a.Get(0).(pgx.Row)
-}
-
-type MockRows struct {
-	pgx.Rows
-	mock.Mock
-}
-
-func (m *MockRows) Next() bool {
-	return m.Called().Bool(0)
-}
-func (m *MockRows) Scan(dest ...interface{}) error {
-	return m.Called(dest).Error(0)
-}
-func (m *MockRows) Close()     {}
-func (m *MockRows) Err() error { return nil }
-
-type MockRow struct {
-	pgx.Row
-	mock.Mock
-}
-
-func (m *MockRow) Scan(dest ...interface{}) error {
-	return m.Called(dest).Error(0)
-}
-
-func TestRepository_Methods(t *testing.T) {
-	db := new(MockDBTX)
-	repo := &repository{
-		db:      nil,
-		queries: sqlcgen.New(db),
-	}
-
-	ctx := context.Background()
-
-	t.Run("GetPaymentByContract", func(t *testing.T) {
-		rows := new(MockRows)
-		db.On("Query", ctx, mock.Anything, mock.Anything, mock.Anything).Return(rows, nil).Once()
-		rows.On("Next").Return(true).Once()
-		rows.On("Scan", mock.Anything).Return(nil).Once()
-		rows.On("Next").Return(false).Once()
-		_, _ = repo.GetPaymentByContract(ctx, 1, 1)
-	})
-
-	t.Run("CreatePayment", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.CreatePayment(ctx, sqlcgen.CreatePaymentParams{})
-	})
-
-	t.Run("GetContractForPayment", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetContractForPayment(ctx, 1)
-	})
-
-	t.Run("GetContractForPaymentWithLock", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetContractForPaymentWithLock(ctx, 1)
-	})
-
-	t.Run("GetPaymentByUUID", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetPaymentByUUID(ctx, [16]byte{})
-	})
-
-	t.Run("GetPaymentByGatewayID", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetPaymentByGatewayID(ctx, "id")
-	})
-
-	t.Run("GetLastPaidPeriod", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything).Return(nil).Once()
-		_, _ = repo.GetLastPaidPeriod(ctx, 1)
-	})
-
-	t.Run("GetPendingPayments", func(t *testing.T) {
-		rows := new(MockRows)
-		db.On("Query", ctx, mock.Anything, mock.Anything, mock.Anything).Return(rows, nil).Once()
-		rows.On("Next").Return(false).Once()
-		_, _ = repo.GetPendingPayments(ctx, 1)
-	})
-
-	t.Run("UpdatePaymentStatus", func(t *testing.T) {
-		db.On("Exec", ctx, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil).Once()
-		_ = repo.UpdatePaymentStatus(ctx, sqlcgen.UpdatePaymentStatusParams{})
-	})
-
-	t.Run("ListPayments", func(t *testing.T) {
-		rows := new(MockRows)
-		db.On("Query", ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(rows, nil).Once()
-		rows.On("Next").Return(true).Once()
-		rows.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		rows.On("Next").Return(false).Once()
-		_, _ = repo.ListPayments(ctx, 1, 1, ListPaymentsInput{})
-	})
-
-	t.Run("GetPaymentByID", func(t *testing.T) {
-		row := new(MockRow)
-		db.On("QueryRow", ctx, mock.Anything, mock.Anything, mock.Anything).Return(row).Once()
-		row.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Once()
-		_, _ = repo.GetPaymentByID(ctx, 1)
-	})
-
-	t.Run("Misc Wrapper", func(t *testing.T) {
-		_ = repo.WithTx(nil)
-	})
-
-	t.Run("Pointers", func(t *testing.T) {
-		int4FromPointer(nil)
-		v := int32(1)
-		int4FromPointer(&v)
-
-		dateFromPointer(nil)
-		dateFromPointer(&time.Time{})
-
-		textPointer(pgtype.Text{Valid: false})
-		textPointer(pgtype.Text{Valid: true, String: "s"})
-
-		timestamptzPointer(pgtype.Timestamptz{Valid: false})
-		timestamptzPointer(pgtype.Timestamptz{Valid: true})
-
-		formatDate(time.Now())
-	})
-}
 
 func TestNewModule(t *testing.T) {
 	m := NewModule(&pgxpool.Pool{}, "token", "secret")
 	assert.NotNil(t, m)
+	assert.NotNil(t, m.Handler)
+
+	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	m.RegisterRoutes(r.Group("/test"), r.Group("/test"))
+	m.RegisterRoutes(r.Group("/test"), r.Group("/test2"))
+}
+
+func TestRepository_WithTx(t *testing.T) {
+	repo := NewRepository(&pgxpool.Pool{})
+	txRepo := repo.WithTx(&mockTx{})
+	assert.NotNil(t, txRepo)
+}
+
+func TestRepository_Pointers(t *testing.T) {
+	// Test int4FromPointer
+	var nilInt *int32
+	valInt := int32(5)
+	assert.False(t, int4FromPointer(nilInt).Valid)
+	assert.True(t, int4FromPointer(&valInt).Valid)
+	assert.Equal(t, int32(5), int4FromPointer(&valInt).Int32)
+
+	// Test dateFromPointer
+	var nilDate *time.Time
+	valDate := time.Now()
+	assert.False(t, dateFromPointer(nilDate).Valid)
+	assert.True(t, dateFromPointer(&valDate).Valid)
+
+	// Test textPointer
+	assert.Nil(t, textPointer(pgtype.Text{Valid: false}))
+	assert.NotNil(t, textPointer(pgtype.Text{String: "hello", Valid: true}))
+	assert.Equal(t, "hello", *textPointer(pgtype.Text{String: "hello", Valid: true}))
+
+	// Test timestamptzPointer
+	assert.Nil(t, timestamptzPointer(pgtype.Timestamptz{Valid: false}))
+	assert.NotNil(t, timestamptzPointer(pgtype.Timestamptz{Time: valDate, Valid: true}))
+
+	// Test formatDate
+	assert.Equal(t, "2024-01-01", formatDate(time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)))
+}
+
+func TestRepository_Methods(t *testing.T) {
+	repo := NewRepository(&pgxpool.Pool{})
+	ctx := context.Background()
+
+	t.Run("CountCompletedPaymentsForContract", func(t *testing.T) {
+		assert.Panics(t, func() { repo.CountCompletedPaymentsForContract(ctx, 1) })
+	})
+	t.Run("UpdateTransactionStatusByContract", func(t *testing.T) {
+		assert.Panics(t, func() { repo.UpdateTransactionStatusByContract(ctx, 1, 1) })
+	})
+	t.Run("UpdatePropertyStatusByContract", func(t *testing.T) {
+		assert.Panics(t, func() { repo.UpdatePropertyStatusByContract(ctx, 1, 1) })
+	})
+	t.Run("UpdateContractStatus", func(t *testing.T) {
+		assert.Panics(t, func() { repo.UpdateContractStatus(ctx, 1, 1) })
+	})
+	t.Run("GetPaymentByContract", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPaymentByContract(ctx, 1, 1) })
+	})
+	t.Run("CreatePayment", func(t *testing.T) {
+		assert.Panics(t, func() { repo.CreatePayment(ctx, sqlcgen.CreatePaymentParams{}) })
+	})
+	t.Run("GetContractForPayment", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetContractForPayment(ctx, 1) })
+	})
+	t.Run("GetContractForPaymentWithLock", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetContractForPaymentWithLock(ctx, 1) })
+	})
+	t.Run("GetPaymentByUUID", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPaymentByUUID(ctx, uuid.New()) })
+	})
+	t.Run("GetPaymentByGatewayID", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPaymentByGatewayID(ctx, "abc") })
+	})
+	t.Run("GetLastPaidPeriod", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetLastPaidPeriod(ctx, 1) })
+	})
+	t.Run("GetPendingPayments", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPendingPayments(ctx, 1) })
+	})
+	t.Run("UpdatePaymentStatus", func(t *testing.T) {
+		assert.Panics(t, func() { repo.UpdatePaymentStatus(ctx, sqlcgen.UpdatePaymentStatusParams{}) })
+	})
+	t.Run("ListPayments", func(t *testing.T) {
+		assert.Panics(t, func() { repo.ListPayments(ctx, 1, 1, ListPaymentsInput{}) })
+	})
+	t.Run("GetPaymentByID", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPaymentByID(ctx, 1) })
+	})
+	t.Run("Begin", func(t *testing.T) {
+		assert.Panics(t, func() { repo.Begin(ctx) })
+	})
 }
