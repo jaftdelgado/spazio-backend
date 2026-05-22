@@ -11,17 +11,21 @@ import (
 
 // listPayments godoc
 // @Summary      List payments
-// @Description  Returns payments visible to the authenticated user resolved from the bearer token.
+// @Description  Returns payments visible to the authenticated user resolved from the bearer token. Supports filtering by property, status, due date range, and offset pagination.
 // @Tags         Payments
 // @Produce      json
-// @Param        Authorization  header    string                       true   "Bearer access token"
-// @Param        property_id  query     int                          false  "Filter by property ID"
-// @Param        status_id    query     int                          false  "Filter by payment status ID"
-// @Param        date_from    query     string                       false  "Minimum due date in YYYY-MM-DD format"
-// @Param        date_to      query     string                       false  "Maximum due date in YYYY-MM-DD format"
-// @Param        limit        query     int                          false  "Maximum number of results to return"
-// @Param        offset       query     int                          false  "Pagination offset"
-// @Success      200          {object}  ListPaymentsResult
+// @Param        Authorization  header    string              true   "Bearer access token"
+// @Param        property_id    query     int                 false  "Filter by property ID"
+// @Param        status_id      query     int                 false  "Filter by payment status ID"
+// @Param        date_from      query     string              false  "Minimum due date in YYYY-MM-DD format"
+// @Param        date_to        query     string              false  "Maximum due date in YYYY-MM-DD format"
+// @Param        limit          query     int                 false  "Maximum number of results to return" default(20)
+// @Param        offset         query     int                 false  "Pagination offset" default(0)
+// @Success      200            {object}  ListPaymentsResult  "List of payments"
+// @Failure      400            {object}  shared.ErrorResponse "Invalid query params"
+// @Failure      401            {object}  shared.ErrorResponse "Invalid or expired session"
+// @Failure      403            {object}  shared.ErrorResponse "Unsupported role or forbidden scope"
+// @Failure      500            {object}  shared.ErrorResponse "Internal error"
 // @Router       /api/v1/payments [get]
 func (h *Handler) listPayments(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
@@ -55,13 +59,18 @@ func (h *Handler) listPayments(c *gin.Context) {
 
 // getPaymentByID godoc
 // @Summary      Get payment detail
-// @Description  Returns one payment detail visible to the authenticated user resolved from the bearer token.
+// @Description  Returns one payment detail visible to the authenticated user resolved from the bearer token. The path parameter is the public payment UUID.
 // @Tags         Payments
 // @Produce      json
-// @Param        Authorization  header    string                  true  "Bearer access token"
-// @Param        payment_id  path      int                     true  "Payment ID"
-// @Success      200         {object}  PaymentDetail
-// @Router       /api/v1/payments/{payment_id} [get]
+// @Param        Authorization  header    string                 true  "Bearer access token"
+// @Param        payment_uuid   path      string                 true  "Payment UUID"
+// @Success      200            {object}  PaymentDetailResponse  "Payment detail"
+// @Failure      400            {object}  shared.ErrorResponse   "Invalid payment UUID"
+// @Failure      401            {object}  shared.ErrorResponse   "Invalid or expired session"
+// @Failure      403            {object}  shared.ErrorResponse   "Forbidden"
+// @Failure      404            {object}  shared.ErrorResponse   "Payment not found"
+// @Failure      500            {object}  shared.ErrorResponse   "Internal error"
+// @Router       /api/v1/payments/{payment_uuid} [get]
 func (h *Handler) getPaymentByID(c *gin.Context) {
 	userID, ok := resolveAuthenticatedUserID(c)
 	if !ok {
@@ -72,13 +81,13 @@ func (h *Handler) getPaymentByID(c *gin.Context) {
 		return
 	}
 
-	paymentID, err := resolveRequiredInt(strings.TrimSpace(c.Param("payment_id")), "payment_id")
+	paymentUUID, err := resolveRequiredUUID(strings.TrimSpace(c.Param("payment_uuid")), "payment_uuid")
 	if err != nil {
 		shared.BadRequest(c, err)
 		return
 	}
 
-	result, err := h.service.GetPaymentByID(c.Request.Context(), userID, roleID, paymentID)
+	result, err := h.service.GetPaymentByUUID(c.Request.Context(), userID, roleID, paymentUUID)
 	if err != nil {
 		switch {
 		case errors.Is(err, ErrPaymentNotFound):

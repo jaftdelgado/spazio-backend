@@ -98,6 +98,7 @@ func mapListPaymentsRows(rows []sqlcgen.ListPaymentsRow) []PaymentListItem {
 	for _, row := range rows {
 		items = append(items, PaymentListItem{
 			PaymentID:     row.PaymentID,
+			PaymentUUID:   row.PaymentUuid.Bytes,
 			ContractID:    row.ContractID,
 			PropertyID:    row.PropertyID,
 			BillingPeriod: formatDate(row.BillingPeriod.Time),
@@ -114,20 +115,20 @@ func mapListPaymentsRows(rows []sqlcgen.ListPaymentsRow) []PaymentListItem {
 	return items
 }
 
-func (r *repository) GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error) {
-	row, err := r.queries.GetPaymentByID(ctx, paymentID)
+func (r *repository) GetPaymentDetailByUUID(ctx context.Context, paymentUUID uuid.UUID) (PaymentDetailRecord, error) {
+	row, err := r.queries.GetPaymentDetailByUUID(ctx, pgtype.UUID{Bytes: paymentUUID, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return PaymentDetail{}, ErrPaymentNotFound
+			return PaymentDetailRecord{}, ErrPaymentNotFound
 		}
-		return PaymentDetail{}, fmt.Errorf("get payment by id: %w", err)
+		return PaymentDetailRecord{}, fmt.Errorf("get payment detail by uuid: %w", err)
 	}
 
 	return mapPaymentDetailRow(row), nil
 }
 
-func mapPaymentDetailRow(row sqlcgen.GetPaymentByIDRow) PaymentDetail {
-	return PaymentDetail{
+func mapPaymentDetailRow(row sqlcgen.GetPaymentDetailByUUIDRow) PaymentDetailRecord {
+	return PaymentDetailRecord{
 		PaymentID:       row.PaymentID,
 		ContractID:      row.ContractID,
 		PropertyID:      row.PropertyID,

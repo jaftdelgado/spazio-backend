@@ -17,7 +17,7 @@ type mockPaymentService struct {
 	confirmPendingPaymentFunc func(ctx context.Context, userID int32, paymentUUID uuid.UUID) error
 	handleWebhookFunc         func(ctx context.Context, xSignature string, xRequestID string, body []byte) error
 	listPaymentsFunc          func(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) (ListPaymentsResult, error)
-	getPaymentByIDFunc        func(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error)
+	getPaymentByUUIDFunc      func(ctx context.Context, userID int32, roleID int32, paymentUUID uuid.UUID) (PaymentDetailResponse, error)
 }
 
 func (m *mockPaymentService) ProcessPayment(ctx context.Context, userID int32, req RegisterPaymentRequest) (PaymentResponse, error) {
@@ -48,11 +48,11 @@ func (m *mockPaymentService) ListPayments(ctx context.Context, userID int32, rol
 	return ListPaymentsResult{}, nil
 }
 
-func (m *mockPaymentService) GetPaymentByID(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error) {
-	if m.getPaymentByIDFunc != nil {
-		return m.getPaymentByIDFunc(ctx, userID, roleID, paymentID)
+func (m *mockPaymentService) GetPaymentByUUID(ctx context.Context, userID int32, roleID int32, paymentUUID uuid.UUID) (PaymentDetailResponse, error) {
+	if m.getPaymentByUUIDFunc != nil {
+		return m.getPaymentByUUIDFunc(ctx, userID, roleID, paymentUUID)
 	}
-	return PaymentDetail{}, nil
+	return PaymentDetailResponse{}, nil
 }
 
 func newHandlerTestContext(method string, target string) (*httptest.ResponseRecorder, *gin.Context) {

@@ -93,9 +93,12 @@ SET status_id = $2,
     payment_date = $5 
 WHERE payment_id = $1;
 
+-- TODO(role-scope): keep these role checks aligned with internal/shared/roles.go
+-- until role names are formalized as query inputs or catalog lookups.
 -- name: ListPayments :many
 SELECT
     p.payment_id,
+    p.payment_uuid,
     p.contract_id,
     t.property_id,
     p.billing_period,
@@ -127,6 +130,8 @@ ORDER BY p.due_date DESC, p.payment_id DESC
 LIMIT sqlc.arg('page_limit')
 OFFSET sqlc.arg('page_offset');
 
+-- TODO(role-scope): keep these role checks aligned with internal/shared/roles.go
+-- until role names are formalized as query inputs or catalog lookups.
 -- name: CountPayments :one
 SELECT COUNT(*)
 FROM payments AS p
@@ -162,7 +167,7 @@ WHERE property_id = (
     WHERE c.contract_id = $1
 );
 
--- name: GetPaymentByID :one
+-- name: GetPaymentDetailByUUID :one
 SELECT
     p.payment_id,
     p.contract_id,
@@ -186,4 +191,4 @@ JOIN transactions AS t ON t.transaction_id = c.transaction_id
 JOIN payment_methods AS pm ON pm.method_id = p.payment_method_id
 LEFT JOIN payment_gateways AS pg ON pg.gateway_id = p.gateway_id
 JOIN payment_status AS ps ON ps.status_id = p.status_id
-WHERE p.payment_id = $1;
+WHERE p.payment_uuid = $1;

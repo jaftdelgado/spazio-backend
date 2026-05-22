@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,12 +64,12 @@ func TestHandler_GetPaymentByID(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "403 Forbidden on role error (F6 Mapping)",
-			idParam: "1",
+			name:    "403 Forbidden on role error (F6 Mapping)",
+			idParam: uuid.NewString(),
 			setupService: func() *mockPaymentService {
 				return &mockPaymentService{
-					getPaymentByIDFunc: func(ctx context.Context, uid, rid, pid int32) (PaymentDetail, error) {
-						return PaymentDetail{}, ErrPaymentForbidden
+					getPaymentByUUIDFunc: func(ctx context.Context, uid, rid int32, paymentUUID uuid.UUID) (PaymentDetailResponse, error) {
+						return PaymentDetailResponse{}, ErrPaymentForbidden
 					},
 				}
 			},
@@ -85,7 +86,7 @@ func TestHandler_GetPaymentByID(t *testing.T) {
 			h := NewHandler(svc)
 			rec, ctx := newHandlerTestContext(http.MethodGet, "/payments/"+tt.idParam)
 			setAuthenticatedContext(ctx, 10, 3)
-			ctx.Params = []gin.Param{{Key: "payment_id", Value: tt.idParam}}
+			ctx.Params = []gin.Param{{Key: "payment_uuid", Value: tt.idParam}}
 
 			h.getPaymentByID(ctx)
 			assert.Equal(t, tt.wantStatus, rec.Code)
