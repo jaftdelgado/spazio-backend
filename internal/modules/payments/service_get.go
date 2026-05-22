@@ -2,6 +2,8 @@ package payments
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 func (s *service) ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) (ListPaymentsResult, error) {
@@ -29,10 +31,10 @@ func (s *service) ListPayments(ctx context.Context, userID int32, roleID int32, 
 	}, nil
 }
 
-func (s *service) GetPaymentByID(ctx context.Context, userID int32, roleID int32, paymentID int32) (PaymentDetail, error) {
-	paymentRecord, err := s.repo.GetPaymentByID(ctx, paymentID)
+func (s *service) GetPaymentByUUID(ctx context.Context, userID int32, roleID int32, paymentUUID uuid.UUID) (PaymentDetailResponse, error) {
+	paymentRecord, err := s.repo.GetPaymentDetailByUUID(ctx, paymentUUID)
 	if err != nil {
-		return PaymentDetail{}, err
+		return PaymentDetailResponse{}, err
 	}
 
 	switch roleID {
@@ -40,15 +42,41 @@ func (s *service) GetPaymentByID(ctx context.Context, userID int32, roleID int32
 		// Admin can see everything
 	case roleAgentID:
 		if paymentRecord.AgentID != userID {
-			return PaymentDetail{}, ErrPaymentForbidden
+			return PaymentDetailResponse{}, ErrPaymentForbidden
 		}
 	case roleClientID:
 		if paymentRecord.ClientID != userID {
-			return PaymentDetail{}, ErrPaymentForbidden
+			return PaymentDetailResponse{}, ErrPaymentForbidden
 		}
 	default:
-		return PaymentDetail{}, ErrUnsupportedRole
+		return PaymentDetailResponse{}, ErrUnsupportedRole
 	}
 
-	return paymentRecord, nil
+	return newPaymentDetailResponse(paymentRecord, roleID), nil
+}
+
+func newPaymentDetailResponse(record PaymentDetailRecord, roleID int32) PaymentDetailResponse {
+	response := PaymentDetailResponse{
+		PaymentID:       record.PaymentID,
+		ContractID:      record.ContractID,
+		PropertyID:      record.PropertyID,
+		TransactionID:   record.TransactionID,
+		TransactionType: record.TransactionType,
+		BillingPeriod:   record.BillingPeriod,
+		DueDate:         record.DueDate,
+		AgreedAmount:    record.AgreedAmount,
+		Amount:          record.Amount,
+		Currency:        record.Currency,
+		PaymentMethod:   record.PaymentMethod,
+		Gateway:         record.Gateway,
+		Status:          record.Status,
+		PaymentDate:     record.PaymentDate,
+	}
+
+	if roleID == roleAdminID {
+		response.ClientID = &record.ClientID
+		response.AgentID = &record.AgentID
+	}
+
+	return response
 }

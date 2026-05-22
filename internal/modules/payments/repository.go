@@ -25,7 +25,7 @@ type Repository interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 
 	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
-	GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error)
+	GetPaymentDetailByUUID(ctx context.Context, paymentUUID uuid.UUID) (PaymentDetailRecord, error)
 
 	CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error)
 	UpdateTransactionStatusByContract(ctx context.Context, contractID int32, statusID int32) error

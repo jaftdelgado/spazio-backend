@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
@@ -28,7 +29,7 @@ func (h *Handler) RegisterRoutes(protected, public *gin.RouterGroup) {
 	protected.POST("/api/v1/payments", h.processPayment)
 	protected.PATCH("/api/v1/payments/:uuid/confirm", h.confirmPendingPayment)
 	protected.GET("/api/v1/payments", h.listPayments)
-	protected.GET("/api/v1/payments/:payment_id", h.getPaymentByID)
+	protected.GET("/api/v1/payments/:payment_uuid", h.getPaymentByID)
 
 	public.POST("/api/v1/payments/webhook", h.handleWebhook)
 }
@@ -123,6 +124,19 @@ func resolveRequiredInt(rawValue string, field string) (int32, error) {
 	}
 
 	return int32(value), nil
+}
+
+func resolveRequiredUUID(rawValue string, field string) (uuid.UUID, error) {
+	if rawValue == "" {
+		return uuid.UUID{}, errors.New(field + " is required")
+	}
+
+	value, err := uuid.Parse(rawValue)
+	if err != nil {
+		return uuid.UUID{}, errors.New(field + " must be a valid UUID")
+	}
+
+	return value, nil
 }
 
 func resolveOptionalInt(rawValue string, field string) (*int32, error) {

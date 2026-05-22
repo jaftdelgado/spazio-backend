@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jaftdelgado/spazio-backend/internal/shared"
 )
 
 type service struct {
@@ -31,5 +32,5 @@ func translateError(err error) error {
 }
 
 func isSupportedRole(roleID int32) bool {
-	return roleID == roleAdminID || roleID == roleAgentID || roleID == roleClientID
+	return roleID == shared.RoleAdminID || roleID == shared.RoleAgentID || roleID == shared.RoleClientID
 }

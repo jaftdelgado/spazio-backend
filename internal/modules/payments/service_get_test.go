@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -55,8 +56,9 @@ func TestService_ListPayments(t *testing.T) {
 	}
 }
 
-func TestService_GetPaymentByID(t *testing.T) {
+func TestService_GetPaymentByUUID(t *testing.T) {
 	ctx := context.Background()
+	paymentUUID := uuid.New()
 
 	tests := []struct {
 		name      string
@@ -71,8 +73,8 @@ func TestService_GetPaymentByID(t *testing.T) {
 			roleID: roleAdminID,
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					getPaymentByIDFunc: func(ctx context.Context, id int32) (PaymentDetail, error) {
-						return PaymentDetail{PaymentID: 1, ClientID: 10}, nil
+					getPaymentDetailByUUIDFunc: func(ctx context.Context, id uuid.UUID) (PaymentDetailRecord, error) {
+						return PaymentDetailRecord{PaymentID: 1, ClientID: 10}, nil
 					},
 				}
 			},
@@ -84,8 +86,8 @@ func TestService_GetPaymentByID(t *testing.T) {
 			roleID: roleClientID,
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					getPaymentByIDFunc: func(ctx context.Context, id int32) (PaymentDetail, error) {
-						return PaymentDetail{PaymentID: 1, ClientID: 10}, nil
+					getPaymentDetailByUUIDFunc: func(ctx context.Context, id uuid.UUID) (PaymentDetailRecord, error) {
+						return PaymentDetailRecord{PaymentID: 1, ClientID: 10}, nil
 					},
 				}
 			},
@@ -98,7 +100,7 @@ func TestService_GetPaymentByID(t *testing.T) {
 			repo := tt.setupRepo()
 			svc := NewService(repo, "TOKEN", "SECRET")
 
-			_, err := svc.GetPaymentByID(ctx, tt.userID, tt.roleID, 1)
+			_, err := svc.GetPaymentByUUID(ctx, tt.userID, tt.roleID, paymentUUID)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -107,4 +109,39 @@ func TestService_GetPaymentByID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewPaymentDetailResponse(t *testing.T) {
+	payment := PaymentDetailRecord{
+		PaymentID:       1,
+		ContractID:      2,
+		PropertyID:      3,
+		TransactionID:   4,
+		TransactionType: "rent",
+		BillingPeriod:   "2024-03-01",
+		DueDate:         "2024-03-10",
+		AgreedAmount:    "15000.00",
+		Amount:          "1500.00",
+		Currency:        "MXN",
+		PaymentMethod:   "Transferencia",
+		Status:          "Pagado",
+		ClientID:        7,
+		AgentID:         9,
+	}
+
+	t.Run("admin receives sensitive identifiers", func(t *testing.T) {
+		response := newPaymentDetailResponse(payment, roleAdminID)
+		if assert.NotNil(t, response.ClientID) {
+			assert.Equal(t, int32(7), *response.ClientID)
+		}
+		if assert.NotNil(t, response.AgentID) {
+			assert.Equal(t, int32(9), *response.AgentID)
+		}
+	})
+
+	t.Run("client omits sensitive identifiers", func(t *testing.T) {
+		response := newPaymentDetailResponse(payment, roleClientID)
+		assert.Nil(t, response.ClientID)
+		assert.Nil(t, response.AgentID)
+	})
 }

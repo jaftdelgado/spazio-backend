@@ -102,8 +102,8 @@ func TestRepository_Methods(t *testing.T) {
 	t.Run("ListPayments", func(t *testing.T) {
 		assert.Panics(t, func() { repo.ListPayments(ctx, 1, 1, ListPaymentsInput{}) })
 	})
-	t.Run("GetPaymentByID", func(t *testing.T) {
-		assert.Panics(t, func() { repo.GetPaymentByID(ctx, 1) })
+	t.Run("GetPaymentDetailByUUID", func(t *testing.T) {
+		assert.Panics(t, func() { repo.GetPaymentDetailByUUID(ctx, uuid.New()) })
 	})
 	t.Run("Begin", func(t *testing.T) {
 		assert.Panics(t, func() { repo.Begin(ctx) })

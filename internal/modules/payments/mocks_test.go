@@ -11,19 +11,19 @@ import (
 
 // mockPaymentRepository is a manual mock implementation of the Repository interface.
 type mockPaymentRepository struct {
-	getPaymentByContractFunc           func(ctx context.Context, contractID int32, statusID int32) ([]sqlcgen.Payment, error)
-	createPaymentFunc                  func(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error)
-	getContractForPaymentFunc          func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error)
-	getContractForPaymentWithLockFunc  func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error)
-	getPaymentByUUIDFunc               func(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error)
-	getPaymentByGatewayIDFunc          func(ctx context.Context, gatewayID string) (sqlcgen.GetPaymentByGatewayIDRow, error)
-	getLastPaidPeriodFunc              func(ctx context.Context, contractID int32) (pgtype.Date, error)
-	getPendingPaymentsFunc             func(ctx context.Context, contractID int32) ([]sqlcgen.GetPendingPaymentsRow, error)
-	updatePaymentStatusFunc            func(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error
-	withTxFunc                         func(tx pgx.Tx) Repository
-	beginFunc                          func(ctx context.Context) (pgx.Tx, error)
-	listPaymentsFunc                   func(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
-	getPaymentByIDFunc                 func(ctx context.Context, paymentID int32) (PaymentDetail, error)
+	getPaymentByContractFunc              func(ctx context.Context, contractID int32, statusID int32) ([]sqlcgen.Payment, error)
+	createPaymentFunc                     func(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error)
+	getContractForPaymentFunc             func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error)
+	getContractForPaymentWithLockFunc     func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error)
+	getPaymentByUUIDFunc                  func(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error)
+	getPaymentByGatewayIDFunc             func(ctx context.Context, gatewayID string) (sqlcgen.GetPaymentByGatewayIDRow, error)
+	getLastPaidPeriodFunc                 func(ctx context.Context, contractID int32) (pgtype.Date, error)
+	getPendingPaymentsFunc                func(ctx context.Context, contractID int32) ([]sqlcgen.GetPendingPaymentsRow, error)
+	updatePaymentStatusFunc               func(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error
+	withTxFunc                            func(tx pgx.Tx) Repository
+	beginFunc                             func(ctx context.Context) (pgx.Tx, error)
+	listPaymentsFunc                      func(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
+	getPaymentDetailByUUIDFunc            func(ctx context.Context, paymentUUID uuid.UUID) (PaymentDetailRecord, error)
 	countCompletedPaymentsForContractFunc func(ctx context.Context, contractID int32) (int64, error)
 	updateTransactionStatusByContractFunc func(ctx context.Context, contractID int32, statusID int32) error
 	updatePropertyStatusByContractFunc    func(ctx context.Context, contractID int32, statusID int32) error
@@ -114,11 +114,11 @@ func (m *mockPaymentRepository) ListPayments(ctx context.Context, userID int32, 
 	return nil, nil
 }
 
-func (m *mockPaymentRepository) GetPaymentByID(ctx context.Context, paymentID int32) (PaymentDetail, error) {
-	if m.getPaymentByIDFunc != nil {
-		return m.getPaymentByIDFunc(ctx, paymentID)
+func (m *mockPaymentRepository) GetPaymentDetailByUUID(ctx context.Context, paymentUUID uuid.UUID) (PaymentDetailRecord, error) {
+	if m.getPaymentDetailByUUIDFunc != nil {
+		return m.getPaymentDetailByUUIDFunc(ctx, paymentUUID)
 	}
-	return PaymentDetail{}, nil
+	return PaymentDetailRecord{}, nil
 }
 
 func (m *mockPaymentRepository) CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error) {

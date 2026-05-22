@@ -516,7 +516,7 @@ const docTemplate = `{
         },
         "/api/v1/payments": {
             "get": {
-                "description": "Returns payments visible to the authenticated user resolved from the bearer token.",
+                "description": "Returns payments visible to the authenticated user resolved from the bearer token. Supports filtering by property, status, due date range, and offset pagination.",
                 "produces": [
                     "application/json"
                 ],
@@ -558,12 +558,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
+                        "default": 20,
                         "description": "Maximum number of results to return",
                         "name": "limit",
                         "in": "query"
                     },
                     {
                         "type": "integer",
+                        "default": 0,
                         "description": "Pagination offset",
                         "name": "offset",
                         "in": "query"
@@ -571,9 +573,33 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "List of payments",
                         "schema": {
                             "$ref": "#/definitions/payments.ListPaymentsResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid query params",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Unsupported role or forbidden scope",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     }
                 }
@@ -649,9 +675,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/payments/{payment_id}": {
+        "/api/v1/payments/{payment_uuid}": {
             "get": {
-                "description": "Returns one payment detail visible to the authenticated user resolved from the bearer token.",
+                "description": "Returns one payment detail visible to the authenticated user resolved from the bearer token. The path parameter is the public payment UUID.",
                 "produces": [
                     "application/json"
                 ],
@@ -668,18 +694,48 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "Payment ID",
-                        "name": "payment_id",
+                        "type": "string",
+                        "description": "Payment UUID",
+                        "name": "payment_uuid",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Payment detail",
                         "schema": {
-                            "$ref": "#/definitions/payments.PaymentDetail"
+                            "$ref": "#/definitions/payments.PaymentDetailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid payment UUID",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid or expired session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Payment not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     }
                 }
@@ -2635,6 +2691,10 @@ const docTemplate = `{
                 "end_date": {
                     "type": "string"
                 },
+                "period_id": {
+                    "description": "Frecuencia de pago (opcional para ventas)",
+                    "type": "integer"
+                },
                 "start_date": {
                     "type": "string"
                 },
@@ -2646,7 +2706,13 @@ const docTemplate = `{
         "contracts.CreateContractResult": {
             "type": "object",
             "properties": {
+                "contract_id": {
+                    "type": "integer"
+                },
                 "contract_uuid": {
+                    "type": "string"
+                },
+                "pdf_url": {
                     "type": "string"
                 },
                 "storage_key": {
@@ -2760,7 +2826,7 @@ const docTemplate = `{
                 }
             }
         },
-        "payments.PaymentDetail": {
+        "payments.PaymentDetailResponse": {
             "type": "object",
             "properties": {
                 "agent_id": {
