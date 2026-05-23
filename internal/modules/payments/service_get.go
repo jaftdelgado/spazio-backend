@@ -52,12 +52,12 @@ func (s *service) GetPaymentByUUID(ctx context.Context, userID int32, roleID int
 		return PaymentDetailResponse{}, ErrUnsupportedRole
 	}
 
-	return newPaymentDetailResponse(paymentRecord, roleID), nil
+	return newPaymentDetailResponse(paymentUUID, paymentRecord, roleID), nil
 }
 
-func newPaymentDetailResponse(record PaymentDetailRecord, roleID int32) PaymentDetailResponse {
+func newPaymentDetailResponse(paymentUUID uuid.UUID, record PaymentDetailRecord, roleID int32) PaymentDetailResponse {
 	response := PaymentDetailResponse{
-		PaymentID:       record.PaymentID,
+		PaymentUUID:     paymentUUID,
 		ContractID:      record.ContractID,
 		PropertyID:      record.PropertyID,
 		TransactionID:   record.TransactionID,

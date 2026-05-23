@@ -280,11 +280,12 @@ definitions:
       payment_date:
         example: "2024-03-08T14:32:00Z"
         type: string
-      payment_id:
-        example: 1
-        type: integer
       payment_method:
         example: Transferencia bancaria
+        type: string
+      payment_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
         type: string
       property_id:
         example: 5
@@ -322,11 +323,12 @@ definitions:
       payment_date:
         example: "2024-03-08T14:32:00Z"
         type: string
-      payment_id:
-        example: 1
-        type: integer
       payment_method:
         example: Transferencia bancaria
+        type: string
+      payment_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
         type: string
       property_id:
         example: 5
