@@ -1754,6 +1754,148 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/rentals": {
+            "post": {
+                "description": "Confirms the rental of an available property, registers the transaction, and generates the digital contract. Only accessible to authenticated clients.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rentals"
+                ],
+                "summary": "Confirm rental",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Rental confirmation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/rentals.RentalConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Rental confirmed successfully",
+                        "schema": {
+                            "$ref": "#/definitions/rentals.RentalResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Only clients can confirm rentals",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Property is not rentable or the dates are blocked",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/rentals/preview": {
+            "post": {
+                "description": "Calculates the rental price breakdown without confirming the rental. Only accessible to authenticated clients.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rentals"
+                ],
+                "summary": "Preview rental pricing",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Rental preview payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/rentals.RentalPreviewRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Rental price breakdown",
+                        "schema": {
+                            "$ref": "#/definitions/rentals.RentalPreviewResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Only clients can preview rentals",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Property is not rentable or the dates are blocked",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/services": {
             "get": {
                 "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.",
@@ -4051,6 +4193,216 @@ const docTemplate = `{
                 "sale_price": {
                     "type": "number",
                     "example": 1500000
+                }
+            }
+        },
+        "rentals.RentalBreakdown": {
+            "type": "object",
+            "properties": {
+                "months": {
+                    "type": "integer"
+                },
+                "nights": {
+                    "type": "integer"
+                },
+                "weeks": {
+                    "type": "integer"
+                },
+                "years": {
+                    "type": "integer"
+                }
+            }
+        },
+        "rentals.RentalConfirmRequest": {
+            "type": "object",
+            "properties": {
+                "client_uuid": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "period_id": {
+                    "type": "integer"
+                },
+                "property_uuid": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "rentals.RentalPreviewRequest": {
+            "type": "object",
+            "properties": {
+                "end_date": {
+                    "type": "string"
+                },
+                "period_id": {
+                    "type": "integer"
+                },
+                "property_uuid": {
+                    "type": "string"
+                },
+                "start_date": {
+                    "type": "string"
+                }
+            }
+        },
+        "rentals.RentalPreviewResponse": {
+            "type": "object",
+            "properties": {
+                "blocked_dates": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "breakdown": {
+                    "$ref": "#/definitions/rentals.RentalBreakdown"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "string",
+                    "example": "5000.00"
+                },
+                "end_date": {
+                    "type": "string",
+                    "example": "2026-09-30"
+                },
+                "is_negotiable": {
+                    "type": "boolean"
+                },
+                "period": {
+                    "type": "string",
+                    "example": "Monthly"
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "price_components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rentals.RentalPriceComponent"
+                    }
+                },
+                "property_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                },
+                "start_date": {
+                    "type": "string",
+                    "example": "2026-07-01"
+                },
+                "subtotal": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "total": {
+                    "type": "string",
+                    "example": "20000.00"
+                },
+                "unit_price": {
+                    "type": "string",
+                    "example": "5000.00"
+                },
+                "units": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
+        "rentals.RentalPriceComponent": {
+            "type": "object",
+            "properties": {
+                "line_total": {
+                    "type": "string"
+                },
+                "period": {
+                    "type": "string"
+                },
+                "period_id": {
+                    "type": "integer"
+                },
+                "unit_price": {
+                    "type": "string"
+                },
+                "units": {
+                    "type": "integer"
+                }
+            }
+        },
+        "rentals.RentalResponse": {
+            "type": "object",
+            "properties": {
+                "breakdown": {
+                    "$ref": "#/definitions/rentals.RentalBreakdown"
+                },
+                "contract_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "deposit": {
+                    "type": "string",
+                    "example": "5000.00"
+                },
+                "end_date": {
+                    "type": "string",
+                    "example": "2026-09-30"
+                },
+                "is_negotiable": {
+                    "type": "boolean"
+                },
+                "period": {
+                    "type": "string",
+                    "example": "Monthly"
+                },
+                "period_id": {
+                    "type": "integer",
+                    "example": 3
+                },
+                "price_components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/rentals.RentalPriceComponent"
+                    }
+                },
+                "property_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                },
+                "start_date": {
+                    "type": "string",
+                    "example": "2026-07-01"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Completed"
+                },
+                "subtotal": {
+                    "type": "string",
+                    "example": "15000.00"
+                },
+                "total": {
+                    "type": "string",
+                    "example": "20000.00"
+                },
+                "transaction_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
                 }
             }
         },

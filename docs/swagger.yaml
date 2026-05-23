@@ -1096,6 +1096,153 @@ definitions:
         example: 1500000
         type: number
     type: object
+  rentals.RentalBreakdown:
+    properties:
+      months:
+        type: integer
+      nights:
+        type: integer
+      weeks:
+        type: integer
+      years:
+        type: integer
+    type: object
+  rentals.RentalConfirmRequest:
+    properties:
+      client_uuid:
+        type: string
+      end_date:
+        type: string
+      period_id:
+        type: integer
+      property_uuid:
+        type: string
+      start_date:
+        type: string
+    type: object
+  rentals.RentalPreviewRequest:
+    properties:
+      end_date:
+        type: string
+      period_id:
+        type: integer
+      property_uuid:
+        type: string
+      start_date:
+        type: string
+    type: object
+  rentals.RentalPreviewResponse:
+    properties:
+      blocked_dates:
+        items:
+          type: string
+        type: array
+      breakdown:
+        $ref: '#/definitions/rentals.RentalBreakdown'
+      currency:
+        example: MXN
+        type: string
+      deposit:
+        example: "5000.00"
+        type: string
+      end_date:
+        example: "2026-09-30"
+        type: string
+      is_negotiable:
+        type: boolean
+      period:
+        example: Monthly
+        type: string
+      period_id:
+        example: 3
+        type: integer
+      price_components:
+        items:
+          $ref: '#/definitions/rentals.RentalPriceComponent'
+        type: array
+      property_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
+        type: string
+      start_date:
+        example: "2026-07-01"
+        type: string
+      subtotal:
+        example: "15000.00"
+        type: string
+      total:
+        example: "20000.00"
+        type: string
+      unit_price:
+        example: "5000.00"
+        type: string
+      units:
+        example: 3
+        type: integer
+    type: object
+  rentals.RentalPriceComponent:
+    properties:
+      line_total:
+        type: string
+      period:
+        type: string
+      period_id:
+        type: integer
+      unit_price:
+        type: string
+      units:
+        type: integer
+    type: object
+  rentals.RentalResponse:
+    properties:
+      breakdown:
+        $ref: '#/definitions/rentals.RentalBreakdown'
+      contract_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
+        type: string
+      currency:
+        example: MXN
+        type: string
+      deposit:
+        example: "5000.00"
+        type: string
+      end_date:
+        example: "2026-09-30"
+        type: string
+      is_negotiable:
+        type: boolean
+      period:
+        example: Monthly
+        type: string
+      period_id:
+        example: 3
+        type: integer
+      price_components:
+        items:
+          $ref: '#/definitions/rentals.RentalPriceComponent'
+        type: array
+      property_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
+        type: string
+      start_date:
+        example: "2026-07-01"
+        type: string
+      status:
+        example: Completed
+        type: string
+      subtotal:
+        example: "15000.00"
+        type: string
+      total:
+        example: "20000.00"
+        type: string
+      transaction_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
+        type: string
+    type: object
   services.ListServicesMeta:
     properties:
       query:
@@ -2442,6 +2589,102 @@ paths:
       summary: Replace property services
       tags:
       - Properties
+  /api/v1/rentals:
+    post:
+      consumes:
+      - application/json
+      description: Confirms the rental of an available property, registers the transaction,
+        and generates the digital contract. Only accessible to authenticated clients.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Rental confirmation payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rentals.RentalConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Rental confirmed successfully
+          schema:
+            $ref: '#/definitions/rentals.RentalResponse'
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Only clients can confirm rentals
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Property not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "422":
+          description: Property is not rentable or the dates are blocked
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Confirm rental
+      tags:
+      - Rentals
+  /api/v1/rentals/preview:
+    post:
+      consumes:
+      - application/json
+      description: Calculates the rental price breakdown without confirming the rental.
+        Only accessible to authenticated clients.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Rental preview payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rentals.RentalPreviewRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Rental price breakdown
+          schema:
+            $ref: '#/definitions/rentals.RentalPreviewResponse'
+        "400":
+          description: Invalid input
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Only clients can preview rentals
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "404":
+          description: Property not found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "422":
+          description: Property is not rentable or the dates are blocked
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Preview rental pricing
+      tags:
+      - Rentals
   /api/v1/services:
     get:
       description: Returns popular active services when q is empty, or matching active
