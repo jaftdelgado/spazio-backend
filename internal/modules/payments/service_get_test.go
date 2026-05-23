@@ -2,6 +2,7 @@ package payments
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/google/uuid"
@@ -143,5 +144,12 @@ func TestNewPaymentDetailResponse(t *testing.T) {
 		response := newPaymentDetailResponse(payment, roleClientID)
 		assert.Nil(t, response.ClientID)
 		assert.Nil(t, response.AgentID)
+	})
+
+	t.Run("public response does not expose payment id", func(t *testing.T) {
+		response := newPaymentDetailResponse(payment, roleAdminID)
+		payload, err := json.Marshal(response)
+		assert.NoError(t, err)
+		assert.NotContains(t, string(payload), "payment_id")
 	})
 }

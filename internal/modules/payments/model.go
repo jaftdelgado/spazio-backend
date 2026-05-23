@@ -77,7 +77,7 @@ type ListPaymentsInput struct {
 }
 
 type PaymentListItem struct {
-	PaymentID     int32      `json:"payment_id" example:"1"`
+	PaymentID     int32      `json:"-"`
 	PaymentUUID   uuid.UUID  `json:"payment_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
 	ContractID    int32      `json:"contract_id" example:"10"`
 	PropertyID    int32      `json:"property_id" example:"5"`
@@ -123,7 +123,6 @@ type PaymentDetailRecord struct {
 }
 
 type PaymentDetailResponse struct {
-	PaymentID       int32      `json:"payment_id" example:"1"`
 	ContractID      int32      `json:"contract_id" example:"10"`
 	PropertyID      int32      `json:"property_id" example:"5"`
 	TransactionID   int32      `json:"transaction_id" example:"3"`

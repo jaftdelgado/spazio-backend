@@ -57,7 +57,6 @@ func (s *service) GetPaymentByUUID(ctx context.Context, userID int32, roleID int
 
 func newPaymentDetailResponse(record PaymentDetailRecord, roleID int32) PaymentDetailResponse {
 	response := PaymentDetailResponse{
-		PaymentID:       record.PaymentID,
 		ContractID:      record.ContractID,
 		PropertyID:      record.PropertyID,
 		TransactionID:   record.TransactionID,

@@ -2869,10 +2869,6 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-03-08T14:32:00Z"
                 },
-                "payment_id": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "payment_method": {
                     "type": "string",
                     "example": "Transferencia bancaria"
@@ -2926,13 +2922,13 @@ const docTemplate = `{
                     "type": "string",
                     "example": "2024-03-08T14:32:00Z"
                 },
-                "payment_id": {
-                    "type": "integer",
-                    "example": 1
-                },
                 "payment_method": {
                     "type": "string",
                     "example": "Transferencia bancaria"
+                },
+                "payment_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
                 },
                 "property_id": {
                     "type": "integer",
