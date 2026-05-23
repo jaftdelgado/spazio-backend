@@ -97,8 +97,8 @@ func mapListPaymentsRows(rows []sqlcgen.ListPaymentsRow) []PaymentListItem {
 	items := make([]PaymentListItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, PaymentListItem{
-			PaymentID:     row.PaymentID,
 			PaymentUUID:   row.PaymentUuid.Bytes,
+			PaymentID:     row.PaymentID,
 			ContractID:    row.ContractID,
 			PropertyID:    row.PropertyID,
 			BillingPeriod: formatDate(row.BillingPeriod.Time),

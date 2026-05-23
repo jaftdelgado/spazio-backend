@@ -112,6 +112,7 @@ func TestService_GetPaymentByUUID(t *testing.T) {
 }
 
 func TestNewPaymentDetailResponse(t *testing.T) {
+	paymentUUID := uuid.New()
 	payment := PaymentDetailRecord{
 		PaymentID:       1,
 		ContractID:      2,
@@ -130,7 +131,8 @@ func TestNewPaymentDetailResponse(t *testing.T) {
 	}
 
 	t.Run("admin receives sensitive identifiers", func(t *testing.T) {
-		response := newPaymentDetailResponse(payment, roleAdminID)
+		response := newPaymentDetailResponse(paymentUUID, payment, roleAdminID)
+		assert.Equal(t, paymentUUID, response.PaymentUUID)
 		if assert.NotNil(t, response.ClientID) {
 			assert.Equal(t, int32(7), *response.ClientID)
 		}
@@ -140,7 +142,8 @@ func TestNewPaymentDetailResponse(t *testing.T) {
 	})
 
 	t.Run("client omits sensitive identifiers", func(t *testing.T) {
-		response := newPaymentDetailResponse(payment, roleClientID)
+		response := newPaymentDetailResponse(paymentUUID, payment, roleClientID)
+		assert.Equal(t, paymentUUID, response.PaymentUUID)
 		assert.Nil(t, response.ClientID)
 		assert.Nil(t, response.AgentID)
 	})
