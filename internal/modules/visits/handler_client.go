@@ -11,7 +11,7 @@ import (
 
 // @Summary Schedule a visit
 // @Description Create a new visit request in 'Pending' status for the authenticated user.
-// @Tags visits
+// @Tags Visits
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "Bearer access token"
@@ -59,7 +59,7 @@ func validateCreateVisitRequest(req CreateVisitRequest) error {
 
 // @Summary Reschedule a visit
 // @Description Cancels the old visit and creates a new one with the new date for the authenticated user.
-// @Tags visits
+// @Tags Visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Old Visit UUID"

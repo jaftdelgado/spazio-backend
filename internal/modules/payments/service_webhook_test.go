@@ -7,12 +7,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_HandleWebhook(t *testing.T) {
@@ -36,12 +36,12 @@ func TestService_HandleWebhook(t *testing.T) {
 				return calculateFreshTestSig("req1", oldTs, body, secret)
 			},
 			body:        `{"type":"payment","data":{"id":"123"}}`,
-			setupRepo: func() *mockPaymentRepository { return &mockPaymentRepository{} },
+			setupRepo:   func() *mockPaymentRepository { return &mockPaymentRepository{} },
 			wantErr:     true,
 			errContains: "invalid signature or timestamp",
 		},
 		{
-			name: "success when fresh timestamp and valid signature approved",
+			name:          "success when fresh timestamp and valid signature approved",
 			mpAccessToken: "TEST-TOKEN",
 			setupSig: func(body string) string {
 				freshTs := strconv.FormatInt(time.Now().Unix(), 10)
@@ -53,7 +53,7 @@ func TestService_HandleWebhook(t *testing.T) {
 					getPaymentByGatewayIDFunc: func(ctx context.Context, gatewayID string) (sqlcgen.GetPaymentByGatewayIDRow, error) {
 						return sqlcgen.GetPaymentByGatewayIDRow{PaymentID: 1, StatusID: PaymentStatusPending, ContractID: 1}, nil
 					},
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					beginFunc:               func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
 					updatePaymentStatusFunc: func(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error { return nil },
 					getContractForPaymentFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error) {
 						return sqlcgen.GetContractForPaymentRow{TransactionType: "rent"}, nil
@@ -86,12 +86,18 @@ func TestService_HandleWebhook(t *testing.T) {
 			err := svc.HandleWebhook(ctx, sig, reqID, []byte(tt.body))
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}

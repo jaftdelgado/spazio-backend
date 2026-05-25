@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 	mpConfig "github.com/mercadopago/sdk-go/pkg/config"
 	"github.com/mercadopago/sdk-go/pkg/payment"
-	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
 func (s *service) HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error {

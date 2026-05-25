@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 	mpConfig "github.com/mercadopago/sdk-go/pkg/config"
 	"github.com/mercadopago/sdk-go/pkg/payment"
-	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
 func (s *service) ProcessPayment(ctx context.Context, userID int32, req RegisterPaymentRequest) (PaymentResponse, error) {
@@ -113,8 +113,8 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 
 	// F7: Safe Money Comparison
 	contractAmount, _ := contract.AgreedAmount.Float64Value()
-	if int64(req.Amount*100) != int64(contractAmount.Float64*100) {
-		return PaymentResponse{}, fmt.Errorf("el monto del pago (%.2f) no coincide con el monto pactado en el contrato (%.2f)", req.Amount, contractAmount.Float64)
+	if req.Amount != int64(contractAmount.Float64*100) {
+		return PaymentResponse{}, fmt.Errorf("el monto del pago (%.2f) no coincide con el monto pactado en el contrato (%.2f)", float64(req.Amount)/100.0, contractAmount.Float64)
 	}
 
 	mpCfg, err := mpConfig.New(s.mpAccessToken)
@@ -129,7 +129,7 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 	}
 
 	mpReq := payment.Request{
-		TransactionAmount: req.Amount,
+		TransactionAmount: float64(req.Amount) / 100.0,
 		PaymentMethodID:   req.GatewayMethodID,
 		Payer: &payment.PayerRequest{
 			Email: req.PayerEmail,
@@ -190,7 +190,7 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		ClientID:         userID,
 		BillingPeriod:    pgtype.Date{Time: billingPeriod, Valid: true},
 		DueDate:          pgtype.Date{Time: now.Add(24 * time.Hour), Valid: true},
-		Amount:           pgtype.Numeric{Int: big.NewInt(int64(req.Amount * 100)), Exp: -2, Valid: true},
+		Amount:           pgtype.Numeric{Int: big.NewInt(req.Amount), Exp: -2, Valid: true},
 		PaymentMethodID:  req.PaymentMethodID,
 		GatewayID:        pgtype.Int4{Int32: req.GatewayID, Valid: true},
 		StatusID:         statusID,

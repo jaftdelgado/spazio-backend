@@ -2,6 +2,7 @@ package payments
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ConfirmPendingPayment(t *testing.T) {
@@ -72,12 +72,18 @@ func TestService_ConfirmPendingPayment(t *testing.T) {
 			err := svc.ConfirmPendingPayment(ctx, clientID, pUUID)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}

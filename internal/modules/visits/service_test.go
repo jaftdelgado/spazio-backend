@@ -2,11 +2,11 @@ package visits
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestTranslateError(t *testing.T) {
@@ -45,7 +45,9 @@ func TestTranslateError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			translated := translateError(tt.err)
-			assert.Contains(t, translated.Error(), tt.errContains)
+			if !strings.Contains(translated.Error(), tt.errContains) {
+				t.Errorf("expected %v to contain %v", translated.Error(), tt.errContains)
+			}
 		})
 	}
 }
@@ -53,5 +55,7 @@ func TestTranslateError(t *testing.T) {
 func TestNormalizeDate(t *testing.T) {
 	input := time.Date(2024, 1, 1, 15, 30, 45, 123456, time.UTC)
 	expected := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
-	assert.Equal(t, expected, normalizeDate(input))
+	if expected != normalizeDate(input) {
+		t.Errorf("expected %v, got %v", expected, normalizeDate(input))
+	}
 }

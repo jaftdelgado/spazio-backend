@@ -23,10 +23,9 @@ func (s *service) ListPayments(ctx context.Context, userID int32, roleID int32, 
 
 	return ListPaymentsResult{
 		Data: payments,
-		Pagination: PaymentsPagination{
-			Limit:  input.Limit,
-			Offset: input.Offset,
-			Total:  total,
+		Meta: ListPaymentsMeta{
+			Total: total,
+			Shown: len(payments),
 		},
 	}, nil
 }
