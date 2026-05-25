@@ -4,34 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
-
-type Repository interface {
-	GetPaymentByContract(ctx context.Context, contractID int32, statusID int32) ([]sqlcgen.Payment, error)
-	CreatePayment(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error)
-	GetContractForPayment(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error)
-	GetContractForPaymentWithLock(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error)
-	GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error)
-	GetPaymentByGatewayID(ctx context.Context, gatewayID string) (sqlcgen.GetPaymentByGatewayIDRow, error)
-	GetLastPaidPeriod(ctx context.Context, contractID int32) (pgtype.Date, error)
-	GetPendingPayments(ctx context.Context, contractID int32) ([]sqlcgen.GetPendingPaymentsRow, error)
-	UpdatePaymentStatus(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error
-	WithTx(tx pgx.Tx) Repository
-	Begin(ctx context.Context) (pgx.Tx, error)
-
-	ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error)
-	GetPaymentDetailByUUID(ctx context.Context, paymentUUID uuid.UUID) (PaymentDetailRecord, error)
-
-	CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error)
-	UpdateTransactionStatusByContract(ctx context.Context, contractID int32, statusID int32) error
-	UpdatePropertyStatusByContract(ctx context.Context, contractID int32, statusID int32) error
-	UpdateContractStatus(ctx context.Context, contractID int32, statusID int32) error
-}
 
 type repository struct {
 	db      sqlcgen.DBTX

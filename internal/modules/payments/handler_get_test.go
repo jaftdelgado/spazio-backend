@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandler_ListPayments(t *testing.T) {
@@ -47,7 +46,9 @@ func TestHandler_ListPayments(t *testing.T) {
 			setAuthenticatedContext(ctx, 10, 3)
 
 			h.listPayments(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }
@@ -92,16 +93,24 @@ func TestHandler_ListPayments_PublicResponseOmitsPaymentID(t *testing.T) {
 
 			h.listPayments(ctx)
 
-			assert.Equal(t, http.StatusOK, rec.Code)
+			if http.StatusOK != rec.Code {
+				t.Errorf("expected %v, got %v", http.StatusOK, rec.Code)
+			}
 
 			var body struct {
 				Data []map[string]any `json:"data"`
 			}
-			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-			if assert.Len(t, body.Data, 1) {
+			if json.Unmarshal(rec.Body.Bytes(), &body) != nil {
+				t.Errorf("unexpected error: %v", json.Unmarshal(rec.Body.Bytes(), &body))
+			}
+			if len(body.Data) == 1 {
 				_, hasPaymentID := body.Data[0]["payment_id"]
-				assert.False(t, hasPaymentID)
-				assert.Equal(t, paymentUUID.String(), body.Data[0]["payment_uuid"])
+				if hasPaymentID {
+					t.Errorf("expected false")
+				}
+				if paymentUUID.String() != body.Data[0]["payment_uuid"] {
+					t.Errorf("expected %v, got %v", paymentUUID.String(), body.Data[0]["payment_uuid"])
+				}
 			}
 		})
 	}
@@ -145,7 +154,9 @@ func TestHandler_GetPaymentByID(t *testing.T) {
 			ctx.Params = []gin.Param{{Key: "payment_uuid", Value: tt.idParam}}
 
 			h.getPaymentByID(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }
@@ -222,13 +233,21 @@ func TestHandler_GetPaymentByID_PublicResponseOmitsPaymentID(t *testing.T) {
 
 			h.getPaymentByID(ctx)
 
-			assert.Equal(t, http.StatusOK, rec.Code)
+			if http.StatusOK != rec.Code {
+				t.Errorf("expected %v, got %v", http.StatusOK, rec.Code)
+			}
 
 			var body map[string]any
-			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+			if json.Unmarshal(rec.Body.Bytes(), &body) != nil {
+				t.Errorf("unexpected error: %v", json.Unmarshal(rec.Body.Bytes(), &body))
+			}
 			_, hasPaymentID := body["payment_id"]
-			assert.False(t, hasPaymentID)
-			assert.Equal(t, tt.response.PaymentUUID.String(), body["payment_uuid"])
+			if hasPaymentID {
+				t.Errorf("expected false")
+			}
+			if tt.response.PaymentUUID.String() != body["payment_uuid"] {
+				t.Errorf("expected %v, got %v", tt.response.PaymentUUID.String(), body["payment_uuid"])
+			}
 		})
 	}
 }

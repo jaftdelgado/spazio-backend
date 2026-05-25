@@ -12,67 +12,119 @@ import (
 )
 
 func (r *repository) CountCompletedPaymentsForContract(ctx context.Context, contractID int32) (int64, error) {
-	return r.queries.CountCompletedPaymentsForContract(ctx, contractID)
+	count, err := r.queries.CountCompletedPaymentsForContract(ctx, contractID)
+	if err != nil {
+		return 0, fmt.Errorf("count completed payments for contract: %w", err)
+	}
+	return count, nil
 }
 
 func (r *repository) UpdateTransactionStatusByContract(ctx context.Context, contractID int32, statusID int32) error {
-	return r.queries.UpdateTransactionStatusByContract(ctx, sqlcgen.UpdateTransactionStatusByContractParams{
+	err := r.queries.UpdateTransactionStatusByContract(ctx, sqlcgen.UpdateTransactionStatusByContractParams{
 		ContractID: contractID,
 		StatusID:   statusID,
 	})
+	if err != nil {
+		return fmt.Errorf("update transaction status by contract: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) UpdatePropertyStatusByContract(ctx context.Context, contractID int32, statusID int32) error {
-	return r.queries.UpdatePropertyStatusByContract(ctx, sqlcgen.UpdatePropertyStatusByContractParams{
+	err := r.queries.UpdatePropertyStatusByContract(ctx, sqlcgen.UpdatePropertyStatusByContractParams{
 		ContractID: contractID,
 		StatusID:   statusID,
 	})
+	if err != nil {
+		return fmt.Errorf("update property status by contract: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) UpdateContractStatus(ctx context.Context, contractID int32, statusID int32) error {
-	return r.queries.UpdateContractStatus(ctx, sqlcgen.UpdateContractStatusParams{
+	err := r.queries.UpdateContractStatus(ctx, sqlcgen.UpdateContractStatusParams{
 		ContractID: contractID,
 		StatusID:   statusID,
 	})
+	if err != nil {
+		return fmt.Errorf("update contract status: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) GetPaymentByContract(ctx context.Context, contractID int32, statusID int32) ([]sqlcgen.Payment, error) {
-	return r.queries.GetPaymentByContract(ctx, sqlcgen.GetPaymentByContractParams{
+	payments, err := r.queries.GetPaymentByContract(ctx, sqlcgen.GetPaymentByContractParams{
 		ContractID: contractID,
 		StatusID:   statusID,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("get payment by contract: %w", err)
+	}
+	return payments, nil
 }
 
 func (r *repository) CreatePayment(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error) {
-	return r.queries.CreatePayment(ctx, arg)
+	payment, err := r.queries.CreatePayment(ctx, arg)
+	if err != nil {
+		return sqlcgen.Payment{}, fmt.Errorf("create payment: %w", err)
+	}
+	return payment, nil
 }
 
 func (r *repository) GetContractForPayment(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentRow, error) {
-	return r.queries.GetContractForPayment(ctx, contractID)
+	contract, err := r.queries.GetContractForPayment(ctx, contractID)
+	if err != nil {
+		return sqlcgen.GetContractForPaymentRow{}, fmt.Errorf("get contract for payment: %w", err)
+	}
+	return contract, nil
 }
 
 func (r *repository) GetContractForPaymentWithLock(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
-	return r.queries.GetContractForPaymentWithLock(ctx, contractID)
+	contract, err := r.queries.GetContractForPaymentWithLock(ctx, contractID)
+	if err != nil {
+		return sqlcgen.GetContractForPaymentWithLockRow{}, fmt.Errorf("get contract for payment with lock: %w", err)
+	}
+	return contract, nil
 }
 
 func (r *repository) GetPaymentByUUID(ctx context.Context, paymentUUID uuid.UUID) (sqlcgen.GetPaymentByUUIDRow, error) {
-	return r.queries.GetPaymentByUUID(ctx, pgtype.UUID{Bytes: paymentUUID, Valid: true})
+	payment, err := r.queries.GetPaymentByUUID(ctx, pgtype.UUID{Bytes: paymentUUID, Valid: true})
+	if err != nil {
+		return sqlcgen.GetPaymentByUUIDRow{}, fmt.Errorf("get payment by uuid: %w", err)
+	}
+	return payment, nil
 }
 
 func (r *repository) GetPaymentByGatewayID(ctx context.Context, gatewayID string) (sqlcgen.GetPaymentByGatewayIDRow, error) {
-	return r.queries.GetPaymentByGatewayID(ctx, pgtype.Text{String: gatewayID, Valid: true})
+	payment, err := r.queries.GetPaymentByGatewayID(ctx, pgtype.Text{String: gatewayID, Valid: true})
+	if err != nil {
+		return sqlcgen.GetPaymentByGatewayIDRow{}, fmt.Errorf("get payment by gateway id: %w", err)
+	}
+	return payment, nil
 }
 
 func (r *repository) GetLastPaidPeriod(ctx context.Context, contractID int32) (pgtype.Date, error) {
-	return r.queries.GetLastPaidPeriod(ctx, contractID)
+	period, err := r.queries.GetLastPaidPeriod(ctx, contractID)
+	if err != nil {
+		return pgtype.Date{}, fmt.Errorf("get last paid period: %w", err)
+	}
+	return period, nil
 }
 
 func (r *repository) GetPendingPayments(ctx context.Context, contractID int32) ([]sqlcgen.GetPendingPaymentsRow, error) {
-	return r.queries.GetPendingPayments(ctx, contractID)
+	payments, err := r.queries.GetPendingPayments(ctx, contractID)
+	if err != nil {
+		return nil, fmt.Errorf("get pending payments: %w", err)
+	}
+	return payments, nil
 }
 
 func (r *repository) UpdatePaymentStatus(ctx context.Context, arg sqlcgen.UpdatePaymentStatusParams) error {
-	return r.queries.UpdatePaymentStatus(ctx, arg)
+	err := r.queries.UpdatePaymentStatus(ctx, arg)
+	if err != nil {
+		return fmt.Errorf("update payment status: %w", err)
+	}
+	return nil
 }
 
 func (r *repository) ListPayments(ctx context.Context, userID int32, roleID int32, input ListPaymentsInput) ([]PaymentListItem, error) {

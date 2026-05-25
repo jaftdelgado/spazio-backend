@@ -57,7 +57,7 @@ type mockTx struct {
 	pgx.Tx
 }
 
-func (m *mockTx) Commit(ctx context.Context) error { return nil }
+func (m *mockTx) Commit(ctx context.Context) error   { return nil }
 func (m *mockTx) Rollback(ctx context.Context) error { return nil }
 
 func (m *mockContractRepo) ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error) {
@@ -118,9 +118,9 @@ func TestGenerateContract_ServiceLogic(t *testing.T) {
 		{
 			name:    "not owner",
 			userID:  999,
-			input:   CreateContractInput{TransactionID: 1},
+			input:   CreateContractInput{TransactionID: 1, AgreedAmount: 1500.00},
 			repo:    &mockContractRepo{txData: validData},
-			wantErr: "solo el propietario de la propiedad puede generar el contrato",
+			wantErr: "no tiene permiso para generar el contrato de esta transacción",
 		},
 	}
 

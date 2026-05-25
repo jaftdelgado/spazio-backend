@@ -19,16 +19,16 @@ type CreateContractResult struct {
 }
 
 type ContractDetail struct {
-	ContractUUID    string    `json:"contract_uuid"`
-	PropertyTitle   string    `json:"property_title"`
-	OwnerName       string    `json:"owner_name"`
-	ClientName      string    `json:"client_name"`
-	AgreedAmount    float64   `json:"agreed_amount"`
-	Currency        string    `json:"currency"`
-	StartDate       time.Time `json:"start_date"`
-	EndDate         *time.Time `json:"end_date"`
-	Status          string    `json:"status"`
-	PDFUrl          string    `json:"pdf_url"`
+	ContractUUID  string     `json:"contract_uuid"`
+	PropertyTitle string     `json:"property_title"`
+	OwnerName     string     `json:"owner_name"`
+	ClientName    string     `json:"client_name"`
+	AgreedAmount  float64    `json:"agreed_amount"`
+	Currency      string     `json:"currency"`
+	StartDate     time.Time  `json:"start_date"`
+	EndDate       *time.Time `json:"end_date"`
+	Status        string     `json:"status"`
+	PDFUrl        string     `json:"pdf_url"`
 }
 
 type ListContractsFilter struct {

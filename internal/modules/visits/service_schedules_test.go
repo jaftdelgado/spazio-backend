@@ -3,12 +3,12 @@ package visits
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_GetAvailableSlots(t *testing.T) {
@@ -114,18 +114,30 @@ func TestService_GetAvailableSlots(t *testing.T) {
 			slots, err := svc.GetAvailableSlots(ctx, tt.propertyID, date)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
-				assert.Len(t, slots, tt.wantSlots)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if len(slots) != tt.wantSlots {
+					t.Errorf("expected len %v, got %v", tt.wantSlots, len(slots))
+				}
 
 				// For the success case, let's also verify availability manually
 				if tt.wantSlots == 2 {
-					assert.True(t, slots[0].Available)  // 09:00
-					assert.False(t, slots[1].Available) // 11:00 (Occupied)
+					if !(slots[0].Available) {
+						t.Errorf("expected true")
+					} // 09:00
+					if slots[1].Available {
+						t.Errorf("expected false")
+					} // 11:00 (Occupied)
 				}
 			}
 		})

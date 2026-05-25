@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandler_HandleWebhook(t *testing.T) {
@@ -54,7 +52,9 @@ func TestHandler_HandleWebhook(t *testing.T) {
 			}
 
 			h.handleWebhook(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }

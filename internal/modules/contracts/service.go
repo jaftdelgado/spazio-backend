@@ -273,10 +273,14 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		pName := "Mensual"
 		if input.PeriodID != nil {
 			switch *input.PeriodID {
-			case 1: pName = "Diaria"
-			case 2: pName = "Semanal"
-			case 3: pName = "Mensual"
-			case 4: pName = "Anual"
+			case 1:
+				pName = "Diaria"
+			case 2:
+				pName = "Semanal"
+			case 3:
+				pName = "Mensual"
+			case 4:
+				pName = "Anual"
 			}
 		} else if data.PeriodName.Valid {
 			pName = translatePeriod(data.PeriodName.String)

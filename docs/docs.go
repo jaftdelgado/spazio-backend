@@ -1179,7 +1179,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "Get property availability",
                 "parameters": [
@@ -2032,7 +2032,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "List user visits",
                 "parameters": [
@@ -2089,7 +2089,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "Schedule a visit",
                 "parameters": [
@@ -2142,7 +2142,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "Complete a visit",
                 "parameters": [
@@ -2196,7 +2196,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "Confirm a visit",
                 "parameters": [
@@ -2250,7 +2250,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "visits"
+                    "Visits"
                 ],
                 "summary": "Reschedule a visit",
                 "parameters": [
@@ -2954,6 +2954,19 @@ const docTemplate = `{
                 }
             }
         },
+        "payments.ListPaymentsMeta": {
+            "type": "object",
+            "properties": {
+                "shown": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 84
+                }
+            }
+        },
         "payments.ListPaymentsResult": {
             "type": "object",
             "properties": {
@@ -2963,8 +2976,8 @@ const docTemplate = `{
                         "$ref": "#/definitions/payments.PaymentListItem"
                     }
                 },
-                "pagination": {
-                    "$ref": "#/definitions/payments.PaymentsPagination"
+                "meta": {
+                    "$ref": "#/definitions/payments.ListPaymentsMeta"
                 }
             }
         },
@@ -3092,42 +3105,34 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "Amount in cents",
+                    "type": "integer",
+                    "example": 150000
                 },
                 "gateway_payment_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "pi_123"
                 },
                 "payment_date": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-03-08T14:32:00Z"
                 },
                 "payment_uuid": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
                 },
                 "reference_number": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "REF-123"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Pending"
                 },
                 "status_id": {
-                    "type": "integer"
-                }
-            }
-        },
-        "payments.PaymentsPagination": {
-            "type": "object",
-            "properties": {
-                "limit": {
                     "type": "integer",
-                    "example": 20
-                },
-                "offset": {
-                    "type": "integer",
-                    "example": 0
-                },
-                "total": {
-                    "type": "integer",
-                    "example": 84
+                    "example": 1
                 }
             }
         },
@@ -3143,35 +3148,45 @@ const docTemplate = `{
             ],
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "description": "Amount in cents",
+                    "type": "integer",
+                    "example": 150000
                 },
                 "contract_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 10
                 },
                 "currency": {
                     "type": "string",
                     "example": "MXN"
                 },
                 "gateway_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "gateway_method_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "card_456"
                 },
                 "installments": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "issuer_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "bank_789"
                 },
                 "payer_email": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "user@example.com"
                 },
                 "payment_method_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 },
                 "token": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "tok_123"
                 }
             }
         },
@@ -4569,10 +4584,12 @@ const docTemplate = `{
             ],
             "properties": {
                 "property_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 5
                 },
                 "visit_date": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-01-20T10:00:00Z"
                 }
             }
         },
@@ -4580,13 +4597,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "available": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "end_time": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-01-20T11:00:00Z"
                 },
                 "start_time": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-01-20T10:00:00Z"
                 }
             }
         },
@@ -4594,43 +4614,57 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "address": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Av. Reforma 123"
                 },
                 "agent_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 2
                 },
                 "agent_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Juan Perez"
                 },
                 "agent_phone": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "5551234567"
                 },
                 "city_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Ciudad de México"
                 },
                 "client_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Maria Gomez"
                 },
                 "client_phone": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "5559876543"
                 },
                 "created_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-01-15T08:00:00Z"
                 },
                 "property_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 5
                 },
                 "property_title": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Casa en Centro"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Pending"
                 },
                 "visit_date": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-01-20T10:00:00Z"
                 },
                 "visit_uuid": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
                 }
             }
         }
