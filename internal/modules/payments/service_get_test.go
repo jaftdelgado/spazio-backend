@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ListPayments(t *testing.T) {
@@ -47,10 +46,16 @@ func TestService_ListPayments(t *testing.T) {
 			res, err := svc.ListPayments(ctx, 1, tt.roleID, ListPaymentsInput{})
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, res.Data)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if res.Data == nil {
+					t.Errorf("expected not nil")
+				}
 			}
 		})
 	}
@@ -103,9 +108,13 @@ func TestService_GetPaymentByUUID(t *testing.T) {
 			_, err := svc.GetPaymentByUUID(ctx, tt.userID, tt.roleID, paymentUUID)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 			} else {
-				assert.NoError(t, err)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}
@@ -132,19 +141,31 @@ func TestNewPaymentDetailResponse(t *testing.T) {
 
 	t.Run("admin receives sensitive identifiers", func(t *testing.T) {
 		response := newPaymentDetailResponse(paymentUUID, payment, roleAdminID)
-		assert.Equal(t, paymentUUID, response.PaymentUUID)
-		if assert.NotNil(t, response.ClientID) {
-			assert.Equal(t, int32(7), *response.ClientID)
+		if paymentUUID != response.PaymentUUID {
+			t.Errorf("expected %v, got %v", paymentUUID, response.PaymentUUID)
 		}
-		if assert.NotNil(t, response.AgentID) {
-			assert.Equal(t, int32(9), *response.AgentID)
+		if response.ClientID != nil {
+			if int32(7) != *response.ClientID {
+				t.Errorf("expected %v, got %v", int32(7), *response.ClientID)
+			}
+		}
+		if response.AgentID != nil {
+			if int32(9) != *response.AgentID {
+				t.Errorf("expected %v, got %v", int32(9), *response.AgentID)
+			}
 		}
 	})
 
 	t.Run("client omits sensitive identifiers", func(t *testing.T) {
 		response := newPaymentDetailResponse(paymentUUID, payment, roleClientID)
-		assert.Equal(t, paymentUUID, response.PaymentUUID)
-		assert.Nil(t, response.ClientID)
-		assert.Nil(t, response.AgentID)
+		if paymentUUID != response.PaymentUUID {
+			t.Errorf("expected %v, got %v", paymentUUID, response.PaymentUUID)
+		}
+		if response.ClientID != nil {
+			t.Errorf("expected nil, got %v", response.ClientID)
+		}
+		if response.AgentID != nil {
+			t.Errorf("expected nil, got %v", response.AgentID)
+		}
 	})
 }

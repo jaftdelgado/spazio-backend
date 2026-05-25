@@ -3,12 +3,12 @@ package visits
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ValidateEntityIntegrity_Deleted(t *testing.T) {
@@ -25,8 +25,12 @@ func TestService_ValidateEntityIntegrity_Deleted(t *testing.T) {
 	svc := NewService(repo).(*service)
 
 	err := svc.validateEntityIntegrity(ctx, repo, 10, 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "eliminada")
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "eliminada") {
+		t.Errorf("expected %v to contain %v", err.Error(), "eliminada")
+	}
 }
 
 func TestService_ValidateEntityIntegrity_NotAvailable(t *testing.T) {
@@ -42,8 +46,12 @@ func TestService_ValidateEntityIntegrity_NotAvailable(t *testing.T) {
 	svc := NewService(repo).(*service)
 
 	err := svc.validateEntityIntegrity(ctx, repo, 10, 1)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no está disponible")
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "no está disponible") {
+		t.Errorf("expected %v to contain %v", err.Error(), "no está disponible")
+	}
 }
 
 func TestHandler_ValidateCreateVisitRequest(t *testing.T) {
@@ -53,8 +61,12 @@ func TestHandler_ValidateCreateVisitRequest(t *testing.T) {
 	}
 
 	err := validateCreateVisitRequest(req)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "minuto :00")
+	if err == nil {
+		t.Errorf("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "minuto :00") {
+		t.Errorf("expected %v to contain %v", err.Error(), "minuto :00")
+	}
 }
 
 func TestHandler_ListVisits_InvalidParsing(t *testing.T) {
@@ -65,5 +77,7 @@ func TestHandler_ListVisits_InvalidParsing(t *testing.T) {
 	// Since strconv.Atoi ignores errors and puts 0, it shouldn't fail, but let's test the path
 	h.listVisits(ctx)
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	if http.StatusOK != rec.Code {
+		t.Errorf("expected %v, got %v", http.StatusOK, rec.Code)
+	}
 }

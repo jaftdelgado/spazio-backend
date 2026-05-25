@@ -12,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandler_ScheduleVisit(t *testing.T) {
@@ -85,7 +84,9 @@ func TestHandler_ScheduleVisit(t *testing.T) {
 			}
 
 			h.scheduleVisit(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }
@@ -104,9 +105,9 @@ func TestHandler_RescheduleVisit(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:      "400 Bad Request on invalid request body",
-			uuidParam: uuid.New().String(),
-			reqBody:   nil,
+			name:       "400 Bad Request on invalid request body",
+			uuidParam:  uuid.New().String(),
+			reqBody:    nil,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -162,7 +163,9 @@ func TestHandler_RescheduleVisit(t *testing.T) {
 			}
 
 			h.rescheduleVisit(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }

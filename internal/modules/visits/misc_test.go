@@ -5,14 +5,17 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestPgTimeToHM(t *testing.T) {
 	pt := pgtype.Time{Microseconds: 15*3600*1e6 + 30*60*1e6, Valid: true}
 	h, m := pgTimeToHM(pt)
-	assert.Equal(t, 15, h)
-	assert.Equal(t, 30, m)
+	if 15 != h {
+		t.Errorf("expected %v, got %v", 15, h)
+	}
+	if 30 != m {
+		t.Errorf("expected %v, got %v", 30, m)
+	}
 }
 
 func TestHandler_ResolveIdentity_Errors(t *testing.T) {
@@ -24,5 +27,7 @@ func TestHandler_ResolveIdentity_Errors(t *testing.T) {
 	// Call listVisits without setAuthenticatedContext
 	h.listVisits(ctx)
 
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	if http.StatusUnauthorized != rec.Code {
+		t.Errorf("expected %v, got %v", http.StatusUnauthorized, rec.Code)
+	}
 }

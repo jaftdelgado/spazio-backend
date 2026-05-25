@@ -5,8 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandler_ListVisits(t *testing.T) {
@@ -51,7 +49,9 @@ func TestHandler_ListVisits(t *testing.T) {
 			setAuthenticatedContext(ctx, 10, 3)
 
 			h.listVisits(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }

@@ -3,12 +3,12 @@ package visits
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ListUserVisits(t *testing.T) {
@@ -51,13 +51,13 @@ func TestService_ListUserVisits(t *testing.T) {
 					listVisitsFunc: func(ctx context.Context, arg sqlcgen.ListVisitsParams) ([]sqlcgen.ListVisitsRow, error) {
 						return []sqlcgen.ListVisitsRow{
 							{
-								VisitID:     1,
-								PropertyID:  1,
-								AgentID:     pgtype.Int4{Int32: 2, Valid: true},
-								StatusName:  "Pending",
-								ClientName:  "John",
-								AgentName:   "Doe",
-								Address:     "123 St",
+								VisitID:    1,
+								PropertyID: 1,
+								AgentID:    pgtype.Int4{Int32: 2, Valid: true},
+								StatusName: "Pending",
+								ClientName: "John",
+								AgentName:  "Doe",
+								Address:    "123 St",
 							},
 						}, nil
 					},
@@ -109,13 +109,21 @@ func TestService_ListUserVisits(t *testing.T) {
 			res, err := svc.ListUserVisits(ctx, 10, tt.roleID, filter)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
-				assert.Len(t, res, 1)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if len(res) != 1 {
+					t.Errorf("expected len %v, got %v", 1, len(res))
+				}
 			}
 		})
 	}

@@ -3,12 +3,12 @@ package visits
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ConfirmVisit(t *testing.T) {
@@ -83,7 +83,7 @@ func TestService_ConfirmVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, ClientID: userID, StatusID: StatusPending}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -97,7 +97,7 @@ func TestService_ConfirmVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, ClientID: userID, StatusID: StatusWaitingClient}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -111,7 +111,7 @@ func TestService_ConfirmVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: userID, Valid: true}, StatusID: StatusPending}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -125,7 +125,7 @@ func TestService_ConfirmVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: userID, Valid: true}, StatusID: StatusWaitingAgent}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -141,12 +141,18 @@ func TestService_ConfirmVisit(t *testing.T) {
 			err := svc.ConfirmVisit(ctx, userID, tt.roleID, visitUUID)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}
@@ -204,6 +210,48 @@ func TestService_CompleteVisit(t *testing.T) {
 			errContains: "solo se pueden completar visitas que estén confirmadas",
 		},
 		{
+			name:   "error when visit not found",
+			roleID: 1,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{}, errors.New("not found db error")
+					},
+				}
+			},
+			wantErr:     true,
+			errContains: "visita no encontrada",
+		},
+		{
+			name:   "error when update status fails",
+			roleID: 1,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil
+					},
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return errors.New("update db err") },
+				}
+			},
+			wantErr:     true,
+			errContains: "update db err",
+		},
+		{
+			name:   "error when create history fails",
+			roleID: 1,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil
+					},
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
+					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return errors.New("history db err") },
+				}
+			},
+			wantErr:     true,
+			errContains: "history db err",
+		},
+		{
 			name:   "success complete",
 			roleID: 1,
 			setupRepo: func() *mockVisitsRepository {
@@ -211,7 +259,7 @@ func TestService_CompleteVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -225,7 +273,7 @@ func TestService_CompleteVisit(t *testing.T) {
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: userID, Valid: true}, StatusID: StatusConfirmed}, nil
 					},
-					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error { return nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
 			},
@@ -241,12 +289,18 @@ func TestService_CompleteVisit(t *testing.T) {
 			err := svc.CompleteVisit(ctx, userID, tt.roleID, visitUUID)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					if !strings.Contains(err.Error(), tt.errContains) {
+						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
+					}
 				}
 			} else {
-				assert.NoError(t, err)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
 			}
 		})
 	}

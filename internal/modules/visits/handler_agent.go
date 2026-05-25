@@ -10,7 +10,7 @@ import (
 
 // @Summary Confirm a visit
 // @Description Transition a visit status towards 'Confirmed' by Client or Agent using the authenticated session.
-// @Tags visits
+// @Tags Visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Visit UUID"
@@ -43,7 +43,7 @@ func (h *Handler) confirmVisit(c *gin.Context) {
 
 // @Summary Complete a visit
 // @Description Mark a confirmed visit as completed. Only for Agents or Admin from the authenticated session.
-// @Tags visits
+// @Tags Visits
 // @Accept json
 // @Produce json
 // @Param uuid path string true "Visit UUID"

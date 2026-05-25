@@ -11,7 +11,7 @@ import (
 
 // @Summary Get property availability
 // @Description Get available 1-hour slots for a property on a specific date
-// @Tags visits
+// @Tags Visits
 // @Accept json
 // @Produce json
 // @Param uuid path int true "Property ID"

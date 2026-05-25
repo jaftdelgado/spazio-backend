@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestHandler_ConfirmVisit(t *testing.T) {
@@ -61,7 +60,9 @@ func TestHandler_ConfirmVisit(t *testing.T) {
 			ctx.Params = []gin.Param{{Key: "uuid", Value: tt.uuidParam}}
 
 			h.confirmVisit(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }
@@ -116,7 +117,9 @@ func TestHandler_CompleteVisit(t *testing.T) {
 			ctx.Params = []gin.Param{{Key: "uuid", Value: tt.uuidParam}}
 
 			h.completeVisit(ctx)
-			assert.Equal(t, tt.wantStatus, rec.Code)
+			if tt.wantStatus != rec.Code {
+				t.Errorf("expected %v, got %v", tt.wantStatus, rec.Code)
+			}
 		})
 	}
 }

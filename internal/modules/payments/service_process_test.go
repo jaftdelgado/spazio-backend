@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestService_ProcessPayment(t *testing.T) {
@@ -20,7 +19,7 @@ func TestService_ProcessPayment(t *testing.T) {
 	baseReq := RegisterPaymentRequest{
 		ContractID:      1,
 		PaymentMethodID: 1,
-		Amount:          1000.0,
+		Amount:          100000,
 		Currency:        "MXN",
 		PayerEmail:      "test@test.com",
 		GatewayMethodID: "visa",
@@ -52,8 +51,8 @@ func TestService_ProcessPayment(t *testing.T) {
 			name: "error when contract not found",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { 
-						return &mockTx{}, nil 
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
 						return sqlcgen.GetContractForPaymentWithLockRow{}, errors.New("not found")
@@ -67,8 +66,8 @@ func TestService_ProcessPayment(t *testing.T) {
 			name: "error when property is not available for first payment",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { 
-						return &mockTx{}, nil 
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
 						return sqlcgen.GetContractForPaymentWithLockRow{PropertyStatusID: 1}, nil
@@ -85,12 +84,12 @@ func TestService_ProcessPayment(t *testing.T) {
 			name: "error when currency mismatch",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { 
-						return &mockTx{}, nil 
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
 						return sqlcgen.GetContractForPaymentWithLockRow{
-							ClientID: clientID, 
+							ClientID: clientID,
 							Currency: "USD",
 						}, nil
 					},
@@ -106,13 +105,13 @@ func TestService_ProcessPayment(t *testing.T) {
 			name: "error when amount mismatch (F7 Protection)",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { 
-						return &mockTx{}, nil 
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
 						return sqlcgen.GetContractForPaymentWithLockRow{
-							ClientID: clientID, 
-							Currency: "MXN",
+							ClientID:     clientID,
+							Currency:     "MXN",
 							AgreedAmount: pgtype.Numeric{Int: big.NewInt(500000), Exp: -2, Valid: true},
 						}, nil
 					},
@@ -125,13 +124,61 @@ func TestService_ProcessPayment(t *testing.T) {
 			errContains: "no coincide con el monto pactado",
 		},
 		{
+			name: "error when contract is blocked",
+			setupRepo: func() *mockPaymentRepository {
+				return &mockPaymentRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
+						return sqlcgen.GetContractForPaymentWithLockRow{StatusID: ContractStatusBlocked}, nil
+					},
+					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) { return 1, nil },
+				}
+			},
+			wantErr:     true,
+			errContains: "bloqueado por un administrador",
+		},
+		{
+			name: "error when unauthorized client",
+			setupRepo: func() *mockPaymentRepository {
+				return &mockPaymentRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
+						return sqlcgen.GetContractForPaymentWithLockRow{ClientID: 999, StatusID: ContractStatusActive}, nil
+					},
+					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) { return 1, nil },
+				}
+			},
+			wantErr:     true,
+			errContains: "operación no autorizada",
+		},
+		{
+			name:          "error when gateway rejects payment",
+			mpAccessToken: "TEST-REJECTED",
+			setupRepo: func() *mockPaymentRepository {
+				return &mockPaymentRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
+						return sqlcgen.GetContractForPaymentWithLockRow{
+							ClientID: clientID, Currency: "MXN", StatusID: ContractStatusActive,
+							AgreedAmount: pgtype.Numeric{Int: big.NewInt(100000), Exp: -2, Valid: true},
+						}, nil
+					},
+					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) { return 1, nil },
+					getPaymentByContractFunc: func(ctx context.Context, cid, sid int32) ([]sqlcgen.Payment, error) { return nil, nil },
+					getPendingPaymentsFunc: func(ctx context.Context, cid int32) ([]sqlcgen.GetPendingPaymentsRow, error) { return nil, nil },
+				}
+			},
+			wantErr:     true,
+			errContains: "fue rechazado por la pasarela",
+		},
+		{
 			name:          "success and finalize first payment (Transactional F2)",
 			mpAccessToken: "TEST-TOKEN",
 			setupRepo: func() *mockPaymentRepository {
 				finalized := false
 				return &mockPaymentRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { 
-						return &mockTx{}, nil 
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
 						return sqlcgen.GetContractForPaymentWithLockRow{
@@ -185,13 +232,21 @@ func TestService_ProcessPayment(t *testing.T) {
 			res, err := svc.ProcessPayment(ctx, clientID, req)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
 				if tt.errContains != "" {
-					assert.Contains(t, strings.ToLower(err.Error()), strings.ToLower(tt.errContains))
+					if !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(tt.errContains)) {
+						t.Errorf("expected %v to contain %v", strings.ToLower(err.Error()), strings.ToLower(tt.errContains))
+					}
 				}
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.wantStatus, res.Status)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if tt.wantStatus != res.Status {
+					t.Errorf("expected %v, got %v", tt.wantStatus, res.Status)
+				}
 			}
 		})
 	}

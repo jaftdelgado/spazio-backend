@@ -11,7 +11,7 @@ import (
 
 // @Summary List user visits
 // @Description List visits according to the authenticated user role (Admin, Agent, Client). Supports filtering by status, property and date.
-// @Tags visits
+// @Tags Visits
 // @Produce json
 // @Param Authorization header string true "Bearer access token"
 // @Param status_id query int false "Status ID"

@@ -239,14 +239,23 @@ definitions:
       state_id:
         type: integer
     type: object
+  payments.ListPaymentsMeta:
+    properties:
+      shown:
+        example: 20
+        type: integer
+      total:
+        example: 84
+        type: integer
+    type: object
   payments.ListPaymentsResult:
     properties:
       data:
         items:
           $ref: '#/definitions/payments.PaymentListItem'
         type: array
-      pagination:
-        $ref: '#/definitions/payments.PaymentsPagination'
+      meta:
+        $ref: '#/definitions/payments.ListPaymentsMeta'
     type: object
   payments.PaymentDetailResponse:
     properties:
@@ -340,54 +349,61 @@ definitions:
   payments.PaymentResponse:
     properties:
       amount:
-        type: number
+        description: Amount in cents
+        example: 150000
+        type: integer
       gateway_payment_id:
+        example: pi_123
         type: string
       payment_date:
+        example: "2024-03-08T14:32:00Z"
         type: string
       payment_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
         type: string
       reference_number:
+        example: REF-123
         type: string
       status:
+        example: Pending
         type: string
       status_id:
-        type: integer
-    type: object
-  payments.PaymentsPagination:
-    properties:
-      limit:
-        example: 20
-        type: integer
-      offset:
-        example: 0
-        type: integer
-      total:
-        example: 84
+        example: 1
         type: integer
     type: object
   payments.RegisterPaymentRequest:
     properties:
       amount:
-        type: number
+        description: Amount in cents
+        example: 150000
+        type: integer
       contract_id:
+        example: 10
         type: integer
       currency:
         example: MXN
         type: string
       gateway_id:
+        example: 1
         type: integer
       gateway_method_id:
+        example: card_456
         type: string
       installments:
+        example: 1
         type: integer
       issuer_id:
+        example: bank_789
         type: string
       payer_email:
+        example: user@example.com
         type: string
       payment_method_id:
+        example: 1
         type: integer
       token:
+        example: tok_123
         type: string
     required:
     - amount
@@ -1349,8 +1365,10 @@ definitions:
   visits.CreateVisitRequest:
     properties:
       property_id:
+        example: 5
         type: integer
       visit_date:
+        example: "2025-01-20T10:00:00Z"
         type: string
     required:
     - property_id
@@ -1359,39 +1377,56 @@ definitions:
   visits.TimeSlot:
     properties:
       available:
+        example: true
         type: boolean
       end_time:
+        example: "2025-01-20T11:00:00Z"
         type: string
       start_time:
+        example: "2025-01-20T10:00:00Z"
         type: string
     type: object
   visits.VisitResponse:
     properties:
       address:
+        example: Av. Reforma 123
         type: string
       agent_id:
+        example: 2
         type: integer
       agent_name:
+        example: Juan Perez
         type: string
       agent_phone:
+        example: "5551234567"
         type: string
       city_name:
+        example: Ciudad de México
         type: string
       client_name:
+        example: Maria Gomez
         type: string
       client_phone:
+        example: "5559876543"
         type: string
       created_at:
+        example: "2025-01-15T08:00:00Z"
         type: string
       property_id:
+        example: 5
         type: integer
       property_title:
+        example: Casa en Centro
         type: string
       status:
+        example: Pending
         type: string
       visit_date:
+        example: "2025-01-20T10:00:00Z"
         type: string
       visit_uuid:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        format: uuid
         type: string
     type: object
 host: localhost:8080
@@ -2221,7 +2256,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Get property availability
       tags:
-      - visits
+      - Visits
   /api/v1/properties/{uuid}/clauses:
     get:
       description: Returns the clauses linked to a property by UUID. When the property
@@ -2811,7 +2846,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: List user visits
       tags:
-      - visits
+      - Visits
     post:
       consumes:
       - application/json
@@ -2846,7 +2881,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Schedule a visit
       tags:
-      - visits
+      - Visits
   /api/v1/visits/{uuid}/complete:
     patch:
       consumes:
@@ -2883,7 +2918,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Complete a visit
       tags:
-      - visits
+      - Visits
   /api/v1/visits/{uuid}/confirm:
     patch:
       consumes:
@@ -2920,7 +2955,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Confirm a visit
       tags:
-      - visits
+      - Visits
   /api/v1/visits/{uuid}/reschedule:
     patch:
       consumes:
@@ -2961,7 +2996,7 @@ paths:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Reschedule a visit
       tags:
-      - visits
+      - Visits
   /users/DeleteProfile:
     delete:
       description: Soft deletes the authenticated user's local account by marking

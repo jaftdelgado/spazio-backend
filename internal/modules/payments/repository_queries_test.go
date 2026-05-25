@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMapListPaymentsRows(t *testing.T) {
@@ -31,11 +30,21 @@ func TestMapListPaymentsRows(t *testing.T) {
 
 	items := mapListPaymentsRows(rows)
 
-	assert.Len(t, items, 2)
-	assert.Equal(t, int32(1), items[0].PaymentID)
-	assert.Equal(t, paymentUUID, items[0].PaymentUUID)
-	assert.Equal(t, "MP", *items[0].Gateway)
-	assert.Nil(t, items[1].Gateway)
+	if len(items) != 2 {
+		t.Errorf("expected len %v, got %v", 2, len(items))
+	}
+	if int32(1) != items[0].PaymentID {
+		t.Errorf("expected %v, got %v", int32(1), items[0].PaymentID)
+	}
+	if paymentUUID != items[0].PaymentUUID {
+		t.Errorf("expected %v, got %v", paymentUUID, items[0].PaymentUUID)
+	}
+	if "MP" != *items[0].Gateway {
+		t.Errorf("expected %v, got %v", "MP", *items[0].Gateway)
+	}
+	if items[1].Gateway != nil {
+		t.Errorf("expected nil, got %v", items[1].Gateway)
+	}
 }
 
 func TestMapPaymentDetailRow(t *testing.T) {
@@ -50,7 +59,13 @@ func TestMapPaymentDetailRow(t *testing.T) {
 
 	detail := mapPaymentDetailRow(row)
 
-	assert.Equal(t, int32(1), detail.PaymentID)
-	assert.Equal(t, "MP", *detail.Gateway)
-	assert.NotNil(t, detail.PaymentDate)
+	if int32(1) != detail.PaymentID {
+		t.Errorf("expected %v, got %v", int32(1), detail.PaymentID)
+	}
+	if "MP" != *detail.Gateway {
+		t.Errorf("expected %v, got %v", "MP", *detail.Gateway)
+	}
+	if detail.PaymentDate == nil {
+		t.Errorf("expected not nil")
+	}
 }
