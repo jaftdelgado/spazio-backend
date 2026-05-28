@@ -20,6 +20,8 @@ type ContractRepository interface {
 	ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error)
 	GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error)
 	FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error)
+	UpdateTransactionStatus(ctx context.Context, transactionID int32, statusID int32) error
+	UpdatePropertyStatus(ctx context.Context, propertyID int32, statusID int32) error
 	Begin(ctx context.Context) (pgx.Tx, error)
 	WithTx(tx pgx.Tx) ContractRepository
 }
@@ -113,4 +115,18 @@ func (r *repository) ListContracts(ctx context.Context, params sqlcgen.ListContr
 
 func (r *repository) GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error) {
 	return r.queries.GetContractByUUID(ctx, pgtype.UUID{Bytes: contractUUID, Valid: true})
+}
+
+func (r *repository) UpdateTransactionStatus(ctx context.Context, transactionID int32, statusID int32) error {
+	return r.queries.UpdateTransactionStatus(ctx, sqlcgen.UpdateTransactionStatusParams{
+		TransactionID: transactionID,
+		StatusID:      statusID,
+	})
+}
+
+func (r *repository) UpdatePropertyStatus(ctx context.Context, propertyID int32, statusID int32) error {
+	return r.queries.UpdatePropertyStatus(ctx, sqlcgen.UpdatePropertyStatusParams{
+		PropertyID: propertyID,
+		StatusID:   statusID,
+	})
 }

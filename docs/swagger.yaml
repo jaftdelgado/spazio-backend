@@ -125,6 +125,8 @@ definitions:
         type: string
       pdf_url:
         type: string
+      period_name:
+        type: string
       property_title:
         type: string
       start_date:
@@ -153,22 +155,6 @@ definitions:
       transaction_type:
         type: string
     type: object
-  contracts.CreateContractInput:
-    properties:
-      agreed_amount:
-        type: number
-      currency:
-        type: string
-      end_date:
-        type: string
-      period_id:
-        description: Frecuencia de pago (opcional para ventas)
-        type: integer
-      start_date:
-        type: string
-      transaction_id:
-        type: integer
-    type: object
   contracts.CreateContractResult:
     properties:
       contract_id:
@@ -179,6 +165,30 @@ definitions:
         type: string
       storage_key:
         type: string
+    type: object
+  contracts.CreateRentContractInput:
+    properties:
+      agreed_amount:
+        type: number
+      currency:
+        type: string
+      end_date:
+        type: string
+      period_id:
+        type: integer
+      start_date:
+        type: string
+      transaction_id:
+        type: integer
+    type: object
+  contracts.CreateSaleContractInput:
+    properties:
+      agreed_amount:
+        type: number
+      currency:
+        type: string
+      transaction_id:
+        type: integer
     type: object
   locations.City:
     properties:
@@ -1621,45 +1631,6 @@ paths:
       summary: List contracts
       tags:
       - Contracts
-    post:
-      consumes:
-      - application/json
-      description: Generates a legal contract in PDF format based on real estate transaction
-        data and stores it in R2. Only the property owner can invoke this endpoint.
-      parameters:
-      - description: Bearer access token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Contract generation data
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/contracts.CreateContractInput'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Contract generated and stored successfully
-          schema:
-            $ref: '#/definitions/contracts.CreateContractResult'
-        "400":
-          description: Invalid input or logical date error
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "403":
-          description: Unauthorized user (not the owner)
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-        "500":
-          description: Internal error in PDF generation or storage
-          schema:
-            $ref: '#/definitions/shared.ErrorResponse'
-      summary: Generate digital contract
-      tags:
-      - Contracts
   /api/v1/contracts/{uuid}:
     get:
       description: Returns the full details of a contract, including the PDF URL,
@@ -1691,6 +1662,87 @@ paths:
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Get contract detail
+      tags:
+      - Contracts
+  /api/v1/contracts/rent:
+    post:
+      consumes:
+      - application/json
+      description: Generates a legal rent contract in PDF format based on real estate
+        transaction data and stores it in R2. Only the client can invoke this endpoint.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Rent contract generation data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/contracts.CreateRentContractInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Contract generated and stored successfully
+          schema:
+            $ref: '#/definitions/contracts.CreateContractResult'
+        "400":
+          description: Invalid input or logical date error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Unauthorized user (not the client)
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error in PDF generation or storage
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Generate digital rent contract
+      tags:
+      - Contracts
+  /api/v1/contracts/sale:
+    post:
+      consumes:
+      - application/json
+      description: Generates a legal sale contract in PDF format based on real estate
+        transaction data and stores it in R2. Only the property owner can invoke this
+        endpoint.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Sale contract generation data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/contracts.CreateSaleContractInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Contract generated and stored successfully
+          schema:
+            $ref: '#/definitions/contracts.CreateContractResult'
+        "400":
+          description: Invalid input or logical error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "403":
+          description: Unauthorized user (not the owner)
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal error in PDF generation or storage
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Generate digital sale contract
       tags:
       - Contracts
   /api/v1/locations/cities:

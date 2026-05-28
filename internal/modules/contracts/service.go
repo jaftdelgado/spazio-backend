@@ -23,7 +23,8 @@ import (
 )
 
 type ContractService interface {
-	GenerateContract(ctx context.Context, userID int32, input CreateContractInput) (CreateContractResult, error)
+	GenerateRentContract(ctx context.Context, userID int32, input CreateRentContractInput) (CreateContractResult, error)
+	GenerateSaleContract(ctx context.Context, userID int32, input CreateSaleContractInput) (CreateContractResult, error)
 	ListContracts(ctx context.Context, userID int32, roleID int32, filter ListContractsFilter) ([]ContractListItem, error)
 	GetContractDetail(ctx context.Context, userID int32, roleID int32, contractUUID uuid.UUID) (ContractDetail, error)
 }
@@ -138,14 +139,69 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 		ClientName:    row.ClientFirstName + " " + row.ClientLastName,
 		AgreedAmount:  amount.Float64,
 		Currency:      row.Currency,
-		StartDate:     row.StartDate.Time,
-		EndDate:       endDate,
-		Status:        row.StatusName,
-		PDFUrl:        pdfURL,
+		PeriodName:    row.PeriodName.String,
+		StartDate     : row.StartDate.Time,
+		EndDate       : endDate,
+		Status        : row.StatusName,
+		PDFUrl        : pdfURL,
 	}, nil
 }
 
-func (s *service) GenerateContract(ctx context.Context, userID int32, input CreateContractInput) (CreateContractResult, error) {
+func (s *service) GenerateRentContract(ctx context.Context, userID int32, input CreateRentContractInput) (CreateContractResult, error) {
+	data, err := s.repository.GetContractDataByTransactionID(ctx, input.TransactionID)
+	if err != nil {
+		return CreateContractResult{}, fmt.Errorf("fetch transaction data: %w", err)
+	}
+
+	if data.TransactionType != sqlcgen.TransactionTypeRent {
+		return CreateContractResult{}, fmt.Errorf("la transacción no corresponde a una renta")
+	}
+
+	if data.ClientID != userID {
+		return CreateContractResult{}, fmt.Errorf("no tiene permiso para generar el contrato de esta renta")
+	}
+
+	internalInput := CreateContractInput{
+		TransactionID: input.TransactionID,
+		PeriodID:      &input.PeriodID,
+		Currency:      input.Currency,
+		AgreedAmount:  input.AgreedAmount,
+		StartDate:     input.StartDate,
+		EndDate:       &input.EndDate,
+	}
+
+	return s.createContractInternal(ctx, userID, internalInput, data)
+}
+
+func (s *service) GenerateSaleContract(ctx context.Context, userID int32, input CreateSaleContractInput) (CreateContractResult, error) {
+	data, err := s.repository.GetContractDataByTransactionID(ctx, input.TransactionID)
+	if err != nil {
+		return CreateContractResult{}, fmt.Errorf("fetch transaction data: %w", err)
+	}
+
+	if data.TransactionType != sqlcgen.TransactionTypeSale {
+		return CreateContractResult{}, fmt.Errorf("la transacción no corresponde a una venta")
+	}
+
+	if data.OwnerID != userID {
+		return CreateContractResult{}, fmt.Errorf("no tiene permiso para generar el contrato de esta venta")
+	}
+
+	saleDate := data.ClosingDate.Time
+
+	internalInput := CreateContractInput{
+		TransactionID: input.TransactionID,
+		PeriodID:      nil,
+		Currency:      input.Currency,
+		AgreedAmount:  input.AgreedAmount,
+		StartDate:     saleDate,
+		EndDate:       nil,
+	}
+
+	return s.createContractInternal(ctx, userID, internalInput, data)
+}
+
+func (s *service) createContractInternal(ctx context.Context, userID int32, input CreateContractInput, data sqlcgen.GetContractDataByTransactionIDRow) (CreateContractResult, error) {
 	if input.EndDate != nil && !input.EndDate.After(input.StartDate) {
 		return CreateContractResult{}, fmt.Errorf("la fecha de finalización debe ser posterior a la fecha de inicio")
 	}
@@ -158,19 +214,10 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 		return CreateContractResult{}, fmt.Errorf("ya existe un contrato generado para esta transacción")
 	}
 
-	data, err := s.repository.GetContractDataByTransactionID(ctx, input.TransactionID)
-	if err != nil {
-		return CreateContractResult{}, fmt.Errorf("fetch transaction data: %w", err)
-	}
-
 	// F7: Robust Financial Security Check using integer cents to avoid float precision issues
 	transactionAmount, _ := data.FinalAmount.Float64Value()
 	if int64(input.AgreedAmount*100) != int64(transactionAmount.Float64*100) {
 		return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) no coincide con el monto de la transacción (%.2f)", input.AgreedAmount, transactionAmount.Float64)
-	}
-
-	if data.OwnerID != userID && data.ClientID != userID {
-		return CreateContractResult{}, fmt.Errorf("no tiene permiso para generar el contrato de esta transacción")
 	}
 
 	clauses, err := s.repository.GetPropertyClausesByTransactionID(ctx, input.TransactionID)
@@ -220,7 +267,20 @@ func (s *service) GenerateContract(ctx context.Context, userID int32, input Crea
 		return CreateContractResult{}, fmt.Errorf("upload pdf to storage: %w", err)
 	}
 
-	// Step 3: Commit
+	// Step 3: Update Transaction and Property Status
+	err = repoTx.UpdateTransactionStatus(ctx, input.TransactionID, 3) // 3 = Closed
+	if err != nil {
+		return CreateContractResult{}, fmt.Errorf("update transaction status: %w", err)
+	}
+
+	if data.TransactionType == sqlcgen.TransactionTypeSale {
+		err = repoTx.UpdatePropertyStatus(ctx, data.PropertyID, 3) // 3 = Sold
+		if err != nil {
+			return CreateContractResult{}, fmt.Errorf("update property status: %w", err)
+		}
+	}
+
+	// Step 4: Commit
 	if err := tx.Commit(ctx); err != nil {
 		return CreateContractResult{}, fmt.Errorf("commit transaction: %w", err)
 	}
@@ -384,6 +444,11 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 
 	// Amenities
 	if len(amenities) > 0 {
+		var translatedAmenities []string
+		for _, a := range amenities {
+			translatedAmenities = append(translatedAmenities, translateAmenity(a))
+		}
+
 		m.AddRows(
 			row.New(10).Add(
 				col.New(12).Add(
@@ -392,7 +457,7 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 			),
 			row.New(8).Add(
 				col.New(12).Add(
-					text.New(strings.Join(amenities, ", "), props.Text{Size: 9}),
+					text.New(strings.Join(translatedAmenities, ", "), props.Text{Size: 9}),
 				),
 			),
 		)
@@ -423,7 +488,7 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		),
 	)
 
-	if len(clauses) > 0 {
+	if isRent && len(clauses) > 0 {
 		m.AddRows(
 			row.New(10).Add(
 				col.New(12).Add(
@@ -432,28 +497,56 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 			),
 		)
 
-		for i, c := range clauses {
-			val := ""
-			switch c.ValueTypeCode {
-			case "BOOLEAN":
-				if c.BooleanValue.Bool {
-					val = "Sí"
+		clauseCount := 4
+		for _, c := range clauses {
+			phrase := ""
+			switch c.ClauseName {
+			case "pets allowed":
+				if c.BooleanValue.Valid && c.BooleanValue.Bool {
+					phrase = "Se permite la tenencia de mascotas en el inmueble."
 				} else {
-					val = "No"
+					phrase = "Queda estrictamente prohibida la tenencia de mascotas en el inmueble."
 				}
-			case "INTEGER":
-				val = fmt.Sprintf("%d unidades", c.IntegerValue.Int32)
-			case "RANGE":
-				val = fmt.Sprintf("Rango: %v - %v", c.MinValue, c.MaxValue)
+			case "smoking allowed":
+				if c.BooleanValue.Valid && c.BooleanValue.Bool {
+					phrase = "Se permite fumar dentro del inmueble."
+				} else {
+					phrase = "Queda estrictamente prohibido fumar dentro del inmueble."
+				}
+			case "children allowed":
+				if c.BooleanValue.Valid && c.BooleanValue.Bool {
+					phrase = "El inmueble es apto y permite la residencia de menores de edad."
+				} else {
+					phrase = "No se permite la residencia de menores de edad en el inmueble."
+				}
+			default:
+				// Fallback natural para otras posibles cláusulas
+				switch c.ValueTypeCode {
+				case "BOOLEAN":
+					if c.BooleanValue.Valid && c.BooleanValue.Bool {
+						phrase = fmt.Sprintf("Se permite: %s.", c.ClauseName)
+					} else {
+						phrase = fmt.Sprintf("No se permite: %s.", c.ClauseName)
+					}
+				case "INTEGER":
+					if c.IntegerValue.Valid {
+						phrase = fmt.Sprintf("Límite de %s: %d unidades.", c.ClauseName, c.IntegerValue.Int32)
+					}
+				case "RANGE":
+					phrase = fmt.Sprintf("El rango permitido para %s es de %v a %v.", c.ClauseName, c.MinValue, c.MaxValue)
+				}
 			}
 
-			m.AddRows(
-				row.New(8).Add(
-					col.New(12).Add(
-						text.New(fmt.Sprintf("   %d.1 %s: %s", i+4, c.ClauseName, val), props.Text{Size: 9}),
+			if phrase != "" {
+				m.AddRows(
+					row.New(8).Add(
+						col.New(12).Add(
+							text.New(fmt.Sprintf("   %d.1 %s", clauseCount, phrase), props.Text{Size: 9}),
+						),
 					),
-				),
-			)
+				)
+				clauseCount++
+			}
 		}
 	}
 
@@ -515,4 +608,45 @@ func translateType(t string) string {
 		return "renta"
 	}
 	return "venta"
+}
+
+func translateAmenity(code string) string {
+	switch strings.ToUpper(code) {
+	case "POOL":
+		return "Piscina"
+	case "24H_SECURITY":
+		return "Seguridad 24h"
+	case "WIFI":
+		return "Wi-Fi"
+	case "GYM", "GYMNASIUM":
+		return "Gimnasio"
+	case "PARKING":
+		return "Estacionamiento"
+	case "ELEVATOR":
+		return "Elevador"
+	case "AIR_CONDITIONING", "AC":
+		return "Aire Acondicionado"
+	case "HEATING":
+		return "Calefacción"
+	case "LAUNDRY":
+		return "Lavandería"
+	case "PETS_ALLOWED":
+		return "Mascotas Permitidas"
+	case "FURNISHED":
+		return "Amueblado"
+	case "GARDEN":
+		return "Jardín"
+	case "TERRACE":
+		return "Terraza"
+	case "BALCONY":
+		return "Balcón"
+	default:
+		words := strings.Split(strings.ToLower(code), "_")
+		for i, w := range words {
+			if len(w) > 0 {
+				words[i] = strings.ToUpper(string(w[0])) + w[1:]
+			}
+		}
+		return strings.Join(words, " ")
+	}
 }
