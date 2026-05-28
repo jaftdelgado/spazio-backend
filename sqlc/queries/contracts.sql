@@ -1,3 +1,13 @@
+-- name: UpdateTransactionStatus :exec
+UPDATE transactions
+SET status_id = $2
+WHERE transaction_id = $1;
+
+-- name: UpdatePropertyStatus :exec
+UPDATE properties
+SET status_id = $2, updated_at = now()
+WHERE property_id = $1;
+
 -- name: CreateContract :one
 INSERT INTO contracts (
     contract_uuid,
@@ -160,7 +170,8 @@ SELECT
     u_owner.email AS owner_email,
     u_client.first_name AS client_first_name,
     u_client.last_name AS client_last_name,
-    u_client.email AS client_email
+    u_client.email AS client_email,
+    rper.name AS period_name
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
 JOIN properties p ON t.property_id = p.property_id
@@ -170,4 +181,5 @@ JOIN cities ct ON l.city_id = ct.city_id
 JOIN states st ON ct.state_id = st.state_id
 JOIN users u_owner ON p.owner_id = u_owner.user_id
 JOIN users u_client ON t.client_id = u_client.user_id
+LEFT JOIN rent_periods rper ON c.period_id = rper.period_id
 WHERE c.contract_uuid = $1 AND c.deleted_at IS NULL LIMIT 1;
