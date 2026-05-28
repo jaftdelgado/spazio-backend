@@ -23,7 +23,8 @@ func NewHandler(service ContractService) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
-	r.POST("/api/v1/contracts", h.generateContract)
+	r.POST("/api/v1/contracts/rent", h.createRentContract)
+	r.POST("/api/v1/contracts/sale", h.createSaleContract)
 	r.GET("/api/v1/contracts", h.listContracts)
 	r.GET("/api/v1/contracts/:uuid", h.getContract)
 }
@@ -154,26 +155,26 @@ func (h *Handler) getContract(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// generateContract godoc
-// @Summary      Generate digital contract
-// @Description  Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.
+// createRentContract godoc
+// @Summary      Generate digital rent contract
+// @Description  Generates a legal rent contract in PDF format based on real estate transaction data and stores it in R2. Only the client can invoke this endpoint.
 // @Tags         Contracts
 // @Accept       json
 // @Produce      json
 // @Param        Authorization  header    string                true  "Bearer access token"
-// @Param        request    body      CreateContractInput   true  "Contract generation data"
+// @Param        request    body      CreateRentContractInput   true  "Rent contract generation data"
 // @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
 // @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical date error"
-// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the owner)"
+// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the client)"
 // @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
-// @Router       /api/v1/contracts [post]
-func (h *Handler) generateContract(c *gin.Context) {
+// @Router       /api/v1/contracts/rent [post]
+func (h *Handler) createRentContract(c *gin.Context) {
 	userID, _, ok := resolveAuthenticatedContractIdentity(c)
 	if !ok {
 		return
 	}
 
-	var req CreateContractInput
+	var req CreateRentContractInput
 	if err := c.ShouldBindJSON(&req); err != nil {
 		shared.BadRequest(c, err)
 		return
@@ -184,7 +185,7 @@ func (h *Handler) generateContract(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.GenerateContract(c.Request.Context(), userID, req)
+	result, err := h.service.GenerateRentContract(c.Request.Context(), userID, req)
 	if err != nil {
 		// F6: Proper error mapping
 		errMsg := err.Error()
@@ -192,7 +193,56 @@ func (h *Handler) generateContract(c *gin.Context) {
 			shared.Forbidden(c, errMsg)
 			return
 		}
-		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "posterior") {
+		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "posterior") || strings.Contains(errMsg, "corresponde") {
+			shared.BadRequest(c, err)
+			return
+		}
+		shared.InternalError(c, errMsg)
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+// createSaleContract godoc
+// @Summary      Generate digital sale contract
+// @Description  Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.
+// @Tags         Contracts
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string                true  "Bearer access token"
+// @Param        request    body      CreateSaleContractInput   true  "Sale contract generation data"
+// @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
+// @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical error"
+// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the owner)"
+// @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
+// @Router       /api/v1/contracts/sale [post]
+func (h *Handler) createSaleContract(c *gin.Context) {
+	userID, _, ok := resolveAuthenticatedContractIdentity(c)
+	if !ok {
+		return
+	}
+
+	var req CreateSaleContractInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	if req.TransactionID <= 0 {
+		shared.BadRequest(c, errors.New("transaction_id is required"))
+		return
+	}
+
+	result, err := h.service.GenerateSaleContract(c.Request.Context(), userID, req)
+	if err != nil {
+		// F6: Proper error mapping
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "no tiene permiso") || strings.Contains(errMsg, "no autorizada") {
+			shared.Forbidden(c, errMsg)
+			return
+		}
+		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "corresponde") {
 			shared.BadRequest(c, err)
 			return
 		}

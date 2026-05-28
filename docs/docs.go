@@ -285,9 +285,11 @@ const docTemplate = `{
                         }
                     }
                 }
-            },
+            }
+        },
+        "/api/v1/contracts/rent": {
             "post": {
-                "description": "Generates a legal contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.",
+                "description": "Generates a legal rent contract in PDF format based on real estate transaction data and stores it in R2. Only the client can invoke this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -297,7 +299,7 @@ const docTemplate = `{
                 "tags": [
                     "Contracts"
                 ],
-                "summary": "Generate digital contract",
+                "summary": "Generate digital rent contract",
                 "parameters": [
                     {
                         "type": "string",
@@ -307,12 +309,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Contract generation data",
+                        "description": "Rent contract generation data",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/contracts.CreateContractInput"
+                            "$ref": "#/definitions/contracts.CreateRentContractInput"
                         }
                     }
                 ],
@@ -325,6 +327,65 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid input or logical date error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized user (not the client)",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error in PDF generation or storage",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/contracts/sale": {
+            "post": {
+                "description": "Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Contracts"
+                ],
+                "summary": "Generate digital sale contract",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Sale contract generation data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/contracts.CreateSaleContractInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Contract generated and stored successfully",
+                        "schema": {
+                            "$ref": "#/definitions/contracts.CreateContractResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input or logical error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -2778,6 +2839,9 @@ const docTemplate = `{
                 "pdf_url": {
                     "type": "string"
                 },
+                "period_name": {
+                    "type": "string"
+                },
                 "property_title": {
                     "type": "string"
                 },
@@ -2821,30 +2885,6 @@ const docTemplate = `{
                 }
             }
         },
-        "contracts.CreateContractInput": {
-            "type": "object",
-            "properties": {
-                "agreed_amount": {
-                    "type": "number"
-                },
-                "currency": {
-                    "type": "string"
-                },
-                "end_date": {
-                    "type": "string"
-                },
-                "period_id": {
-                    "description": "Frecuencia de pago (opcional para ventas)",
-                    "type": "integer"
-                },
-                "start_date": {
-                    "type": "string"
-                },
-                "transaction_id": {
-                    "type": "integer"
-                }
-            }
-        },
         "contracts.CreateContractResult": {
             "type": "object",
             "properties": {
@@ -2859,6 +2899,43 @@ const docTemplate = `{
                 },
                 "storage_key": {
                     "type": "string"
+                }
+            }
+        },
+        "contracts.CreateRentContractInput": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "end_date": {
+                    "type": "string"
+                },
+                "period_id": {
+                    "type": "integer"
+                },
+                "start_date": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "contracts.CreateSaleContractInput": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "transaction_id": {
+                    "type": "integer"
                 }
             }
         },

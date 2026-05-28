@@ -2,13 +2,29 @@ package contracts
 
 import "time"
 
+type CreateRentContractInput struct {
+	TransactionID int32     `json:"transaction_id"`
+	PeriodID      int32     `json:"period_id"`
+	Currency      string    `json:"currency"`
+	AgreedAmount  float64   `json:"agreed_amount"`
+	StartDate     time.Time `json:"start_date"`
+	EndDate       time.Time `json:"end_date"`
+}
+
+type CreateSaleContractInput struct {
+	TransactionID int32   `json:"transaction_id"`
+	Currency      string  `json:"currency"`
+	AgreedAmount  float64 `json:"agreed_amount"`
+}
+
+// Internal structure for repository
 type CreateContractInput struct {
-	TransactionID int32      `json:"transaction_id"`
-	PeriodID      *int32     `json:"period_id"` // Frecuencia de pago (opcional para ventas)
-	Currency      string     `json:"currency"`
-	AgreedAmount  float64    `json:"agreed_amount"`
-	StartDate     time.Time  `json:"start_date"`
-	EndDate       *time.Time `json:"end_date"`
+	TransactionID int32
+	PeriodID      *int32
+	Currency      string
+	AgreedAmount  float64
+	StartDate     time.Time
+	EndDate       *time.Time
 }
 
 type CreateContractResult struct {
@@ -25,6 +41,7 @@ type ContractDetail struct {
 	ClientName    string     `json:"client_name"`
 	AgreedAmount  float64    `json:"agreed_amount"`
 	Currency      string     `json:"currency"`
+	PeriodName    string     `json:"period_name,omitempty"`
 	StartDate     time.Time  `json:"start_date"`
 	EndDate       *time.Time `json:"end_date"`
 	Status        string     `json:"status"`
