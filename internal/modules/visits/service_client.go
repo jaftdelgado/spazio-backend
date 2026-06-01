@@ -16,8 +16,9 @@ func (s *service) ScheduleVisit(ctx context.Context, clientID int32, propertyID 
 }
 
 func (s *service) scheduleVisitInternal(ctx context.Context, repo Repository, clientID int32, propertyID int32, visitDate time.Time) (VisitResponse, error) {
+	loc, _ := time.LoadLocation("America/Mexico_City")
 	visitDate = normalizeDate(visitDate)
-	now := time.Now().UTC()
+	now := time.Now().In(loc)
 
 	if visitDate.Before(now.Add(48 * time.Hour)) {
 		return VisitResponse{}, errors.New("debe agendar con al menos 48 horas de anticipación")

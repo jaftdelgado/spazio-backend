@@ -39,15 +39,15 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		adminOnly.GET("/:uuid/prices/history", h.getPricesHistory)
 	}
 
-	adminOrAgent := properties.Group("")
-	adminOrAgent.Use(middleware.RequireRole("admin", "agent"))
+	adminAgentOrClient := properties.Group("")
+	adminAgentOrClient.Use(middleware.RequireRole("admin", "agent", "client"))
 	{
-		adminOrAgent.GET("", h.listProperties)
-		adminOrAgent.GET("/:uuid", h.getProperty)
-		adminOrAgent.GET("/:uuid/photos", h.getPhotos)
-		adminOrAgent.GET("/:uuid/services", h.getServices)
-		adminOrAgent.GET("/:uuid/clauses", h.getClauses)
-		adminOrAgent.GET("/:uuid/prices", h.getPrices)
+		adminAgentOrClient.GET("", h.listProperties)
+		adminAgentOrClient.GET("/:uuid", h.getProperty)
+		adminAgentOrClient.GET("/:uuid/photos", h.getPhotos)
+		adminAgentOrClient.GET("/:uuid/services", h.getServices)
+		adminAgentOrClient.GET("/:uuid/clauses", h.getClauses)
+		adminAgentOrClient.GET("/:uuid/prices", h.getPrices)
 	}
 }
 
