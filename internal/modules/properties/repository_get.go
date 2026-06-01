@@ -300,6 +300,7 @@ func resolvePageOffset(page, pageSize int32) int32 {
 
 func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardData, error) {
 	return propertyCardDataFromValues(
+		row.PropertyID,
 		row.PropertyUuid,
 		row.Title,
 		row.CoverPhotoUrl,
@@ -322,6 +323,7 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 
 func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (PropertyCardData, error) {
 	return propertyCardDataFromValues(
+		row.PropertyID,
 		row.PropertyUuid,
 		row.Title,
 		row.CoverPhotoUrl,
@@ -343,6 +345,7 @@ func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (P
 }
 
 func propertyCardDataFromValues(
+	propertyID int32,
 	propertyUUID pgtype.UUID,
 	title string,
 	coverPhotoURL pgtype.Text,
@@ -362,6 +365,7 @@ func propertyCardDataFromValues(
 	builtArea pgtype.Numeric,
 ) (PropertyCardData, error) {
 	card := PropertyCardData{
+		PropertyID:    propertyID,
 		PropertyUUID:  propertyUUID.String(),
 		Title:         title,
 		CoverPhotoURL: stringPointerFromText(coverPhotoURL),

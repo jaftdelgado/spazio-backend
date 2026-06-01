@@ -33,7 +33,8 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 		return []TimeSlot{}, nil
 	}
 
-	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
 	exceptions, err := s.repo.GetPropertyExceptions(ctx, propertyID, startOfDay, endOfDay)
@@ -50,8 +51,8 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 	hStart, mStart := pgTimeToHM(daySchedule.StartTime)
 	hEnd, mEnd := pgTimeToHM(daySchedule.EndTime)
 
-	workStart := time.Date(date.Year(), date.Month(), date.Day(), hStart, mStart, 0, 0, time.UTC)
-	workEnd := time.Date(date.Year(), date.Month(), date.Day(), hEnd, mEnd, 0, 0, time.UTC)
+	workStart := time.Date(date.Year(), date.Month(), date.Day(), hStart, mStart, 0, 0, loc)
+	workEnd := time.Date(date.Year(), date.Month(), date.Day(), hEnd, mEnd, 0, 0, loc)
 
 	for current := workStart; current.Add(time.Hour).Before(workEnd) || current.Add(time.Hour).Equal(workEnd); current = current.Add(time.Hour) {
 		slotEnd := current.Add(time.Hour)
@@ -61,8 +62,8 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 			if ex.StartTime.Valid && ex.EndTime.Valid {
 				ehStart, emStart := pgTimeToHM(ex.StartTime)
 				ehEnd, emEnd := pgTimeToHM(ex.EndTime)
-				exStart := time.Date(date.Year(), date.Month(), date.Day(), ehStart, emStart, 0, 0, time.UTC)
-				exEnd := time.Date(date.Year(), date.Month(), date.Day(), ehEnd, emEnd, 0, 0, time.UTC)
+				exStart := time.Date(date.Year(), date.Month(), date.Day(), ehStart, emStart, 0, 0, loc)
+				exEnd := time.Date(date.Year(), date.Month(), date.Day(), ehEnd, emEnd, 0, 0, loc)
 				if current.Before(exEnd) && exStart.Before(slotEnd) {
 					isAvailable = false
 					break
@@ -78,9 +79,9 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 		}
 
 		for _, occ := range occupied {
-			occUTC := occ.UTC()
-			occEnd := occUTC.Add(time.Hour)
-			if current.Before(occEnd) && occUTC.Before(slotEnd) {
+			occLoc := occ.In(loc)
+			occEnd := occLoc.Add(time.Hour)
+			if current.Before(occEnd) && occLoc.Before(slotEnd) {
 				isAvailable = false
 				break
 			}
