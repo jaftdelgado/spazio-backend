@@ -1624,6 +1624,10 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
@@ -1653,12 +1657,24 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/contracts.ContractDetail'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "403":
           description: Forbidden
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
       summary: Get contract detail
@@ -1693,6 +1709,10 @@ paths:
           description: Invalid input or logical date error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing or invalid authentication
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "403":
           description: Unauthorized user (not the client)
           schema:
@@ -1709,8 +1729,8 @@ paths:
       consumes:
       - application/json
       description: Generates a legal sale contract in PDF format based on real estate
-        transaction data and stores it in R2. Only the property owner can invoke this
-        endpoint.
+        transaction data and stores it in R2. Only the assigned property agent can
+        invoke this endpoint.
       parameters:
       - description: Bearer access token
         in: header
@@ -1734,8 +1754,12 @@ paths:
           description: Invalid input or logical error
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
+        "401":
+          description: Missing or invalid authentication
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
         "403":
-          description: Unauthorized user (not the owner)
+          description: Unauthorized user (not the assigned property agent)
           schema:
             $ref: '#/definitions/shared.ErrorResponse'
         "500":
