@@ -206,7 +206,7 @@ func (h *Handler) createRentContract(c *gin.Context) {
 
 // createSaleContract godoc
 // @Summary      Generate digital sale contract
-// @Description  Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.
+// @Description  Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the assigned property agent can invoke this endpoint.
 // @Tags         Contracts
 // @Accept       json
 // @Produce      json
@@ -214,7 +214,7 @@ func (h *Handler) createRentContract(c *gin.Context) {
 // @Param        request    body      CreateSaleContractInput   true  "Sale contract generation data"
 // @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
 // @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical error"
-// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the owner)"
+// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the assigned property agent)"
 // @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
 // @Router       /api/v1/contracts/sale [post]
 func (h *Handler) createSaleContract(c *gin.Context) {
