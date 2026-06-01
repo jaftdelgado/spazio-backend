@@ -45,6 +45,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Param        search            query     string  false  "Search by property title or client name"
 // @Success      200               {array}   ContractListItem
 // @Failure      400               {object}  shared.ErrorResponse
+// @Failure      401               {object}  shared.ErrorResponse
 // @Failure      500               {object}  shared.ErrorResponse
 // @Router       /api/v1/contracts [get]
 func (h *Handler) listContracts(c *gin.Context) {
@@ -53,7 +54,6 @@ func (h *Handler) listContracts(c *gin.Context) {
 		return
 	}
 
-	// F8: Robust input validation for pagination
 	pageStr := c.DefaultQuery("page", "1")
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
@@ -74,32 +74,56 @@ func (h *Handler) listContracts(c *gin.Context) {
 	}
 
 	if tType := c.Query("transaction_type"); tType != "" {
+		if tType != "rent" && tType != "sale" {
+			shared.BadRequest(c, fmt.Errorf("invalid transaction_type: %s", tType))
+			return
+		}
+
 		filter.TransactionType = &tType
 	}
+
 	if sID := c.Query("status_id"); sID != "" {
 		val, err := strconv.Atoi(sID)
-		if err == nil {
-			v32 := int32(val)
-			filter.StatusID = &v32
+		if err != nil || val <= 0 {
+			shared.BadRequest(c, fmt.Errorf("invalid status_id: %s", sID))
+			return
 		}
+
+		v32 := int32(val)
+		filter.StatusID = &v32
 	}
+
 	if oID := c.Query("owner_id"); oID != "" {
 		val, err := strconv.Atoi(oID)
-		if err == nil {
-			v32 := int32(val)
-			filter.OwnerID = &v32
+		if err != nil || val <= 0 {
+			shared.BadRequest(c, fmt.Errorf("invalid owner_id: %s", oID))
+			return
 		}
+
+		v32 := int32(val)
+		filter.OwnerID = &v32
 	}
+
 	if sDate := c.Query("start_date"); sDate != "" {
-		if t, err := time.Parse(time.RFC3339, sDate); err == nil {
-			filter.StartDate = &t
+		t, err := time.Parse(time.RFC3339, sDate)
+		if err != nil {
+			shared.BadRequest(c, fmt.Errorf("invalid start_date: %s", sDate))
+			return
 		}
+
+		filter.StartDate = &t
 	}
+
 	if eDate := c.Query("end_date"); eDate != "" {
-		if t, err := time.Parse(time.RFC3339, eDate); err == nil {
-			filter.EndDate = &t
+		t, err := time.Parse(time.RFC3339, eDate)
+		if err != nil {
+			shared.BadRequest(c, fmt.Errorf("invalid end_date: %s", eDate))
+			return
 		}
+
+		filter.EndDate = &t
 	}
+
 	if search := c.Query("search"); search != "" {
 		filter.Search = &search
 	}
@@ -119,10 +143,13 @@ func (h *Handler) listContracts(c *gin.Context) {
 // @Tags         Contracts
 // @Produce      json
 // @Param        Authorization  header    string  true  "Bearer access token"
-// @Param        uuid       path      string  true  "Contract UUID"
-// @Success      200        {object}  ContractDetail
-// @Failure      403        {object}  shared.ErrorResponse
-// @Failure      404        {object}  shared.ErrorResponse
+// @Param        uuid           path      string  true  "Contract UUID"
+// @Success      200            {object}  ContractDetail
+// @Failure      400            {object}  shared.ErrorResponse
+// @Failure      401            {object}  shared.ErrorResponse
+// @Failure      403            {object}  shared.ErrorResponse
+// @Failure      404            {object}  shared.ErrorResponse
+// @Failure      500            {object}  shared.ErrorResponse
 // @Router       /api/v1/contracts/{uuid} [get]
 func (h *Handler) getContract(c *gin.Context) {
 	userID, roleID, ok := resolveAuthenticatedContractIdentity(c)
@@ -138,16 +165,18 @@ func (h *Handler) getContract(c *gin.Context) {
 
 	result, err := h.service.GetContractDetail(c.Request.Context(), userID, roleID, contractUUID)
 	if err != nil {
-		// F6: Proper error mapping
 		errMsg := err.Error()
+
 		if strings.Contains(errMsg, "no tiene permiso") {
 			shared.Forbidden(c, errMsg)
 			return
 		}
+
 		if strings.Contains(errMsg, "not found") || strings.Contains(errMsg, "no encontrado") {
 			shared.NotFound(c, errMsg)
 			return
 		}
+
 		shared.InternalError(c, errMsg)
 		return
 	}
@@ -161,12 +190,13 @@ func (h *Handler) getContract(c *gin.Context) {
 // @Tags         Contracts
 // @Accept       json
 // @Produce      json
-// @Param        Authorization  header    string                true  "Bearer access token"
-// @Param        request    body      CreateRentContractInput   true  "Rent contract generation data"
-// @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
-// @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical date error"
-// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the client)"
-// @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
+// @Param        Authorization  header    string                   true  "Bearer access token"
+// @Param        request        body      CreateRentContractInput  true  "Rent contract generation data"
+// @Success      201            {object}  CreateContractResult     "Contract generated and stored successfully"
+// @Failure      400            {object}  shared.ErrorResponse     "Invalid input or logical date error"
+// @Failure      401            {object}  shared.ErrorResponse     "Missing or invalid authentication"
+// @Failure      403            {object}  shared.ErrorResponse     "Unauthorized user (not the client)"
+// @Failure      500            {object}  shared.ErrorResponse     "Internal error in PDF generation or storage"
 // @Router       /api/v1/contracts/rent [post]
 func (h *Handler) createRentContract(c *gin.Context) {
 	userID, _, ok := resolveAuthenticatedContractIdentity(c)
@@ -187,16 +217,21 @@ func (h *Handler) createRentContract(c *gin.Context) {
 
 	result, err := h.service.GenerateRentContract(c.Request.Context(), userID, req)
 	if err != nil {
-		// F6: Proper error mapping
 		errMsg := err.Error()
+
 		if strings.Contains(errMsg, "no tiene permiso") || strings.Contains(errMsg, "no autorizada") {
 			shared.Forbidden(c, errMsg)
 			return
 		}
-		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "posterior") || strings.Contains(errMsg, "corresponde") {
+
+		if strings.Contains(errMsg, "ya existe") ||
+			strings.Contains(errMsg, "no coincide") ||
+			strings.Contains(errMsg, "posterior") ||
+			strings.Contains(errMsg, "corresponde") {
 			shared.BadRequest(c, err)
 			return
 		}
+
 		shared.InternalError(c, errMsg)
 		return
 	}
@@ -210,12 +245,13 @@ func (h *Handler) createRentContract(c *gin.Context) {
 // @Tags         Contracts
 // @Accept       json
 // @Produce      json
-// @Param        Authorization  header    string                true  "Bearer access token"
-// @Param        request    body      CreateSaleContractInput   true  "Sale contract generation data"
-// @Success      201        {object}  CreateContractResult  "Contract generated and stored successfully"
-// @Failure      400        {object}  shared.ErrorResponse  "Invalid input or logical error"
-// @Failure      403        {object}  shared.ErrorResponse  "Unauthorized user (not the assigned property agent)"
-// @Failure      500        {object}  shared.ErrorResponse  "Internal error in PDF generation or storage"
+// @Param        Authorization  header    string                   true  "Bearer access token"
+// @Param        request        body      CreateSaleContractInput  true  "Sale contract generation data"
+// @Success      201            {object}  CreateContractResult     "Contract generated and stored successfully"
+// @Failure      400            {object}  shared.ErrorResponse     "Invalid input or logical error"
+// @Failure      401            {object}  shared.ErrorResponse     "Missing or invalid authentication"
+// @Failure      403            {object}  shared.ErrorResponse     "Unauthorized user (not the assigned property agent)"
+// @Failure      500            {object}  shared.ErrorResponse     "Internal error in PDF generation or storage"
 // @Router       /api/v1/contracts/sale [post]
 func (h *Handler) createSaleContract(c *gin.Context) {
 	userID, _, ok := resolveAuthenticatedContractIdentity(c)
@@ -236,16 +272,20 @@ func (h *Handler) createSaleContract(c *gin.Context) {
 
 	result, err := h.service.GenerateSaleContract(c.Request.Context(), userID, req)
 	if err != nil {
-		// F6: Proper error mapping
 		errMsg := err.Error()
+
 		if strings.Contains(errMsg, "no tiene permiso") || strings.Contains(errMsg, "no autorizada") {
 			shared.Forbidden(c, errMsg)
 			return
 		}
-		if strings.Contains(errMsg, "ya existe") || strings.Contains(errMsg, "no coincide") || strings.Contains(errMsg, "corresponde") {
+
+		if strings.Contains(errMsg, "ya existe") ||
+			strings.Contains(errMsg, "no coincide") ||
+			strings.Contains(errMsg, "corresponde") {
 			shared.BadRequest(c, err)
 			return
 		}
+
 		shared.InternalError(c, errMsg)
 		return
 	}

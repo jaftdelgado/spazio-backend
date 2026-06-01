@@ -11,21 +11,6 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
-type ContractRepository interface {
-	CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error)
-	GetContractDataByTransactionID(ctx context.Context, transactionID int32) (sqlcgen.GetContractDataByTransactionIDRow, error)
-	GetPropertyClausesByTransactionID(ctx context.Context, transactionID int32) ([]sqlcgen.GetPropertyClausesByTransactionIDRow, error)
-	GetPropertyServicesByTransactionID(ctx context.Context, transactionID int32) ([]string, error)
-	CheckContractExistsByTransactionID(ctx context.Context, transactionID int32) (bool, error)
-	ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error)
-	GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error)
-	FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error)
-	UpdateTransactionStatus(ctx context.Context, transactionID int32, statusID int32) error
-	UpdatePropertyStatus(ctx context.Context, propertyID int32, statusID int32) error
-	Begin(ctx context.Context) (pgx.Tx, error)
-	WithTx(tx pgx.Tx) ContractRepository
-}
-
 type repository struct {
 	db      *pgxpool.Pool
 	queries *sqlcgen.Queries
@@ -39,7 +24,12 @@ func NewRepository(db *pgxpool.Pool) ContractRepository {
 }
 
 func (r *repository) Begin(ctx context.Context) (pgx.Tx, error) {
-	return r.db.Begin(ctx)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin contracts transaction: %w", err)
+	}
+
+	return tx, nil
 }
 
 func (r *repository) WithTx(tx pgx.Tx) ContractRepository {
@@ -51,9 +41,10 @@ func (r *repository) WithTx(tx pgx.Tx) ContractRepository {
 
 func (r *repository) CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
 	amount := pgtype.Numeric{}
-	// Robust numeric scanning using string representation of big.Rat or simple float formatting
-	// for now keeping Scan with fixed precision to avoid binary floating point issues during DB ingestion
-	amount.Scan(fmt.Sprintf("%.2f", input.AgreedAmount))
+
+	if err := amount.Scan(fmt.Sprintf("%.2f", input.AgreedAmount)); err != nil {
+		return sqlcgen.Contract{}, fmt.Errorf("scan agreed amount: %w", err)
+	}
 
 	var endDate pgtype.Date
 	if input.EndDate != nil {
@@ -79,7 +70,12 @@ func (r *repository) CreateContract(ctx context.Context, contractUUID uuid.UUID,
 		params.PeriodID = pgtype.Int4{Int32: *input.PeriodID, Valid: true}
 	}
 
-	return r.queries.CreateContract(ctx, params)
+	contract, err := r.queries.CreateContract(ctx, params)
+	if err != nil {
+		return sqlcgen.Contract{}, fmt.Errorf("create contract: %w", err)
+	}
+
+	return contract, nil
 }
 
 func (r *repository) FindLatestContractByPropertyAndClient(ctx context.Context, propertyID, clientID int32) (int32, error) {
@@ -88,45 +84,86 @@ func (r *repository) FindLatestContractByPropertyAndClient(ctx context.Context, 
 		ClientID:   clientID,
 	})
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("find latest contract by property and client: %w", err)
 	}
+
 	return id, nil
 }
 
 func (r *repository) GetContractDataByTransactionID(ctx context.Context, transactionID int32) (sqlcgen.GetContractDataByTransactionIDRow, error) {
-	return r.queries.GetContractDataByTransactionID(ctx, transactionID)
+	row, err := r.queries.GetContractDataByTransactionID(ctx, transactionID)
+	if err != nil {
+		return sqlcgen.GetContractDataByTransactionIDRow{}, fmt.Errorf("get contract data by transaction id: %w", err)
+	}
+
+	return row, nil
 }
 
 func (r *repository) GetPropertyClausesByTransactionID(ctx context.Context, transactionID int32) ([]sqlcgen.GetPropertyClausesByTransactionIDRow, error) {
-	return r.queries.GetPropertyClausesByTransactionID(ctx, transactionID)
+	rows, err := r.queries.GetPropertyClausesByTransactionID(ctx, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("get property clauses by transaction id: %w", err)
+	}
+
+	return rows, nil
 }
 
 func (r *repository) GetPropertyServicesByTransactionID(ctx context.Context, transactionID int32) ([]string, error) {
-	return r.queries.GetPropertyServicesByTransactionID(ctx, transactionID)
+	rows, err := r.queries.GetPropertyServicesByTransactionID(ctx, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("get property services by transaction id: %w", err)
+	}
+
+	return rows, nil
 }
 
 func (r *repository) CheckContractExistsByTransactionID(ctx context.Context, transactionID int32) (bool, error) {
-	return r.queries.CheckContractExistsByTransactionID(ctx, transactionID)
+	exists, err := r.queries.CheckContractExistsByTransactionID(ctx, transactionID)
+	if err != nil {
+		return false, fmt.Errorf("check contract exists by transaction id: %w", err)
+	}
+
+	return exists, nil
 }
 
 func (r *repository) ListContracts(ctx context.Context, params sqlcgen.ListContractsParams) ([]sqlcgen.ListContractsRow, error) {
-	return r.queries.ListContracts(ctx, params)
+	rows, err := r.queries.ListContracts(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("list contracts: %w", err)
+	}
+
+	return rows, nil
 }
 
 func (r *repository) GetContractByUUID(ctx context.Context, contractUUID uuid.UUID) (sqlcgen.GetContractByUUIDRow, error) {
-	return r.queries.GetContractByUUID(ctx, pgtype.UUID{Bytes: contractUUID, Valid: true})
+	row, err := r.queries.GetContractByUUID(ctx, pgtype.UUID{Bytes: contractUUID, Valid: true})
+	if err != nil {
+		return sqlcgen.GetContractByUUIDRow{}, fmt.Errorf("get contract by uuid: %w", err)
+	}
+
+	return row, nil
 }
 
 func (r *repository) UpdateTransactionStatus(ctx context.Context, transactionID int32, statusID int32) error {
-	return r.queries.UpdateTransactionStatus(ctx, sqlcgen.UpdateTransactionStatusParams{
+	err := r.queries.UpdateTransactionStatus(ctx, sqlcgen.UpdateTransactionStatusParams{
 		TransactionID: transactionID,
 		StatusID:      statusID,
 	})
+	if err != nil {
+		return fmt.Errorf("update transaction status: %w", err)
+	}
+
+	return nil
 }
 
 func (r *repository) UpdatePropertyStatus(ctx context.Context, propertyID int32, statusID int32) error {
-	return r.queries.UpdatePropertyStatus(ctx, sqlcgen.UpdatePropertyStatusParams{
+	err := r.queries.UpdatePropertyStatus(ctx, sqlcgen.UpdatePropertyStatusParams{
 		PropertyID: propertyID,
 		StatusID:   statusID,
 	})
+	if err != nil {
+		return fmt.Errorf("update property status: %w", err)
+	}
+
+	return nil
 }

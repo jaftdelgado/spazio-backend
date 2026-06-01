@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -22,17 +21,13 @@ import (
 	"github.com/johnfercher/maroto/v2/pkg/props"
 )
 
-type ContractService interface {
-	GenerateRentContract(ctx context.Context, userID int32, input CreateRentContractInput) (CreateContractResult, error)
-	GenerateSaleContract(ctx context.Context, userID int32, input CreateSaleContractInput) (CreateContractResult, error)
-	ListContracts(ctx context.Context, userID int32, roleID int32, filter ListContractsFilter) ([]ContractListItem, error)
-	GetContractDetail(ctx context.Context, userID int32, roleID int32, contractUUID uuid.UUID) (ContractDetail, error)
-}
+const (
+	roleAdminID = int32(1)
+	roleAgentID = int32(2)
 
-type ContractStorage interface {
-	Upload(ctx context.Context, storageKey string, contentType string, body io.Reader) error
-	PublicURL(ctx context.Context, storageKey string) (string, error)
-}
+	transactionStatusClosedID = int32(3)
+	propertyStatusSoldID      = int32(3)
+)
 
 type service struct {
 	repository ContractRepository
@@ -52,8 +47,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 		Offset: (filter.Page - 1) * filter.Limit,
 	}
 
-	// F4: Use semantic FilterUserID. 1: Admin, 2: Agent
-	if roleID != 1 && roleID != 2 {
+	if roleID != roleAdminID && roleID != roleAgentID {
 		params.FilterUserID = pgtype.Int4{Int32: userID, Valid: true}
 	} else if filter.OwnerID != nil {
 		params.FilterUserID = pgtype.Int4{Int32: *filter.OwnerID, Valid: true}
@@ -119,13 +113,16 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 	}
 
 	// Allowed: Admin, Agent, Owner, or Client of the contract
-	if roleID != 1 && roleID != 2 && row.OwnerID != userID && row.ClientID != userID {
+	if roleID != roleAdminID && roleID != roleAgentID && row.OwnerID != userID && row.ClientID != userID {
 		return ContractDetail{}, fmt.Errorf("no tiene permiso para ver este contrato")
 	}
 
 	amount, _ := row.AgreedAmount.Float64Value()
 
-	pdfURL, _ := s.storage.PublicURL(ctx, row.StorageKey)
+	pdfURL, err := s.storage.PublicURL(ctx, row.StorageKey)
+if err != nil {
+	return ContractDetail{}, fmt.Errorf("generate contract public url: %w", err)
+}
 
 	var endDate *time.Time
 	if row.EndDate.Valid {
@@ -140,10 +137,10 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 		AgreedAmount:  amount.Float64,
 		Currency:      row.Currency,
 		PeriodName:    row.PeriodName.String,
-		StartDate     : row.StartDate.Time,
-		EndDate       : endDate,
-		Status        : row.StatusName,
-		PDFUrl        : pdfURL,
+		StartDate:     row.StartDate.Time,
+		EndDate:       endDate,
+		Status:        row.StatusName,
+		PDFUrl:        pdfURL,
 	}, nil
 }
 
@@ -268,13 +265,13 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 	}
 
 	// Step 3: Update Transaction and Property Status
-	err = repoTx.UpdateTransactionStatus(ctx, input.TransactionID, 3) // 3 = Closed
+	err = repoTx.UpdateTransactionStatus(ctx, input.TransactionID, transactionStatusClosedID)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("update transaction status: %w", err)
 	}
 
 	if data.TransactionType == sqlcgen.TransactionTypeSale {
-		err = repoTx.UpdatePropertyStatus(ctx, data.PropertyID, 3) // 3 = Sold
+		err = repoTx.UpdatePropertyStatus(ctx, data.PropertyID, propertyStatusSoldID)
 		if err != nil {
 			return CreateContractResult{}, fmt.Errorf("update property status: %w", err)
 		}
