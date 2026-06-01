@@ -155,6 +155,7 @@ type ListPropertiesMeta struct {
 
 // PropertyCardData represents a property in card format.
 type PropertyCardData struct {
+	PropertyID    int32                    `json:"property_id" example:"5"`
 	PropertyUUID  string                   `json:"property_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
 	Title         string                   `json:"title" example:"Apartment in Downtown"`
 	CoverPhotoURL *string                  `json:"cover_photo_url" example:"https://cdn.example.com/properties/cover.jpg"`

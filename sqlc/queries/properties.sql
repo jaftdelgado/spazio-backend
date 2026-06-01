@@ -116,6 +116,7 @@ selected_rent AS (
   WHERE rent_rank = 1
 )
 SELECT
+  p.property_id,
   p.property_uuid,
   p.title,
   p.cover_photo_url,
@@ -272,6 +273,7 @@ selected_rent AS (
   WHERE rent_rank = 1
 )
 SELECT
+  p.property_id,
   p.property_uuid,
   p.title,
   p.cover_photo_url,

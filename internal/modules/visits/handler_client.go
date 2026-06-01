@@ -41,7 +41,7 @@ func (h *Handler) scheduleVisit(c *gin.Context) {
 
 	visit, err := h.service.ScheduleVisit(c.Request.Context(), userID, req.PropertyID, req.VisitDate)
 	if err != nil {
-		shared.InternalError(c, err.Error())
+		shared.BadRequest(c, err)
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *Handler) rescheduleVisit(c *gin.Context) {
 
 	visit, err := h.service.RescheduleVisit(c.Request.Context(), userID, roleID, visitUUID, req.VisitDate)
 	if err != nil {
-		shared.InternalError(c, err.Error())
+		shared.BadRequest(c, err)
 		return
 	}
 

@@ -38,7 +38,9 @@ func translateError(err error) error {
 }
 
 func normalizeDate(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), 0, 0, 0, time.UTC)
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	tLocal := t.In(loc)
+	return time.Date(tLocal.Year(), tLocal.Month(), tLocal.Day(), tLocal.Hour(), 0, 0, 0, loc)
 }
 
 func (s *service) validateEntityIntegrity(ctx context.Context, repo Repository, clientID, propertyID int32) error {
