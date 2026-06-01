@@ -278,6 +278,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -331,6 +337,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Missing or invalid authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "403": {
                         "description": "Unauthorized user (not the client)",
                         "schema": {
@@ -348,7 +360,7 @@ const docTemplate = `{
         },
         "/api/v1/contracts/sale": {
             "post": {
-                "description": "Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the property owner can invoke this endpoint.",
+                "description": "Generates a legal sale contract in PDF format based on real estate transaction data and stores it in R2. Only the assigned property agent can invoke this endpoint.",
                 "consumes": [
                     "application/json"
                 ],
@@ -390,8 +402,14 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Missing or invalid authentication",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "403": {
-                        "description": "Unauthorized user (not the owner)",
+                        "description": "Unauthorized user (not the assigned property agent)",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -438,6 +456,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/contracts.ContractDetail"
                         }
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
@@ -446,6 +476,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
