@@ -8,7 +8,8 @@ ORDER BY name ASC;
 SELECT state_id, iso_code, name
 FROM states
 WHERE is_active = true
-  AND country_id = $1
+  AND country_id = sqlc.arg(country_id)
+  AND (sqlc.arg(search) = '' OR name ILIKE '%' || sqlc.arg(search) || '%')
 ORDER BY name ASC;
 
 -- name: ListCities :many
@@ -17,6 +18,7 @@ SELECT
     name,
     COUNT(*) OVER() AS total_count
 FROM cities
-WHERE state_id = $1
+WHERE state_id = sqlc.arg(state_id)
+  AND (sqlc.arg(search) = '' OR name ILIKE '%' || sqlc.arg(search) || '%')
 ORDER BY name ASC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(row_offset);

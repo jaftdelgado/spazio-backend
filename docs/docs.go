@@ -508,6 +508,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "description": "Optional case-insensitive partial city name filter",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "default": 1,
                         "description": "Page number",
@@ -587,6 +593,12 @@ const docTemplate = `{
                         "name": "country_id",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Optional case-insensitive partial state name filter",
+                        "name": "search",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -1995,7 +2007,7 @@ const docTemplate = `{
         },
         "/api/v1/services": {
             "get": {
-                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results include metadata and honor the optional limit parameter.",
+                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1\u0026page_size=limit.",
                 "produces": [
                     "application/json"
                 ],
@@ -2012,7 +2024,26 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Results limit",
+                        "description": "Service category ID",
+                        "name": "category_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Results per page",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Legacy alias for page_size when page/page_size are omitted",
                         "name": "limit",
                         "in": "query"
                     }
@@ -3866,6 +3897,10 @@ const docTemplate = `{
                 "price": {
                     "$ref": "#/definitions/properties.PropertyCardPriceData"
                 },
+                "property_id": {
+                    "type": "integer",
+                    "example": 5
+                },
                 "property_type": {
                     "$ref": "#/definitions/properties.PropertyCardTypeData"
                 },
@@ -4537,6 +4572,12 @@ const docTemplate = `{
         "services.ListServicesMeta": {
             "type": "object",
             "properties": {
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
                 "query": {
                     "type": "string"
                 },
@@ -4544,6 +4585,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
                     "type": "integer"
                 }
             }

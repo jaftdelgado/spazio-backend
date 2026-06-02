@@ -4,12 +4,14 @@ import "context"
 
 type ListStatesInput struct {
 	CountryID int32
+	Search    string
 }
 
 type ListCitiesInput struct {
 	StateID  int32
 	Page     int32
 	PageSize int32
+	Search   string
 }
 
 type Country struct {
@@ -51,7 +53,7 @@ type ListCitiesMeta struct {
 
 type LocationsRepository interface {
 	ListCountries(ctx context.Context) ([]Country, error)
-	ListStates(ctx context.Context, countryID int32) ([]State, error)
+	ListStates(ctx context.Context, input ListStatesInput) ([]State, error)
 	ListCities(ctx context.Context, input ListCitiesInput) ([]City, int64, error)
 }
 

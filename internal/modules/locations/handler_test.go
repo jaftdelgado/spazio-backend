@@ -151,6 +151,52 @@ func TestHandler_ListStates_CountryIDValidation(t *testing.T) {
 	}
 }
 
+func TestHandler_ListStates_SearchForwarding(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		wantSearch string
+	}{
+		{
+			name:       "without search keeps empty string",
+			target:     "/api/v1/locations/states?country_id=1",
+			wantSearch: "",
+		},
+		{
+			name:       "with search forwards trimmed value",
+			target:     "/api/v1/locations/states?country_id=1&search=%20jal%20",
+			wantSearch: "jal",
+		},
+		{
+			name:       "blank search becomes empty string",
+			target:     "/api/v1/locations/states?country_id=1&search=%20%20",
+			wantSearch: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, rec := newTestContext(http.MethodGet, tt.target)
+			svc := &mockLocationsService{
+				listStatesFunc: func(ctx context.Context, input ListStatesInput) (ListStatesResult, error) {
+					if input.CountryID != 1 {
+						t.Fatalf("unexpected country id: %d", input.CountryID)
+					}
+					if input.Search != tt.wantSearch {
+						t.Fatalf("search: got %q want %q", input.Search, tt.wantSearch)
+					}
+					return ListStatesResult{Data: []State{{StateID: 1, Name: "Jalisco"}}}, nil
+				},
+			}
+
+			NewHandler(svc).listStates(ctx)
+
+			assertStatus(t, rec, http.StatusOK)
+			assertHasKeys(t, rec, "data")
+		})
+	}
+}
+
 func TestHandler_ListStates_ServiceError(t *testing.T) {
 	ctx, rec := newTestContext(http.MethodGet, "/api/v1/locations/states?country_id=1")
 	svc := &mockLocationsService{
@@ -204,8 +250,8 @@ func TestHandler_ListCities_PaginationDefaults(t *testing.T) {
 	ctx, rec := newTestContext(http.MethodGet, "/api/v1/locations/cities?state_id=1")
 	svc := &mockLocationsService{
 		listCitiesFunc: func(ctx context.Context, input ListCitiesInput) (ListCitiesResult, error) {
-			if input.Page != 1 || input.PageSize != 50 {
-				t.Fatalf("expected page=1 pageSize=50, got page=%d pageSize=%d", input.Page, input.PageSize)
+			if input.Page != 1 || input.PageSize != 50 || input.Search != "" {
+				t.Fatalf("expected page=1 pageSize=50 search empty, got page=%d pageSize=%d search=%q", input.Page, input.PageSize, input.Search)
 			}
 			return ListCitiesResult{Data: []City{}, Meta: ListCitiesMeta{Total: 0, Page: 1, PageSize: 50, TotalPages: 0}}, nil
 		},
@@ -215,6 +261,56 @@ func TestHandler_ListCities_PaginationDefaults(t *testing.T) {
 
 	assertStatus(t, rec, http.StatusOK)
 	assertHasKeys(t, rec, "data", "meta")
+}
+
+func TestHandler_ListCities_SearchForwarding(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		wantInput  ListCitiesInput
+		wantStatus int
+	}{
+		{
+			name:       "without search keeps empty string",
+			target:     "/api/v1/locations/cities?state_id=5&page=1&page_size=50",
+			wantInput:  ListCitiesInput{StateID: 5, Page: 1, PageSize: 50, Search: ""},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "search with spaces is trimmed",
+			target:     "/api/v1/locations/cities?state_id=5&search=%20san%20&page=2&page_size=10",
+			wantInput:  ListCitiesInput{StateID: 5, Page: 2, PageSize: 10, Search: "san"},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "blank search becomes empty string",
+			target:     "/api/v1/locations/cities?state_id=5&search=%20%20&page=1&page_size=25",
+			wantInput:  ListCitiesInput{StateID: 5, Page: 1, PageSize: 25, Search: ""},
+			wantStatus: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, rec := newTestContext(http.MethodGet, tt.target)
+			svc := &mockLocationsService{
+				listCitiesFunc: func(ctx context.Context, input ListCitiesInput) (ListCitiesResult, error) {
+					if input != tt.wantInput {
+						t.Fatalf("input: got %#v want %#v", input, tt.wantInput)
+					}
+					return ListCitiesResult{
+						Data: []City{{CityID: 1, Name: "San Pedro"}},
+						Meta: ListCitiesMeta{Total: 1, Page: input.Page, PageSize: input.PageSize, TotalPages: 1},
+					}, nil
+				},
+			}
+
+			NewHandler(svc).listCities(ctx)
+
+			assertStatus(t, rec, tt.wantStatus)
+			assertHasKeys(t, rec, "data", "meta")
+		})
+	}
 }
 
 func TestHandler_ListCities_PageValidation(t *testing.T) {

@@ -52,6 +52,7 @@ func (h *Handler) listCountries(c *gin.Context) {
 // @Tags         Locations
 // @Produce      json
 // @Param        country_id  query     int  true  "Country ID"
+// @Param        search      query     string  false  "Optional case-insensitive partial state name filter"
 // @Success      200         {object}  ListStatesResult    "List of states"
 // @Failure      400         {object}  shared.ErrorResponse "Invalid query params"
 // @Failure      500         {object}  shared.ErrorResponse "Internal error"
@@ -73,9 +74,12 @@ func (h *Handler) listStates(c *gin.Context) {
 		return
 	}
 
+	search := strings.TrimSpace(c.Query("search"))
+
 	ctx := c.Request.Context()
 	result, err := h.service.ListStates(ctx, ListStatesInput{
 		CountryID: int32(countryID),
+		Search:    search,
 	})
 	if err != nil {
 		shared.InternalError(c, "could not list states")
@@ -91,6 +95,7 @@ func (h *Handler) listStates(c *gin.Context) {
 // @Tags         Locations
 // @Produce      json
 // @Param        state_id   query     int  true   "State ID"
+// @Param        search     query     string  false  "Optional case-insensitive partial city name filter"
 // @Param        page       query     int  false  "Page number" default(1)
 // @Param        page_size  query     int  false  "Results per page" default(50)
 // @Success      200        {object}  ListCitiesResult     "List of cities"
@@ -128,11 +133,14 @@ func (h *Handler) listCities(c *gin.Context) {
 		return
 	}
 
+	search := strings.TrimSpace(c.Query("search"))
+
 	ctx := c.Request.Context()
 	result, err := h.service.ListCities(ctx, ListCitiesInput{
 		StateID:  int32(stateID),
 		Page:     int32(page),
 		PageSize: int32(pageSize),
+		Search:   search,
 	})
 	if err != nil {
 		shared.InternalError(c, "could not list cities")

@@ -31,7 +31,7 @@ func (s *service) ListCountries(ctx context.Context) (ListCountriesResult, error
 }
 
 func (s *service) ListStates(ctx context.Context, input ListStatesInput) (ListStatesResult, error) {
-	states, err := s.repository.ListStates(ctx, input.CountryID)
+	states, err := s.repository.ListStates(ctx, input)
 	if err != nil {
 		return ListStatesResult{}, fmt.Errorf("list states: %w", err)
 	}

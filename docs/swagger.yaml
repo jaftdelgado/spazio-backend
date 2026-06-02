@@ -809,6 +809,9 @@ definitions:
         $ref: '#/definitions/properties.PropertyCardModalityData'
       price:
         $ref: '#/definitions/properties.PropertyCardPriceData'
+      property_id:
+        example: 5
+        type: integer
       property_type:
         $ref: '#/definitions/properties.PropertyCardTypeData'
       property_uuid:
@@ -1271,11 +1274,17 @@ definitions:
     type: object
   services.ListServicesMeta:
     properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
       query:
         type: string
       shown:
         type: integer
       total:
+        type: integer
+      total_pages:
         type: integer
     type: object
   services.ListServicesResult:
@@ -1778,6 +1787,10 @@ paths:
         name: state_id
         required: true
         type: integer
+      - description: Optional case-insensitive partial city name filter
+        in: query
+        name: search
+        type: string
       - default: 1
         description: Page number
         in: query
@@ -1832,6 +1845,10 @@ paths:
         name: country_id
         required: true
         type: integer
+      - description: Optional case-insensitive partial state name filter
+        in: query
+        name: search
+        type: string
       produces:
       - application/json
       responses:
@@ -2799,14 +2816,28 @@ paths:
   /api/v1/services:
     get:
       description: Returns popular active services when q is empty, or matching active
-        services when q is provided. Results include metadata and honor the optional
-        limit parameter.
+        services when q is provided. Results can be filtered by category_id and paginated
+        with page/page_size. The legacy limit parameter is still supported as a shorthand
+        for page=1&page_size=limit.
       parameters:
       - description: Search term
         in: query
         name: q
         type: string
-      - description: Results limit
+      - description: Service category ID
+        in: query
+        name: category_id
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Results per page
+        in: query
+        name: page_size
+        type: integer
+      - description: Legacy alias for page_size when page/page_size are omitted
         in: query
         name: limit
         type: integer
