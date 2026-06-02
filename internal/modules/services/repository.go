@@ -18,8 +18,14 @@ func NewRepository(db *pgxpool.Pool) ServicesRepository {
 	return &repository{queries: sqlcgen.New(db)}
 }
 
-func (r *repository) ListPopularServices(ctx context.Context, limit int32) ([]Service, int64, error) {
-	rows, err := r.queries.ListPopularServices(ctx, limit)
+func (r *repository) ListPopularServices(ctx context.Context, input ListPopularInput) ([]Service, int64, error) {
+	offset := (input.Page - 1) * input.PageSize
+
+	rows, err := r.queries.ListPopularServices(ctx, sqlcgen.ListPopularServicesParams{
+		CategoryID: input.CategoryID,
+		PageSize:   input.PageSize,
+		PageOffset: offset,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list popular services: %w", err)
 	}
@@ -41,12 +47,15 @@ func (r *repository) ListPopularServices(ctx context.Context, limit int32) ([]Se
 	return services, rows[0].TotalCount, nil
 }
 
-func (r *repository) SearchServices(ctx context.Context, query string, limit int32) ([]Service, int64, error) {
-	textQuery := pgtype.Text{String: query, Valid: true}
+func (r *repository) SearchServices(ctx context.Context, input SearchInput) ([]Service, int64, error) {
+	offset := (input.Page - 1) * input.PageSize
+	textQuery := pgtype.Text{String: input.Query, Valid: true}
 
 	rows, err := r.queries.SearchServices(ctx, sqlcgen.SearchServicesParams{
-		Query:       textQuery,
-		SearchLimit: limit,
+		Query:      textQuery,
+		CategoryID: input.CategoryID,
+		PageSize:   input.PageSize,
+		PageOffset: offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("search services: %w", err)

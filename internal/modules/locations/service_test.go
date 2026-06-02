@@ -9,7 +9,7 @@ import (
 
 type mockLocationsRepository struct {
 	listCountriesFunc func(ctx context.Context) ([]Country, error)
-	listStatesFunc    func(ctx context.Context, countryID int32) ([]State, error)
+	listStatesFunc    func(ctx context.Context, input ListStatesInput) ([]State, error)
 	listCitiesFunc    func(ctx context.Context, input ListCitiesInput) ([]City, int64, error)
 }
 
@@ -20,9 +20,9 @@ func (m *mockLocationsRepository) ListCountries(ctx context.Context) ([]Country,
 	return nil, nil
 }
 
-func (m *mockLocationsRepository) ListStates(ctx context.Context, countryID int32) ([]State, error) {
+func (m *mockLocationsRepository) ListStates(ctx context.Context, input ListStatesInput) ([]State, error) {
 	if m.listStatesFunc != nil {
-		return m.listStatesFunc(ctx, countryID)
+		return m.listStatesFunc(ctx, input)
 	}
 	return nil, nil
 }
@@ -118,9 +118,12 @@ func TestService_ListStates(t *testing.T) {
 	}{
 		{
 			name:  "returns data with non-nil iso_code",
-			input: ListStatesInput{CountryID: 1},
+			input: ListStatesInput{CountryID: 1, Search: "cal"},
 			repo: &mockLocationsRepository{
-				listStatesFunc: func(ctx context.Context, countryID int32) ([]State, error) {
+				listStatesFunc: func(ctx context.Context, input ListStatesInput) ([]State, error) {
+					if input.CountryID != 1 || input.Search != "cal" {
+						t.Fatalf("unexpected input: %#v", input)
+					}
 					code := "CA"
 					return []State{{StateID: 1, IsoCode: &code, Name: "California"}}, nil
 				},
@@ -134,7 +137,7 @@ func TestService_ListStates(t *testing.T) {
 			name:  "returns data with nil iso_code",
 			input: ListStatesInput{CountryID: 1},
 			repo: &mockLocationsRepository{
-				listStatesFunc: func(ctx context.Context, countryID int32) ([]State, error) {
+				listStatesFunc: func(ctx context.Context, input ListStatesInput) ([]State, error) {
 					return []State{{StateID: 2, IsoCode: nil, Name: "State Without Code"}}, nil
 				},
 			},
@@ -142,9 +145,9 @@ func TestService_ListStates(t *testing.T) {
 		},
 		{
 			name:  "repository returns nil slice converts to empty slice",
-			input: ListStatesInput{CountryID: 1},
+			input: ListStatesInput{CountryID: 1, Search: ""},
 			repo: &mockLocationsRepository{
-				listStatesFunc: func(ctx context.Context, countryID int32) ([]State, error) {
+				listStatesFunc: func(ctx context.Context, input ListStatesInput) ([]State, error) {
 					return nil, nil
 				},
 			},
@@ -152,9 +155,9 @@ func TestService_ListStates(t *testing.T) {
 		},
 		{
 			name:  "repository error is wrapped",
-			input: ListStatesInput{CountryID: 1},
+			input: ListStatesInput{CountryID: 1, Search: "jal"},
 			repo: &mockLocationsRepository{
-				listStatesFunc: func(ctx context.Context, countryID int32) ([]State, error) {
+				listStatesFunc: func(ctx context.Context, input ListStatesInput) ([]State, error) {
 					return nil, repositoryErr
 				},
 			},
@@ -201,19 +204,22 @@ func TestService_ListCities(t *testing.T) {
 	}{
 		{
 			name:  "returns data with correct meta",
-			input: ListCitiesInput{StateID: 1, Page: 2, PageSize: 50},
+			input: ListCitiesInput{StateID: 1, Page: 2, PageSize: 50, Search: "san"},
 			repo: &mockLocationsRepository{
 				listCitiesFunc: func(ctx context.Context, input ListCitiesInput) ([]City, int64, error) {
+					if input.Search != "san" {
+						t.Fatalf("unexpected search: %q", input.Search)
+					}
 					return []City{{CityID: 1, Name: "Los Angeles"}}, 150, nil
 				},
 			},
 			wantData:  []City{{CityID: 1, Name: "Los Angeles"}},
 			wantMeta:  ListCitiesMeta{Total: 150, Page: 2, PageSize: 50, TotalPages: 3},
-			wantInput: ListCitiesInput{StateID: 1, Page: 2, PageSize: 50},
+			wantInput: ListCitiesInput{StateID: 1, Page: 2, PageSize: 50, Search: "san"},
 		},
 		{
 			name:  "empty result returns empty slice and zero meta",
-			input: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50},
+			input: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50, Search: ""},
 			repo: &mockLocationsRepository{
 				listCitiesFunc: func(ctx context.Context, input ListCitiesInput) ([]City, int64, error) {
 					return []City{}, 0, nil
@@ -221,11 +227,11 @@ func TestService_ListCities(t *testing.T) {
 			},
 			wantData:  []City{},
 			wantMeta:  ListCitiesMeta{Total: 0, Page: 1, PageSize: 50, TotalPages: 0},
-			wantInput: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50},
+			wantInput: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50, Search: ""},
 		},
 		{
 			name:  "repository returns nil slice converts to empty slice",
-			input: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50},
+			input: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50, Search: "  "},
 			repo: &mockLocationsRepository{
 				listCitiesFunc: func(ctx context.Context, input ListCitiesInput) ([]City, int64, error) {
 					return nil, 0, nil
@@ -233,7 +239,7 @@ func TestService_ListCities(t *testing.T) {
 			},
 			wantData:  []City{},
 			wantMeta:  ListCitiesMeta{Total: 0, Page: 1, PageSize: 50, TotalPages: 0},
-			wantInput: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50},
+			wantInput: ListCitiesInput{StateID: 1, Page: 1, PageSize: 50, Search: "  "},
 		},
 		{
 			name:  "repository error is wrapped",

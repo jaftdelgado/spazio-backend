@@ -81,10 +81,15 @@ func TestHandler_ListServices_LimitValidation(t *testing.T) {
 		{"no limit no q", "/api/v1/services", http.StatusOK, "", false},
 		{"no limit with q", "/api/v1/services?q=wifi", http.StatusOK, "", false},
 		{"limit abc", "/api/v1/services?limit=abc", http.StatusBadRequest, "must be a valid integer", true},
-		{"limit 0", "/api/v1/services?limit=0", http.StatusBadRequest, "must be greater than 0", true},
-		{"limit -1", "/api/v1/services?limit=-1", http.StatusBadRequest, "must be greater than 0", true},
+		{"limit 0", "/api/v1/services?limit=0", http.StatusBadRequest, "page_size must be greater than 0", true},
+		{"limit -1", "/api/v1/services?limit=-1", http.StatusBadRequest, "page_size must be greater than 0", true},
 		{"limit whitespace", "/api/v1/services?limit=%20%20", http.StatusOK, "", false},
 		{"limit 5 explicit", "/api/v1/services?limit=5", http.StatusOK, "", false},
+		{"page invalid", "/api/v1/services?page=abc", http.StatusBadRequest, "page must be a valid integer", true},
+		{"page_size invalid", "/api/v1/services?page_size=abc", http.StatusBadRequest, "page_size must be a valid integer", true},
+		{"page zero", "/api/v1/services?page=0", http.StatusBadRequest, "page must be greater than 0", true},
+		{"page_size too large", "/api/v1/services?page_size=51", http.StatusBadRequest, "page_size must be less than or equal to 50", true},
+		{"category invalid", "/api/v1/services?category_id=abc", http.StatusBadRequest, "category_id must be a valid integer", true},
 	}
 
 	for _, tt := range cases {
@@ -119,6 +124,9 @@ func TestHandler_ListServices_RoutingToServiceMethods(t *testing.T) {
 	ctx, rec := newTestContext(http.MethodGet, "/api/v1/services")
 	svc := &mockServicesService{
 		listPopularServicesFunc: func(ctx context.Context, input ListPopularInput) (ListServicesResult, error) {
+			if input.Page != 1 || input.PageSize != 12 || input.CategoryID != 0 {
+				t.Fatalf("unexpected input: %#v", input)
+			}
 			return ListServicesResult{Data: []Service{{ServiceID: 1}}, Meta: ListServicesMeta{Total: 1, Shown: 1}}, nil
 		},
 	}
@@ -133,6 +141,9 @@ func TestHandler_ListServices_RoutingToServiceMethods(t *testing.T) {
 	ctx2, rec2 := newTestContext(http.MethodGet, "/api/v1/services?q=wifi")
 	svc2 := &mockServicesService{
 		searchServicesFunc: func(ctx context.Context, input SearchInput) (ListServicesResult, error) {
+			if input.Query != "wifi" || input.Page != 1 || input.PageSize != 10 || input.CategoryID != 0 {
+				t.Fatalf("unexpected input: %#v", input)
+			}
 			return ListServicesResult{Data: []Service{{ServiceID: 2}}, Meta: ListServicesMeta{Total: 1, Shown: 1, Query: &input.Query}}, nil
 		},
 	}
@@ -187,8 +198,8 @@ func TestHandler_ListServices_DefaultLimits(t *testing.T) {
 	ctx, rec := newTestContext(http.MethodGet, "/api/v1/services")
 	svc := &mockServicesService{
 		listPopularServicesFunc: func(ctx context.Context, input ListPopularInput) (ListServicesResult, error) {
-			if input.Limit != 12 {
-				t.Fatalf("expected limit 12, got %d", input.Limit)
+			if input.PageSize != 12 || input.Page != 1 {
+				t.Fatalf("expected page=1 pageSize=12, got %#v", input)
 			}
 			return ListServicesResult{Data: []Service{}, Meta: ListServicesMeta{Total: 0, Shown: 0}}, nil
 		},
@@ -201,8 +212,8 @@ func TestHandler_ListServices_DefaultLimits(t *testing.T) {
 	ctx2, rec2 := newTestContext(http.MethodGet, "/api/v1/services?q=wifi")
 	svc2 := &mockServicesService{
 		searchServicesFunc: func(ctx context.Context, input SearchInput) (ListServicesResult, error) {
-			if input.Limit != 10 {
-				t.Fatalf("expected limit 10, got %d", input.Limit)
+			if input.PageSize != 10 || input.Page != 1 {
+				t.Fatalf("expected page=1 pageSize=10, got %#v", input)
 			}
 			return ListServicesResult{Data: []Service{}, Meta: ListServicesMeta{Total: 0, Shown: 0}}, nil
 		},
@@ -210,6 +221,22 @@ func TestHandler_ListServices_DefaultLimits(t *testing.T) {
 	h2 := NewHandler(svc2)
 	h2.listServices(ctx2)
 	assertStatus(t, rec2, http.StatusOK)
+}
+
+func TestHandler_ListServices_PaginationAndCategoryForwarding(t *testing.T) {
+	ctx, rec := newTestContext(http.MethodGet, "/api/v1/services?q=wifi&category_id=3&page=2&page_size=7")
+	svc := &mockServicesService{
+		searchServicesFunc: func(ctx context.Context, input SearchInput) (ListServicesResult, error) {
+			if input.Query != "wifi" || input.CategoryID != 3 || input.Page != 2 || input.PageSize != 7 {
+				t.Fatalf("unexpected input: %#v", input)
+			}
+			return ListServicesResult{Data: []Service{}, Meta: ListServicesMeta{Total: 0, Shown: 0}}, nil
+		},
+	}
+
+	NewHandler(svc).listServices(ctx)
+	assertStatus(t, rec, http.StatusOK)
+	assertHasKeys(t, rec, "data", "meta")
 }
 
 func TestResolveDefaultLimit(t *testing.T) {
@@ -225,48 +252,87 @@ func TestResolveDefaultLimit(t *testing.T) {
 }
 
 func TestResolveLimit(t *testing.T) {
-	// empty with fallback -> returns fallback
-	if got, err := resolveLimit("", 12); err != nil || got != 12 {
-		t.Fatalf("resolveLimit(\"\", 12) = %d err %v, want 12 nil", got, err)
+	if got, err := resolveLimit(""); err != nil || got != 0 {
+		t.Fatalf("resolveLimit(\"\") = %d err %v, want 0 nil", got, err)
 	}
 
-	// whitespace with fallback -> trimmed, returns fallback
-	if got, err := resolveLimit("  ", 12); err != nil || got != 12 {
-		t.Fatalf("resolveLimit(\"  \", 12) = %d err %v, want 12 nil", got, err)
+	if got, err := resolveLimit("  "); err != nil || got != 0 {
+		t.Fatalf("resolveLimit(\"  \") = %d err %v, want 0 nil", got, err)
 	}
 
-	// non-integer -> error
-	if _, err := resolveLimit("abc", 12); err == nil {
-		t.Fatal("resolveLimit(\"abc\", 12) expected error, got nil")
+	if _, err := resolveLimit("abc"); err == nil {
+		t.Fatal("resolveLimit(\"abc\") expected error, got nil")
 	}
 
-	// valid integer
-	if got, err := resolveLimit("5", 12); err != nil || got != 5 {
-		t.Fatalf("resolveLimit(\"5\", 12) = %d err %v, want 5 nil", got, err)
+	if got, err := resolveLimit("5"); err != nil || got != 5 {
+		t.Fatalf("resolveLimit(\"5\") = %d err %v, want 5 nil", got, err)
+	}
+}
+
+func TestResolvePagination(t *testing.T) {
+	tests := []struct {
+		name         string
+		page         string
+		pageSize     string
+		limit        string
+		fallback     int
+		wantPage     int
+		wantPageSize int
+		wantErr      bool
+	}{
+		{name: "defaults without q", fallback: 12, wantPage: 1, wantPageSize: 12},
+		{name: "legacy limit", limit: "5", fallback: 12, wantPage: 1, wantPageSize: 5},
+		{name: "explicit page and page_size", page: "2", pageSize: "7", limit: "5", fallback: 12, wantPage: 2, wantPageSize: 7},
+		{name: "page only uses fallback", page: "3", fallback: 10, wantPage: 3, wantPageSize: 10},
+		{name: "invalid page", page: "abc", fallback: 12, wantErr: true},
+		{name: "invalid page_size", pageSize: "abc", fallback: 12, wantErr: true},
 	}
 
-	// zero (validation happens elsewhere)
-	if got, err := resolveLimit("0", 12); err != nil || got != 0 {
-		t.Fatalf("resolveLimit(\"0\", 12) = %d err %v, want 0 nil", got, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotPage, gotPageSize, err := resolvePagination(tt.page, tt.pageSize, tt.limit, tt.fallback)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotPage != tt.wantPage || gotPageSize != tt.wantPageSize {
+				t.Fatalf("got page=%d pageSize=%d want page=%d pageSize=%d", gotPage, gotPageSize, tt.wantPage, tt.wantPageSize)
+			}
+		})
 	}
+}
 
-	// negative (validation happens elsewhere)
-	if got, err := resolveLimit("-1", 12); err != nil || got != -1 {
-		t.Fatalf("resolveLimit(\"-1\", 12) = %d err %v, want -1 nil", got, err)
+func TestResolveCategoryID(t *testing.T) {
+	if got, err := resolveCategoryID(""); err != nil || got != 0 {
+		t.Fatalf("resolveCategoryID(\"\") = %d err %v, want 0 nil", got, err)
+	}
+	if got, err := resolveCategoryID("3"); err != nil || got != 3 {
+		t.Fatalf("resolveCategoryID(\"3\") = %d err %v, want 3 nil", got, err)
+	}
+	if _, err := resolveCategoryID("abc"); err == nil {
+		t.Fatal("expected error for invalid category_id")
 	}
 }
 
 func TestValidateListServicesRequest(t *testing.T) {
-	if err := validateListServicesRequest(0); err == nil {
-		t.Fatal("expected error when limit=0")
+	if err := validateListServicesRequest(0, 10, 0); err == nil {
+		t.Fatal("expected error when page=0")
 	}
-	if err := validateListServicesRequest(-1); err == nil {
-		t.Fatal("expected error when limit=-1")
+	if err := validateListServicesRequest(1, 0, 0); err == nil {
+		t.Fatal("expected error when page_size=0")
 	}
-	if err := validateListServicesRequest(1); err != nil {
-		t.Fatalf("expected no error when limit=1, got %v", err)
+	if err := validateListServicesRequest(1, 51, 0); err == nil {
+		t.Fatal("expected error when page_size=51")
 	}
-	if err := validateListServicesRequest(12); err != nil {
-		t.Fatalf("expected no error when limit=12, got %v", err)
+	if err := validateListServicesRequest(1, 10, -1); err == nil {
+		t.Fatal("expected error when category_id=-1")
+	}
+	if err := validateListServicesRequest(1, 10, 2); err != nil {
+		t.Fatalf("expected no error, got %v", err)
 	}
 }
