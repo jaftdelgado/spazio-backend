@@ -38,8 +38,11 @@ func (r *repository) ListCountries(ctx context.Context) ([]Country, error) {
 	return countries, nil
 }
 
-func (r *repository) ListStates(ctx context.Context, countryID int32) ([]State, error) {
-	rows, err := r.queries.ListStates(ctx, countryID)
+func (r *repository) ListStates(ctx context.Context, input ListStatesInput) ([]State, error) {
+	rows, err := r.queries.ListStates(ctx, sqlcgen.ListStatesParams{
+		CountryID: input.CountryID,
+		Search:    input.Search,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list states: %w", err)
 	}
@@ -65,9 +68,10 @@ func (r *repository) ListCities(ctx context.Context, input ListCitiesInput) ([]C
 	offset := (input.Page - 1) * input.PageSize
 
 	rows, err := r.queries.ListCities(ctx, sqlcgen.ListCitiesParams{
-		StateID: input.StateID,
-		Limit:   input.PageSize,
-		Offset:  offset,
+		StateID:   input.StateID,
+		Search:    input.Search,
+		PageLimit: input.PageSize,
+		RowOffset: offset,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list cities: %w", err)

@@ -10,9 +10,11 @@ JOIN service_categories AS sc ON sc.category_id = s.category_id
 LEFT JOIN property_services AS ps ON ps.service_id = s.service_id
 WHERE s.is_active = true
   AND s.is_deprecated = false
+  AND (sqlc.arg(category_id)::int = 0 OR s.category_id = sqlc.arg(category_id)::int)
 GROUP BY s.service_id, s.code, s.icon, sc.code, s.sort_order
 ORDER BY COUNT(ps.property_id) DESC, s.sort_order ASC
-LIMIT $1;
+LIMIT sqlc.arg(page_size)
+OFFSET sqlc.arg(page_offset);
 
 -- name: SearchServices :many
 SELECT
@@ -25,6 +27,8 @@ FROM services AS s
 JOIN service_categories AS sc ON sc.category_id = s.category_id
 WHERE s.is_active = true
   AND s.is_deprecated = false
+  AND (sqlc.arg(category_id)::int = 0 OR s.category_id = sqlc.arg(category_id)::int)
   AND s.code ILIKE '%' || sqlc.arg(query) || '%'
 ORDER BY s.sort_order ASC, s.service_id ASC
-LIMIT sqlc.arg(search_limit);
+LIMIT sqlc.arg(page_size)
+OFFSET sqlc.arg(page_offset);
