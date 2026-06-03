@@ -143,12 +143,12 @@ type RentalResponse struct {
 }
 
 type ContractCreateInput struct {
-	TransactionID int32      `json:"transaction_id"`
-	PeriodID      *int32     `json:"period_id,omitempty"`
-	Currency      string     `json:"currency"`
-	AgreedAmount  float64    `json:"agreed_amount"`
-	StartDate     time.Time  `json:"start_date"`
-	EndDate       *time.Time `json:"end_date,omitempty"`
+	TransactionID int32     `json:"transaction_id"`
+	PeriodID      int32     `json:"period_id"`
+	Currency      string    `json:"currency"`
+	AgreedAmount  float64   `json:"agreed_amount"`
+	StartDate     time.Time `json:"start_date"`
+	EndDate       time.Time `json:"end_date"`
 }
 
 type ContractCreateResult struct {

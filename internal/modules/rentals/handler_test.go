@@ -116,6 +116,52 @@ func TestHandler_ConfirmRental_ServiceError_Returns403(t *testing.T) {
 	}
 }
 
+func TestHandler_ConfirmRental_SuccessReturns201AndContractUUID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	propertyUUID := uuid.New()
+	clientUUID := uuid.New()
+	service := &mockRentalService{
+		confirmFunc: func(ctx context.Context, auth AuthContext, input RentalConfirmInput) (RentalResponse, error) {
+			return RentalResponse{
+				TransactionUUID: "123e4567-e89b-12d3-a456-426614174000",
+				ContractUUID:    "223e4567-e89b-12d3-a456-426614174000",
+				PropertyUUID:    input.PropertyUUID.String(),
+				Status:          "Completed",
+			}, nil
+		},
+	}
+	handler := NewHandler(service)
+
+	body, _ := json.Marshal(RentalConfirmRequest{
+		PropertyUUID: propertyUUID.String(),
+		ClientUUID:   clientUUID.String(),
+		PeriodID:     3,
+		StartDate:    "2026-07-01",
+		EndDate:      "2026-09-30",
+	})
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/rentals", bytes.NewReader(body))
+	ctx.Request.Header.Set("Authorization", "Bearer token")
+	setRentalAuth(ctx, clientUUID, 7, 3)
+
+	handler.confirmRental(ctx)
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusCreated)
+	}
+
+	var response RentalResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if response.ContractUUID != "223e4567-e89b-12d3-a456-426614174000" {
+		t.Fatalf("contract_uuid = %s, want %s", response.ContractUUID, "223e4567-e89b-12d3-a456-426614174000")
+	}
+}
+
 func setRentalAuth(ctx *gin.Context, userUUID uuid.UUID, userID int32, roleID int32) {
 	ctx.Set("user_id", userID)
 	ctx.Set("role_id", roleID)

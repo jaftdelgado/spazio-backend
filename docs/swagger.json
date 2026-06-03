@@ -1859,7 +1859,7 @@
         },
         "/api/v1/rentals": {
             "post": {
-                "description": "Confirms the rental of an available property, registers the transaction, and generates the digital contract. Only accessible to authenticated clients.",
+                "description": "Confirms the rental of an available property, commits the new transaction so contracts can read it, and then generates the digital contract through the internal POST /api/v1/contracts/rent endpoint. Only accessible to authenticated clients.",
                 "consumes": [
                     "application/json"
                 ],

@@ -71,7 +71,7 @@ func (h *Handler) previewRental(c *gin.Context) {
 
 // confirmRental godoc
 // @Summary      Confirm rental
-// @Description  Confirms the rental of an available property, registers the transaction, and generates the digital contract. Only accessible to authenticated clients.
+// @Description  Confirms the rental of an available property, commits the new transaction so contracts can read it, and then generates the digital contract through the internal POST /api/v1/contracts/rent endpoint. Only accessible to authenticated clients.
 // @Tags         Rentals
 // @Accept       json
 // @Produce      json

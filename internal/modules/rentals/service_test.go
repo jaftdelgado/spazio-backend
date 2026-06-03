@@ -2,8 +2,11 @@ package rentals
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -390,6 +393,12 @@ func TestService_ConfirmRental(t *testing.T) {
 	propertyStatusUpdated := false
 	historyCreated := false
 	transactionCompleted := false
+	var createdTransactionAmount pgtype.Numeric
+	var contractInput ContractCreateInput
+	beginCalls := 0
+
+	createTx := &mockRentalTx{}
+	updateTx := &mockRentalTx{}
 
 	repo := &mockRentalsRepository{
 		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
@@ -414,9 +423,11 @@ func TestService_ConfirmRental(t *testing.T) {
 		},
 		getPrimaryRentalAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 88, nil },
 		createRentalTransactionFunc: func(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {
+			createdTransactionAmount = arg.FinalAmount
 			return sqlcgen.Transaction{
 				TransactionID:   44,
 				TransactionUuid: pgtype.UUID{Bytes: uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), Valid: true},
+				FinalAmount:     arg.FinalAmount,
 			}, nil
 		},
 		updateRentalPropertyStatusFunc: func(ctx context.Context, propertyID int32, statusID int32) error {
@@ -432,13 +443,18 @@ func TestService_ConfirmRental(t *testing.T) {
 			return nil
 		},
 		beginFunc: func(ctx context.Context) (pgx.Tx, error) {
-			return &mockRentalTx{}, nil
+			beginCalls++
+			if beginCalls == 1 {
+				return createTx, nil
+			}
+			return updateTx, nil
 		},
 	}
 
 	contractsClient := &mockContractsClient{
 		createContractFunc: func(ctx context.Context, authHeader string, input ContractCreateInput) (ContractCreateResult, error) {
 			contractCalled = true
+			contractInput = input
 			return ContractCreateResult{
 				ContractUUID: "223e4567-e89b-12d3-a456-426614174000",
 			}, nil
@@ -467,6 +483,31 @@ func TestService_ConfirmRental(t *testing.T) {
 	if !contractCalled || !propertyStatusUpdated || !historyCreated || !transactionCompleted {
 		t.Fatalf("expected post-contract local updates to be executed")
 	}
+	if beginCalls != 2 {
+		t.Fatalf("begin calls = %d, want 2", beginCalls)
+	}
+	createdAmount, err := numericToFloat(createdTransactionAmount)
+	if err != nil {
+		t.Fatalf("numericToFloat(createdTransactionAmount) error = %v", err)
+	}
+	if contractInput.TransactionID != 44 {
+		t.Fatalf("contract input transaction_id = %d, want %d", contractInput.TransactionID, 44)
+	}
+	if contractInput.PeriodID != 3 {
+		t.Fatalf("contract input period_id = %d, want %d", contractInput.PeriodID, 3)
+	}
+	if contractInput.Currency != "MXN" {
+		t.Fatalf("contract input currency = %s, want MXN", contractInput.Currency)
+	}
+	if contractInput.AgreedAmount != createdAmount {
+		t.Fatalf("contract agreed_amount = %.2f, want %.2f", contractInput.AgreedAmount, createdAmount)
+	}
+	if !contractInput.StartDate.Equal(startDate) {
+		t.Fatalf("contract input start_date = %s, want %s", contractInput.StartDate, startDate)
+	}
+	if !contractInput.EndDate.Equal(endDate) {
+		t.Fatalf("contract input end_date = %s, want %s", contractInput.EndDate, endDate)
+	}
 }
 
 func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing.T) {
@@ -475,6 +516,7 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 	clientUUID := uuid.New()
 
 	propertyStatusUpdated := false
+	beginCalls := 0
 	repo := &mockRentalsRepository{
 		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
 			return sqlcgen.GetRentalPropertyByUUIDRow{
@@ -494,7 +536,11 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 		},
 		getPrimaryRentalAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 88, nil },
 		createRentalTransactionFunc: func(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {
-			return sqlcgen.Transaction{TransactionID: 44, TransactionUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
+			return sqlcgen.Transaction{
+				TransactionID:   44,
+				TransactionUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true},
+				FinalAmount:     arg.FinalAmount,
+			}, nil
 		},
 		updateRentalPropertyStatusFunc: func(ctx context.Context, propertyID int32, statusID int32) error {
 			propertyStatusUpdated = true
@@ -502,7 +548,10 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 		},
 		createRentalPropertyStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateRentalPropertyStatusHistoryParams) error { return nil },
 		updateRentalTransactionStatusFunc:     func(ctx context.Context, transactionID int32, statusID int32) error { return nil },
-		beginFunc:                             func(ctx context.Context) (pgx.Tx, error) { return &mockRentalTx{}, nil },
+		beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+			beginCalls++
+			return &mockRentalTx{}, nil
+		},
 	}
 
 	svc := NewService(repo, &mockContractsClient{
@@ -529,6 +578,79 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 	}
 	if propertyStatusUpdated {
 		t.Fatalf("property status should remain available when contracts fails")
+	}
+	if beginCalls != 1 {
+		t.Fatalf("begin calls = %d, want %d", beginCalls, 1)
+	}
+}
+
+func TestHTTPContractsClient_CreateContract_UsesRentEndpointAndBody(t *testing.T) {
+	var receivedPath string
+	var receivedAuth string
+	var receivedBody ContractCreateInput
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedPath = r.URL.Path
+		receivedAuth = r.Header.Get("Authorization")
+
+		if err := json.NewDecoder(r.Body).Decode(&receivedBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		if _, err := w.Write([]byte(`{"contract_id":26,"contract_uuid":"f68c08c5-e7f0-4aae-b3b1-0d81acf41c09","storage_key":"contracts/f68c08c5-e7f0-4aae-b3b1-0d81acf41c09.pdf","pdf_url":"https://example.com/contracts/f68c08c5-e7f0-4aae-b3b1-0d81acf41c09.pdf"}`)); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	client := NewHTTPContractsClient(server.URL)
+	input := ContractCreateInput{
+		TransactionID: 123,
+		PeriodID:      3,
+		Currency:      "MXN",
+		AgreedAmount:  15000.00,
+		StartDate:     time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:       time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	result, err := client.CreateContract(context.Background(), "Bearer token", input)
+	if err != nil {
+		t.Fatalf("CreateContract() error = %v", err)
+	}
+
+	if receivedPath != "/api/v1/contracts/rent" {
+		t.Fatalf("path = %s, want %s", receivedPath, "/api/v1/contracts/rent")
+	}
+	if receivedAuth != "Bearer token" {
+		t.Fatalf("authorization = %s, want Bearer token", receivedAuth)
+	}
+	if receivedBody != input {
+		t.Fatalf("request body = %+v, want %+v", receivedBody, input)
+	}
+	if result.ContractUUID != "f68c08c5-e7f0-4aae-b3b1-0d81acf41c09" {
+		t.Fatalf("contract_uuid = %s, want %s", result.ContractUUID, "f68c08c5-e7f0-4aae-b3b1-0d81acf41c09")
+	}
+}
+
+func TestHTTPContractsClient_CreateContract_ReturnsErrorForNonCreatedStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusBadGateway)
+	}))
+	defer server.Close()
+
+	client := NewHTTPContractsClient(server.URL)
+	_, err := client.CreateContract(context.Background(), "Bearer token", ContractCreateInput{
+		TransactionID: 1,
+		PeriodID:      3,
+		Currency:      "MXN",
+		AgreedAmount:  15500.00,
+		StartDate:     time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:       time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if err == nil || !strings.Contains(err.Error(), "status 502") {
+		t.Fatalf("expected status error, got %v", err)
 	}
 }
 
