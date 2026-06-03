@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["go", "sqlc"]
+
+[phases.build]
+cmds = [
+  "sqlc generate -f sqlc/sqlc.yaml",
+  "go build -o bin/api cmd/api/main.go"
+]
