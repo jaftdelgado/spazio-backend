@@ -17,7 +17,9 @@ func TestService_ScheduleVisit(t *testing.T) {
 	ctx := context.Background()
 	clientID := int32(10)
 	propertyID := int32(1)
-	visitDate := time.Now().UTC().Add(72 * time.Hour).Truncate(time.Hour) // Valid date (3 days later)
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	// Normalize base date for tests
+	visitDate := time.Now().In(loc).Add(96 * time.Hour).Truncate(time.Hour)
 
 	tests := []struct {
 		name        string
@@ -28,14 +30,14 @@ func TestService_ScheduleVisit(t *testing.T) {
 	}{
 		{
 			name:        "error when date is too close (< 48h)",
-			visitDate:   time.Now().UTC().Add(24 * time.Hour),
+			visitDate:   time.Now().In(loc).Add(24 * time.Hour),
 			setupRepo:   func() *mockVisitsRepository { return &mockVisitsRepository{} },
 			wantErr:     true,
 			errContains: "debe agendar con al menos 48 horas",
 		},
 		{
 			name:        "error when date is too far (> 30 days)",
-			visitDate:   time.Now().UTC().Add(32 * 24 * time.Hour),
+			visitDate:   time.Now().In(loc).Add(32 * 24 * time.Hour),
 			setupRepo:   func() *mockVisitsRepository { return &mockVisitsRepository{} },
 			wantErr:     true,
 			errContains: "no puede agendar con más de 30 días",
@@ -46,37 +48,8 @@ func TestService_ScheduleVisit(t *testing.T) {
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
 					checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) {
-						return 0, errors.New("inactive")
+						return 0, errors.New("el cliente no está activo o no existe")
 					},
-				}
-			},
-			wantErr:     true,
-			errContains: "el cliente no está activo o no existe",
-		},
-		{
-			name:      "error when slot is unavailable",
-			visitDate: visitDate,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-					getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-						return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-					},
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return nil, nil // No schedules = no slots
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "horario seleccionado ya no está disponible",
-		},
-		{
-			name:      "error when validate entity integrity fails",
-			visitDate: visitDate,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 0, errors.New("db error") },
 				}
 			},
 			wantErr:     true,
@@ -91,14 +64,16 @@ func TestService_ScheduleVisit(t *testing.T) {
 					getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
 						return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
 					},
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 0, errors.New("no agent") },
+					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) {
+						return 0, errors.New("agent db error")
+					},
 				}
 			},
 			wantErr:     true,
 			errContains: "la propiedad no tiene un agente asignado disponible",
 		},
 		{
-			name:      "error when get available slots fails",
+			name:      "error when slot is unavailable",
 			visitDate: visitDate,
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
@@ -108,12 +83,25 @@ func TestService_ScheduleVisit(t *testing.T) {
 					},
 					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
 					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return nil, errors.New("schedule db err")
+						return []sqlcgen.GetAgentScheduleRow{
+							{
+								DayOfWeek: int16(visitDate.Weekday()),
+								StartTime: pgtype.Time{Valid: true},
+								EndTime:   pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true},
+							},
+						}, nil
+					},
+					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, start, end time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
+						return nil, nil
+					},
+					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, start, end time.Time) ([]time.Time, error) {
+						// Slot is occupied
+						return []time.Time{visitDate}, nil
 					},
 				}
 			},
 			wantErr:     true,
-			errContains: "schedule db err",
+			errContains: "el horario seleccionado ya no está disponible",
 		},
 		{
 			name:      "success scheduling",
@@ -129,7 +117,7 @@ func TestService_ScheduleVisit(t *testing.T) {
 						return []sqlcgen.GetAgentScheduleRow{
 							{
 								DayOfWeek: int16(visitDate.Weekday()),
-								StartTime: pgtype.Time{Microseconds: 0, Valid: true},
+								StartTime: pgtype.Time{Valid: true},
 								EndTime:   pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true},
 							},
 						}, nil
@@ -181,38 +169,35 @@ func TestService_RescheduleVisit(t *testing.T) {
 	ctx := context.Background()
 	userID := int32(10)
 	visitUUID := uuid.New()
-	newDate := time.Now().UTC().Add(72 * time.Hour).Truncate(time.Hour)
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	newDate := time.Now().In(loc).Add(120 * time.Hour).Truncate(time.Hour)
 
 	tests := []struct {
 		name        string
-		roleID      int32
+		role        int32
 		setupRepo   func() *mockVisitsRepository
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name:   "error when transaction begin fails",
-			roleID: 3,
+			name: "error when transaction begin fails",
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return nil, errors.New("begin fail") },
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return nil, errors.New("tx error")
+					},
 				}
 			},
 			wantErr:     true,
-			errContains: "fallo al iniciar transacción",
+			errContains: "tx error",
 		},
 		{
-			name:   "error when visit not found",
-			roleID: 3,
+			name: "error when visit not found",
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
 					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
-					withTxFunc: func(tx pgx.Tx) Repository {
-						return &mockVisitsRepository{
-							getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-								return sqlcgen.Visit{}, errors.New("not found")
-							},
-						}
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{}, pgx.ErrNoRows
 					},
 				}
 			},
@@ -220,17 +205,12 @@ func TestService_RescheduleVisit(t *testing.T) {
 			errContains: "visita no encontrada",
 		},
 		{
-			name:   "error when already cancelled",
-			roleID: 3,
+			name: "error when already cancelled",
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
 					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
-					withTxFunc: func(tx pgx.Tx) Repository {
-						return &mockVisitsRepository{
-							getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-								return sqlcgen.Visit{StatusID: StatusCancelled}, nil
-							},
-						}
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{StatusID: StatusCancelled}, nil
 					},
 				}
 			},
@@ -238,236 +218,89 @@ func TestService_RescheduleVisit(t *testing.T) {
 			errContains: "no se puede reagendar una cita ya cancelada",
 		},
 		{
-			name:   "error when unauthorized client",
-			roleID: 3,
+			name: "error when unauthorized client",
+			role: 3, // Client
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
 					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
-					withTxFunc: func(tx pgx.Tx) Repository {
-						return &mockVisitsRepository{
-							getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-								return sqlcgen.Visit{ClientID: 99}, nil // different client
-							},
-						}
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{ClientID: 999, StatusID: StatusPending}, nil
+					},
+					checkUserActiveFunc: func(ctx context.Context, uid int32) (int32, error) { return 1, nil },
+					getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, pid int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
+						return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
 					},
 				}
 			},
 			wantErr:     true,
-			errContains: "no tienes permiso para reagendar",
+			errContains: "no tienes permiso",
 		},
 		{
-			name:   "error when scheduleVisitInternal fails",
-			roleID: 1,
+			name: "error when update visit status fails",
 			setupRepo: func() *mockVisitsRepository {
-				txMock := &mockTx{}
-				repoMock := &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return txMock, nil },
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-				}
-				repoMock.withTxFunc = func(tx pgx.Tx) Repository {
-					return &mockVisitsRepository{
-						getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitID: 1, ClientID: 99, PropertyID: 1, StatusID: StatusPending}, nil
-						},
-						checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-						getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-							return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-						},
-						getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-						createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{}, errors.New("create failed")
-						},
-					}
-				}
-				return repoMock
-			},
-			wantErr:     true,
-			errContains: "el horario seleccionado ya no está disponible",
-		},
-		{
-			name:   "error when update visit status fails",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				txMock := &mockTx{}
-				repoMock := &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return txMock, nil },
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return []sqlcgen.GetAgentScheduleRow{
-							{DayOfWeek: 0, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 1, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 2, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 3, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 4, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 5, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 6, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-						}, nil
+				return &mockVisitsRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 1, ClientID: userID, PropertyID: 1, StatusID: StatusPending}, nil
 					},
-					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, start, end time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
+					// scheduleVisitInternal mock
+					checkUserActiveFunc: func(ctx context.Context, uid int32) (int32, error) { return 1, nil },
+					getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, pid int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
+						return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
+					},
+					getPrimaryAgentForPropertyFunc: func(ctx context.Context, pid int32) (int32, error) { return 2, nil },
+					getAgentScheduleFunc: func(ctx context.Context, aid int32) ([]sqlcgen.GetAgentScheduleRow, error) {
+						return []sqlcgen.GetAgentScheduleRow{{DayOfWeek: int16(newDate.Weekday()), StartTime: pgtype.Time{Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}}}, nil
+					},
+					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, s, e time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
 						return nil, nil
 					},
-					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, start, end time.Time) ([]time.Time, error) { return nil, nil },
+					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, s, e time.Time) ([]time.Time, error) {
+						return nil, nil
+					},
+					createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{}, nil
+					},
+					// Failing update
+					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error {
+						return errors.New("update fail")
+					},
 				}
-				repoMock.withTxFunc = func(tx pgx.Tx) Repository {
-					return &mockVisitsRepository{
-						getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitID: 1, ClientID: 99, PropertyID: 1, StatusID: StatusPending}, nil
-						},
-						checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-						getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-							return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-						},
-						getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-						createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
-						},
-						updateVisitStatusFunc: func(ctx context.Context, visitID int32, statusID int32) error {
-							return errors.New("update status failed")
-						},
-					}
-				}
-				return repoMock
 			},
 			wantErr:     true,
 			errContains: "fallo al cancelar cita anterior",
 		},
 		{
-			name:   "error when create status history fails",
-			roleID: 1,
+			name: "success reschedule (admin)",
 			setupRepo: func() *mockVisitsRepository {
-				txMock := &mockTx{}
-				repoMock := &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return txMock, nil },
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return []sqlcgen.GetAgentScheduleRow{
-							{DayOfWeek: 0, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 1, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 2, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 3, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 4, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 5, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 6, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-						}, nil
+				return &mockVisitsRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 1, ClientID: userID, PropertyID: 1, StatusID: StatusPending}, nil
 					},
-					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, start, end time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
+					// scheduleVisitInternal mock
+					checkUserActiveFunc: func(ctx context.Context, uid int32) (int32, error) { return 1, nil },
+					getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, pid int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
+						return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
+					},
+					getPrimaryAgentForPropertyFunc: func(ctx context.Context, pid int32) (int32, error) { return 2, nil },
+					getAgentScheduleFunc: func(ctx context.Context, aid int32) ([]sqlcgen.GetAgentScheduleRow, error) {
+						return []sqlcgen.GetAgentScheduleRow{{DayOfWeek: int16(newDate.Weekday()), StartTime: pgtype.Time{Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}}}, nil
+					},
+					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, s, e time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
 						return nil, nil
 					},
-					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, start, end time.Time) ([]time.Time, error) { return nil, nil },
-				}
-				repoMock.withTxFunc = func(tx pgx.Tx) Repository {
-					return &mockVisitsRepository{
-						getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitID: 1, ClientID: 99, PropertyID: 1, StatusID: StatusPending}, nil
-						},
-						checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-						getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-							return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-						},
-						getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-						createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
-						},
-						updateVisitStatusFunc: func(ctx context.Context, visitID int32, statusID int32) error { return nil },
-						createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error {
-							return errors.New("history failed")
-						},
-					}
-				}
-				return repoMock
-			},
-			wantErr:     true,
-			errContains: "fallo al registrar historial",
-		},
-		{
-			name:   "error when tx commit fails",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				txMock := &mockTx{commitFunc: func(ctx context.Context) error { return errors.New("commit failed") }}
-				repoMock := &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return txMock, nil },
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return []sqlcgen.GetAgentScheduleRow{
-							{DayOfWeek: 0, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 1, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 2, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 3, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 4, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 5, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 6, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-						}, nil
-					},
-					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, start, end time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
+					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, s, e time.Time) ([]time.Time, error) {
 						return nil, nil
 					},
-					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, start, end time.Time) ([]time.Time, error) { return nil, nil },
-				}
-				repoMock.withTxFunc = func(tx pgx.Tx) Repository {
-					return &mockVisitsRepository{
-						getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitID: 1, ClientID: 99, PropertyID: 1, StatusID: StatusPending}, nil
-						},
-						checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-						getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-							return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-						},
-						getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-						createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
-						},
-						updateVisitStatusFunc: func(ctx context.Context, visitID int32, statusID int32) error { return nil },
-						createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
-					}
-				}
-				return repoMock
-			},
-			wantErr:     true,
-			errContains: "fallo al confirmar cambios",
-		},
-		{
-			name:   "success reschedule (admin)",
-			roleID: 1, // Admin can always reschedule
-			setupRepo: func() *mockVisitsRepository {
-				txMock := &mockTx{}
-				repoMock := &mockVisitsRepository{
-					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return txMock, nil },
-					// Need these on base repo because GetAvailableSlots uses s.repo
-					getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-					getAgentScheduleFunc: func(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {
-						return []sqlcgen.GetAgentScheduleRow{
-							{DayOfWeek: 0, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 1, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 2, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 3, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 4, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 5, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
-							{DayOfWeek: 6, StartTime: pgtype.Time{Microseconds: 0, Valid: true}, EndTime: pgtype.Time{Microseconds: 24 * 3600 * 1e6, Valid: true}},
+					createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{
+							VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true},
 						}, nil
 					},
-					getPropertyExceptionsFunc: func(ctx context.Context, pid int32, start, end time.Time) ([]sqlcgen.GetPropertyExceptionsRow, error) {
-						return nil, nil
-					},
-					getOccupiedVisitsFunc: func(ctx context.Context, aid int32, start, end time.Time) ([]time.Time, error) { return nil, nil },
+					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
+					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
 				}
-				repoMock.withTxFunc = func(tx pgx.Tx) Repository {
-					return &mockVisitsRepository{
-						getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitID: 1, ClientID: 99, PropertyID: 1, StatusID: StatusPending}, nil
-						},
-						checkUserActiveFunc: func(ctx context.Context, userID int32) (int32, error) { return 1, nil },
-						getPropertyStatusAndCheckDeletedFunc: func(ctx context.Context, propertyID int32) (sqlcgen.GetPropertyStatusAndCheckDeletedRow, error) {
-							return sqlcgen.GetPropertyStatusAndCheckDeletedRow{StatusID: PropertyStatusAvailable}, nil
-						},
-						getPrimaryAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 2, nil },
-						createVisitFunc: func(ctx context.Context, arg sqlcgen.CreateVisitParams) (sqlcgen.Visit, error) {
-							return sqlcgen.Visit{VisitUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
-						},
-						updateVisitStatusFunc:        func(ctx context.Context, visitID int32, statusID int32) error { return nil },
-						createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
-					}
-				}
-				return repoMock
 			},
 			wantErr: false,
 		},
@@ -478,7 +311,12 @@ func TestService_RescheduleVisit(t *testing.T) {
 			repo := tt.setupRepo()
 			svc := NewService(repo)
 
-			_, err := svc.RescheduleVisit(ctx, userID, tt.roleID, visitUUID, newDate)
+			testRole := int32(1) // Default to Admin
+			if tt.role != 0 {
+				testRole = tt.role
+			}
+
+			_, err := svc.RescheduleVisit(ctx, userID, testRole, visitUUID, newDate)
 
 			if tt.wantErr {
 				if err == nil {

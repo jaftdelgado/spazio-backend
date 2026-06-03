@@ -8,7 +8,8 @@ import (
 )
 
 func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date time.Time) ([]TimeSlot, error) {
-	date = date.UTC()
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	date = date.In(loc)
 
 	agentID, err := s.repo.GetPrimaryAgentForProperty(ctx, propertyID)
 	if err != nil {
@@ -33,7 +34,6 @@ func (s *service) GetAvailableSlots(ctx context.Context, propertyID int32, date 
 		return []TimeSlot{}, nil
 	}
 
-	loc, _ := time.LoadLocation("America/Mexico_City")
 	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, loc)
 	endOfDay := startOfDay.Add(24 * time.Hour)
 
