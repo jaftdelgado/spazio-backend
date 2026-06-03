@@ -1,9 +1,13 @@
 package rentals
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -390,6 +394,11 @@ func TestService_ConfirmRental(t *testing.T) {
 	propertyStatusUpdated := false
 	historyCreated := false
 	transactionCompleted := false
+	beginCalls := 0
+	createTransactionCalls := 0
+	insertTxCommitted := false
+	postContractTxCommitted := false
+	insertedFinalAmountCents := int64(0)
 
 	repo := &mockRentalsRepository{
 		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
@@ -414,9 +423,16 @@ func TestService_ConfirmRental(t *testing.T) {
 		},
 		getPrimaryRentalAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 88, nil },
 		createRentalTransactionFunc: func(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {
+			createTransactionCalls++
+			gotFinalAmount, err := numericToCents(arg.FinalAmount)
+			if err != nil {
+				t.Fatalf("final_amount inserted could not be parsed: %v", err)
+			}
+			insertedFinalAmountCents = gotFinalAmount
 			return sqlcgen.Transaction{
 				TransactionID:   44,
 				TransactionUuid: pgtype.UUID{Bytes: uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), Valid: true},
+				FinalAmount:     arg.FinalAmount,
 			}, nil
 		},
 		updateRentalPropertyStatusFunc: func(ctx context.Context, propertyID int32, statusID int32) error {
@@ -432,13 +448,53 @@ func TestService_ConfirmRental(t *testing.T) {
 			return nil
 		},
 		beginFunc: func(ctx context.Context) (pgx.Tx, error) {
-			return &mockRentalTx{}, nil
+			beginCalls++
+			switch beginCalls {
+			case 1:
+				return &mockRentalTx{
+					commitFunc: func(ctx context.Context) error {
+						insertTxCommitted = true
+						return nil
+					},
+				}, nil
+			case 2:
+				return &mockRentalTx{
+					commitFunc: func(ctx context.Context) error {
+						postContractTxCommitted = true
+						return nil
+					},
+				}, nil
+			default:
+				t.Fatalf("unexpected Begin call #%d", beginCalls)
+				return nil, nil
+			}
 		},
 	}
 
 	contractsClient := &mockContractsClient{
 		createContractFunc: func(ctx context.Context, authHeader string, input ContractCreateInput) (ContractCreateResult, error) {
 			contractCalled = true
+			if !insertTxCommitted {
+				t.Fatalf("contracts should be called only after the transaction insert commit")
+			}
+			if input.TransactionID != 44 {
+				t.Fatalf("transaction_id = %d, want 44", input.TransactionID)
+			}
+			if input.PeriodID != 3 {
+				t.Fatalf("period_id = %d, want 3", input.PeriodID)
+			}
+			if input.Currency != "MXN" {
+				t.Fatalf("currency = %s, want MXN", input.Currency)
+			}
+			if input.AgreedAmount != centsToFloat(insertedFinalAmountCents) {
+				t.Fatalf("agreed_amount = %.2f, want %.2f", input.AgreedAmount, centsToFloat(insertedFinalAmountCents))
+			}
+			if !input.StartDate.Equal(startDate) {
+				t.Fatalf("start_date = %s, want %s", input.StartDate, startDate)
+			}
+			if !input.EndDate.Equal(endDate) {
+				t.Fatalf("end_date = %s, want %s", input.EndDate, endDate)
+			}
 			return ContractCreateResult{
 				ContractUUID: "223e4567-e89b-12d3-a456-426614174000",
 			}, nil
@@ -464,8 +520,17 @@ func TestService_ConfirmRental(t *testing.T) {
 	if result.TransactionUUID == "" || result.ContractUUID == "" {
 		t.Fatalf("expected transaction and contract UUIDs, got %+v", result)
 	}
+	if createTransactionCalls != 1 {
+		t.Fatalf("create transaction calls = %d, want 1", createTransactionCalls)
+	}
+	if beginCalls != 2 {
+		t.Fatalf("begin calls = %d, want 2", beginCalls)
+	}
 	if !contractCalled || !propertyStatusUpdated || !historyCreated || !transactionCompleted {
 		t.Fatalf("expected post-contract local updates to be executed")
+	}
+	if !postContractTxCommitted {
+		t.Fatalf("expected post-contract transaction to commit")
 	}
 }
 
@@ -475,6 +540,8 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 	clientUUID := uuid.New()
 
 	propertyStatusUpdated := false
+	beginCalls := 0
+	insertTxCommitted := false
 	repo := &mockRentalsRepository{
 		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
 			return sqlcgen.GetRentalPropertyByUUIDRow{
@@ -494,7 +561,11 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 		},
 		getPrimaryRentalAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 88, nil },
 		createRentalTransactionFunc: func(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {
-			return sqlcgen.Transaction{TransactionID: 44, TransactionUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true}}, nil
+			return sqlcgen.Transaction{
+				TransactionID:   44,
+				TransactionUuid: pgtype.UUID{Bytes: uuid.New(), Valid: true},
+				FinalAmount:     numericFromCents(10000),
+			}, nil
 		},
 		updateRentalPropertyStatusFunc: func(ctx context.Context, propertyID int32, statusID int32) error {
 			propertyStatusUpdated = true
@@ -502,11 +573,25 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 		},
 		createRentalPropertyStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateRentalPropertyStatusHistoryParams) error { return nil },
 		updateRentalTransactionStatusFunc:     func(ctx context.Context, transactionID int32, statusID int32) error { return nil },
-		beginFunc:                             func(ctx context.Context) (pgx.Tx, error) { return &mockRentalTx{}, nil },
+		beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+			beginCalls++
+			if beginCalls > 1 {
+				t.Fatalf("unexpected second Begin call when contracts creation fails")
+			}
+			return &mockRentalTx{
+				commitFunc: func(ctx context.Context) error {
+					insertTxCommitted = true
+					return nil
+				},
+			}, nil
+		},
 	}
 
 	svc := NewService(repo, &mockContractsClient{
 		createContractFunc: func(ctx context.Context, authHeader string, input ContractCreateInput) (ContractCreateResult, error) {
+			if !insertTxCommitted {
+				t.Fatalf("contracts should be called only after committing the transaction insert")
+			}
 			return ContractCreateResult{}, errors.New("boom")
 		},
 	})
@@ -529,6 +614,81 @@ func TestService_ConfirmRental_ContractsFailureKeepsPropertyAvailable(t *testing
 	}
 	if propertyStatusUpdated {
 		t.Fatalf("property status should remain available when contracts fails")
+	}
+}
+
+func TestHTTPContractsClient_CreateContract_UsesRentEndpointAndBody(t *testing.T) {
+	t.Parallel()
+
+	var gotMethod string
+	var gotPath string
+	var gotAuth string
+	var gotBody ContractCreateInput
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if err := json.NewDecoder(bytes.NewReader(body)).Decode(&gotBody); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"contract_id":26,"contract_uuid":"f68c08c5-e7f0-4aae-b3b1-0d81acf41c09","storage_key":"contracts/f68c08c5-e7f0-4aae-b3b1-0d81acf41c09.pdf","pdf_url":"https://example.com/contracts/f68c08c5-e7f0-4aae-b3b1-0d81acf41c09.pdf"}`))
+	}))
+	defer server.Close()
+
+	client := NewHTTPContractsClient(server.URL)
+	startDate := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+
+	result, err := client.CreateContract(context.Background(), "Bearer token", ContractCreateInput{
+		TransactionID: 123,
+		PeriodID:      3,
+		Currency:      "MXN",
+		AgreedAmount:  15000,
+		StartDate:     startDate,
+		EndDate:       endDate,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %s, want POST", gotMethod)
+	}
+	if gotPath != "/api/v1/contracts/rent" {
+		t.Fatalf("path = %s, want /api/v1/contracts/rent", gotPath)
+	}
+	if gotAuth != "Bearer token" {
+		t.Fatalf("authorization = %s, want Bearer token", gotAuth)
+	}
+	if gotBody.TransactionID != 123 {
+		t.Fatalf("transaction_id = %d, want 123", gotBody.TransactionID)
+	}
+	if gotBody.PeriodID != 3 {
+		t.Fatalf("period_id = %d, want 3", gotBody.PeriodID)
+	}
+	if gotBody.Currency != "MXN" {
+		t.Fatalf("currency = %s, want MXN", gotBody.Currency)
+	}
+	if gotBody.AgreedAmount != 15000 {
+		t.Fatalf("agreed_amount = %.2f, want 15000.00", gotBody.AgreedAmount)
+	}
+	if !gotBody.StartDate.Equal(startDate) {
+		t.Fatalf("start_date = %s, want %s", gotBody.StartDate, startDate)
+	}
+	if !gotBody.EndDate.Equal(endDate) {
+		t.Fatalf("end_date = %s, want %s", gotBody.EndDate, endDate)
+	}
+	if result.ContractUUID != "f68c08c5-e7f0-4aae-b3b1-0d81acf41c09" {
+		t.Fatalf("contract_uuid = %s, want f68c08c5-e7f0-4aae-b3b1-0d81acf41c09", result.ContractUUID)
 	}
 }
 
