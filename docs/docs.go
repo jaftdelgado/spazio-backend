@@ -2428,68 +2428,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/DeleteProfile": {
-            "delete": {
-                "description": "Soft deletes the authenticated user's local account by marking deleted_at. The Supabase account may still exist, but deleted local users cannot log in through this API.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Users"
-                ],
-                "summary": "Delete user account",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Bearer access token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Account deleted successfully",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid or expired session",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "404": {
-                        "description": "User not found",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Account deletion failed",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/users/login": {
             "post": {
-                "description": "Authenticates the user and returns a JWT token.",
+                "description": "Authenticates an active local user and returns an access token plus an opaque refresh token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2502,7 +2443,7 @@ const docTemplate = `{
                 "summary": "Login",
                 "parameters": [
                     {
-                        "description": "Credenciales de acceso",
+                        "description": "Login credentials",
                         "name": "login",
                         "in": "body",
                         "required": true,
@@ -2513,14 +2454,13 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Login exitoso",
+                        "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/users.LoginResult"
                         }
                     },
                     "400": {
-                        "description": "Email o contraseña requeridos",
+                        "description": "Invalid request body",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2529,7 +2469,127 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Login fallido",
+                        "description": "Invalid credentials",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/logout": {
+            "post": {
+                "description": "Revokes the provided refresh token for the authenticated user.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Logout",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Refresh token",
+                        "name": "refresh",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/users.RefreshInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/users.MessageResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid session or refresh token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/pre-register": {
+            "post": {
+                "description": "Sends a six digit verification code to an email before creating a user account.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Start email verification",
+                "parameters": [
+                    {
+                        "description": "Email to verify",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/users.PreRegisterInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/users.MessageResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Email already registered",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2542,7 +2602,7 @@ const docTemplate = `{
         },
         "/users/profile": {
             "put": {
-                "description": "Updates the authenticated user's profile data using the Supabase access token to resolve the user identity.",
+                "description": "Updates the authenticated user's local profile data.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2562,21 +2622,20 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Profile data to update",
+                        "description": "Profile data",
                         "name": "profile",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.UpdateUserInput"
+                            "$ref": "#/definitions/users.UpdateProfileInput"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Profile updated successfully",
+                        "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/users.UpdateProfileResult"
                         }
                     },
                     "400": {
@@ -2589,7 +2648,7 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Invalid or expired session",
+                        "description": "Invalid session",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2597,8 +2656,105 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "500": {
-                        "description": "Profile update failed",
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Soft deletes the authenticated user's local account and revokes active refresh tokens.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete user account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/users.MessageResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid session",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/refresh": {
+            "post": {
+                "description": "Rotates a refresh token and returns a new access token plus a new refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Refresh session",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "refresh",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/users.RefreshInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/users.RefreshResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid refresh token",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2611,7 +2767,7 @@ const docTemplate = `{
         },
         "/users/register": {
             "post": {
-                "description": "Create new User",
+                "description": "Creates an active local user after email verification using a temporary verification token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2621,28 +2777,45 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Register new User",
+                "summary": "Complete user registration",
                 "parameters": [
                     {
-                        "description": "Datos del nuevo usuario",
+                        "description": "Verified registration data",
                         "name": "user",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.CreateUserInput"
+                            "$ref": "#/definitions/users.CompleteRegisterInput"
                         }
                     }
                 ],
                 "responses": {
                     "201": {
-                        "description": "Usuario creado exitosamente",
+                        "description": "Created",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/users.RegisterResult"
                         }
                     },
                     "400": {
-                        "description": "Formato de datos inválido",
+                        "description": "Invalid request body",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid verification token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Email already taken",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2651,7 +2824,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Error interno del servidor",
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2662,9 +2835,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/users/verify": {
+        "/users/verify-email": {
             "post": {
-                "description": "Verifies the user's email address using the token sent to their email.",
+                "description": "Validates the email verification code and returns a temporary verification token.",
                 "consumes": [
                     "application/json"
                 ],
@@ -2674,30 +2847,27 @@ const docTemplate = `{
                 "tags": [
                     "Users"
                 ],
-                "summary": "Verify user account",
+                "summary": "Verify email code",
                 "parameters": [
                     {
-                        "description": "Token y email de verificación",
-                        "name": "verify",
+                        "description": "Email and verification code",
+                        "name": "input",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/users.VerifyUserInput"
+                            "$ref": "#/definitions/users.VerifyEmailInput"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Cuenta verificada exitosamente",
+                        "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/users.VerifyEmailResult"
                         }
                     },
                     "400": {
-                        "description": "Datos de verificación inválidos",
+                        "description": "Invalid request body",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -2706,7 +2876,25 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Verificación fallida",
+                        "description": "Invalid code",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Verification not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "Code expired",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -4650,19 +4838,45 @@ const docTemplate = `{
                 }
             }
         },
-        "users.CreateUserInput": {
+        "users.AuthUser": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
+                "role_id": {
+                    "type": "integer"
+                },
+                "role_name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.CompleteRegisterInput": {
+            "type": "object",
+            "required": [
+                "first_name",
+                "last_name",
+                "password",
+                "verification_token"
+            ],
+            "properties": {
                 "first_name": {
                     "type": "string"
                 },
                 "last_name": {
                     "type": "string"
                 },
-                "password_hash": {
+                "password": {
                     "type": "string"
                 },
                 "phone": {
@@ -4674,10 +4888,7 @@ const docTemplate = `{
                 "role_id": {
                     "type": "integer"
                 },
-                "status_id": {
-                    "type": "integer"
-                },
-                "user_uuid": {
+                "verification_token": {
                     "type": "string"
                 }
             }
@@ -4697,7 +4908,73 @@ const docTemplate = `{
                 }
             }
         },
-        "users.UpdateUserInput": {
+        "users.LoginResult": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/users.AuthUser"
+                }
+            }
+        },
+        "users.MessageResult": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.PreRegisterInput": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.RefreshInput": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.RefreshResult": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.RegisterResult": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/users.AuthUser"
+                }
+            }
+        },
+        "users.UpdateProfileInput": {
             "type": "object",
             "required": [
                 "first_name",
@@ -4718,17 +4995,36 @@ const docTemplate = `{
                 }
             }
         },
-        "users.VerifyUserInput": {
+        "users.UpdateProfileResult": {
             "type": "object",
-            "required": [
-                "email",
-                "token"
-            ],
             "properties": {
-                "email": {
+                "message": {
                     "type": "string"
                 },
-                "token": {
+                "user": {
+                    "$ref": "#/definitions/users.AuthUser"
+                }
+            }
+        },
+        "users.VerifyEmailInput": {
+            "type": "object",
+            "required": [
+                "code",
+                "email"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "users.VerifyEmailResult": {
+            "type": "object",
+            "properties": {
+                "verification_token": {
                     "type": "string"
                 }
             }

@@ -16,7 +16,7 @@ CREATE TABLE users (
 	first_name varchar(80) NOT NULL,
 	last_name varchar(80) NOT NULL,
 	email varchar(150) NOT NULL UNIQUE,
-	--password_hash varchar(255) NOT NULL,
+	password varchar(255) NOT NULL DEFAULT '',
 	phone varchar(20) NOT NULL,
 	profile_picture_url varchar(255) NOT NULL,
 	status_id int NOT NULL REFERENCES user_status(status_id),
@@ -24,6 +24,39 @@ CREATE TABLE users (
 	updated_at timestamptz NOT NULL DEFAULT now(),
 	deleted_at timestamptz
 );
+
+CREATE TABLE refresh_tokens (
+	token_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	user_id integer NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+	token_hash varchar(255) NOT NULL UNIQUE,
+	expires_at timestamptz NOT NULL,
+	revoked_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+
+CREATE TABLE email_verification_codes (
+	code_id serial PRIMARY KEY,
+	user_id integer NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+	code_hash varchar(255) NOT NULL,
+	expires_at timestamptz NOT NULL,
+	used_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_email_verification_codes_user_id ON email_verification_codes(user_id);
+
+CREATE TABLE pending_verifications (
+	verification_id serial PRIMARY KEY,
+	email varchar(150) NOT NULL,
+	code_hash varchar(255) NOT NULL,
+	expires_at timestamptz NOT NULL,
+	verified_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_pending_verifications_email ON pending_verifications(email);
 
 CREATE FUNCTION ST_MakePoint(double precision, double precision) RETURNS bytea
 LANGUAGE SQL

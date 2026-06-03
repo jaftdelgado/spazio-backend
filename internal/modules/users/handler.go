@@ -3,8 +3,10 @@ package users
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 )
 
 type Handler struct {
@@ -15,202 +17,286 @@ func NewHandler(service UserService) *Handler {
 	return &Handler{service: service}
 }
 
-// Register godoc
-// @Summary      Register new User
-// @Description  Create new User
+// PreRegister godoc
+// @Summary      Start email verification
+// @Description  Sends a six digit verification code to an email before creating a user account.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Param        user  body      CreateUserInput  true  "Datos del nuevo usuario"
-// @Success      201   {object}  map[string]interface{} "Usuario creado exitosamente"
-// @Failure      400   {object}  map[string]string      "Formato de datos inválido"
-// @Failure      500   {object}  map[string]string      "Error interno del servidor"
-// @Router       /users/register [post]
-func (h *Handler) Register(c *gin.Context) {
-	var input CreateUserInput
-
+// @Param        input  body      PreRegisterInput  true  "Email to verify"
+// @Success      200    {object}  MessageResult
+// @Failure      400    {object}  map[string]string "Invalid request body"
+// @Failure      409    {object}  map[string]string "Email already registered"
+// @Failure      500    {object}  map[string]string "Internal server error"
+// @Router       /users/pre-register [post]
+func (h *Handler) PreRegister(c *gin.Context) {
+	var input PreRegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Formato de datos inválido",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email inválido"})
+		return
+	}
+	input.Email = normalizeEmail(input.Email)
+
+	if err := h.service.PreRegisterUser(c.Request.Context(), input); err != nil {
+		writeUserError(c, err)
 		return
 	}
 
-	result, err := h.service.RegisterUser(c.Request.Context(), input)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "No se pudo completar el registro",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusCreated, result)
+	c.JSON(http.StatusOK, MessageResult{Message: "Código de verificación enviado."})
 }
 
-// Verify godoc
-// @Summary      Verify user account
-// @Description  Verifies the user's email address using the token sent to their email.
+// VerifyEmail godoc
+// @Summary      Verify email code
+// @Description  Validates the email verification code and returns a temporary verification token.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Param        verify  body      VerifyUserInput  true  "Token y email de verificación"
-// @Success      200     {object}  map[string]string      "Cuenta verificada exitosamente"
-// @Failure      400     {object}  map[string]string      "Datos de verificación inválidos"
-// @Failure      401     {object}  map[string]string      "Verificación fallida"
-// @Router       /users/verify [post]
-func (h *Handler) Verify(c *gin.Context) {
-	var input VerifyUserInput
-
+// @Param        input  body      VerifyEmailInput  true  "Email and verification code"
+// @Success      200    {object}  VerifyEmailResult
+// @Failure      400    {object}  map[string]string "Invalid request body"
+// @Failure      401    {object}  map[string]string "Invalid code"
+// @Failure      404    {object}  map[string]string "Verification not found"
+// @Failure      410    {object}  map[string]string "Code expired"
+// @Router       /users/verify-email [post]
+func (h *Handler) VerifyEmail(c *gin.Context) {
+	var input VerifyEmailInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Datos de verificación inválidos",
-			"details": err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de verificación inválidos"})
 		return
 	}
+	input.Email = normalizeEmail(input.Email)
+	input.Code = strings.TrimSpace(input.Code)
 
-	err := h.service.VerifyUser(c.Request.Context(), input.Email, input.Token)
+	result, err := h.service.VerifyEmail(c.Request.Context(), input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "Verificación fallida",
-			"details": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "¡Cuenta verificada exitosamente!",
-	})
-}
-
-// Login godoc
-// @Summary      Login
-// @Description  Authenticates the user and returns a JWT token.
-// @Tags         Users
-// @Accept       json
-// @Produce      json
-// @Param        login  body      LoginInput  true  "Credenciales de acceso"
-// @Success      200    {object}  map[string]interface{} "Login exitoso"
-// @Failure      400    {object}  map[string]string      "Email o contraseña requeridos"
-// @Failure      401    {object}  map[string]string      "Login fallido"
-// @Router       /users/login [post]
-func (h *Handler) Login(c *gin.Context) {
-	var input LoginInput
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Email o contraseña requeridos"})
-		return
-	}
-
-	result, err := h.service.LoginUser(c.Request.Context(), input)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error":   "Login fallido",
-			"details": err.Error(),
-		})
+		writeUserError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, result)
 }
 
-// UpdateProfile godoc
-// @Summary      Update user profile
-// @Description  Updates the authenticated user's profile data using the Supabase access token to resolve the user identity.
+// Register godoc
+// @Summary      Complete user registration
+// @Description  Creates an active local user after email verification using a temporary verification token.
 // @Tags         Users
 // @Accept       json
 // @Produce      json
-// @Param        Authorization  header    string           true  "Bearer access token"
-// @Param        profile        body      UpdateUserInput  true  "Profile data to update"
-// @Success      200            {object}  map[string]interface{} "Profile updated successfully"
-// @Failure      400            {object}  map[string]string      "Invalid request body"
-// @Failure      401            {object}  map[string]string      "Invalid or expired session"
-// @Failure      500            {object}  map[string]string      "Profile update failed"
+// @Param        user  body      CompleteRegisterInput  true  "Verified registration data"
+// @Success      201   {object}  RegisterResult
+// @Failure      400   {object}  map[string]string "Invalid request body"
+// @Failure      401   {object}  map[string]string "Invalid verification token"
+// @Failure      409   {object}  map[string]string "Email already taken"
+// @Failure      500   {object}  map[string]string "Internal server error"
+// @Router       /users/register [post]
+func (h *Handler) Register(c *gin.Context) {
+	var input CompleteRegisterInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato de datos inválido"})
+		return
+	}
+	input = sanitizeCompleteRegisterInput(input)
+	if input.FirstName == "" || input.LastName == "" || len(input.Password) < minPasswordLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de registro inválidos"})
+		return
+	}
+
+	result, err := h.service.CompleteRegister(c.Request.Context(), input)
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+// Login godoc
+// @Summary      Login
+// @Description  Authenticates an active local user and returns an access token plus an opaque refresh token.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        login  body      LoginInput  true  "Login credentials"
+// @Success      200    {object}  LoginResult
+// @Failure      400    {object}  map[string]string "Invalid request body"
+// @Failure      401    {object}  map[string]string "Invalid credentials"
+// @Router       /users/login [post]
+func (h *Handler) Login(c *gin.Context) {
+	var input LoginInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email o contraseña requeridos"})
+		return
+	}
+	input.Email = normalizeEmail(input.Email)
+
+	result, err := h.service.LoginUser(c.Request.Context(), input)
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// Refresh godoc
+// @Summary      Refresh session
+// @Description  Rotates a refresh token and returns a new access token plus a new refresh token.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        refresh  body      RefreshInput  true  "Refresh token"
+// @Success      200      {object}  RefreshResult
+// @Failure      400      {object}  map[string]string "Invalid request body"
+// @Failure      401      {object}  map[string]string "Invalid refresh token"
+// @Router       /users/refresh [post]
+func (h *Handler) Refresh(c *gin.Context) {
+	var input RefreshInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token requerido"})
+		return
+	}
+
+	result, err := h.service.RefreshToken(c.Request.Context(), input)
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+// Logout godoc
+// @Summary      Logout
+// @Description  Revokes the provided refresh token for the authenticated user.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string        true  "Bearer access token"
+// @Param        refresh        body      RefreshInput  true  "Refresh token"
+// @Success      200            {object}  MessageResult
+// @Failure      400            {object}  map[string]string "Invalid request body"
+// @Failure      401            {object}  map[string]string "Invalid session or refresh token"
+// @Router       /users/logout [post]
+func (h *Handler) Logout(c *gin.Context) {
+	var input RefreshInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token requerido"})
+		return
+	}
+
+	if err := h.service.LogoutUser(c.Request.Context(), input); err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, MessageResult{Message: "Sesión cerrada correctamente."})
+}
+
+// UpdateProfile godoc
+// @Summary      Update user profile
+// @Description  Updates the authenticated user's local profile data.
+// @Tags         Users
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header    string              true  "Bearer access token"
+// @Param        profile        body      UpdateProfileInput  true  "Profile data"
+// @Success      200            {object}  UpdateProfileResult
+// @Failure      400            {object}  map[string]string "Invalid request body"
+// @Failure      401            {object}  map[string]string "Invalid session"
+// @Failure      404            {object}  map[string]string "User not found"
 // @Router       /users/profile [put]
 func (h *Handler) UpdateProfile(c *gin.Context) {
-	userUUID, ok := authenticatedUserUUID(c)
-	if !ok {
-		return
-	}
-
-	var input UpdateUserInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos: " + err.Error()})
-		return
-	}
-
-	result, err := h.service.UpdateUser(c.Request.Context(), userUUID, input)
+	userUUID, err := middleware.AuthenticatedUserUUID(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo actualizar el perfil: " + err.Error()})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión inválida o expirada"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Perfil actualizado correctamente",
-		"data":    result,
-	})
+	var input UpdateProfileInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de entrada inválidos"})
+		return
+	}
+	input = sanitizeUpdateProfileInput(input)
+	if input.FirstName == "" || input.LastName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nombre y apellido son obligatorios"})
+		return
+	}
+
+	result, err := h.service.UpdateProfile(c.Request.Context(), userUUID, input)
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // DeleteAccount godoc
 // @Summary      Delete user account
-// @Description  Soft deletes the authenticated user's local account by marking deleted_at. The Supabase account may still exist, but deleted local users cannot log in through this API.
+// @Description  Soft deletes the authenticated user's local account and revokes active refresh tokens.
 // @Tags         Users
 // @Produce      json
 // @Param        Authorization  header    string  true  "Bearer access token"
-// @Success      200            {object}  map[string]string "Account deleted successfully"
-// @Failure      401            {object}  map[string]string "Invalid or expired session"
+// @Success      200            {object}  MessageResult
+// @Failure      401            {object}  map[string]string "Invalid session"
 // @Failure      404            {object}  map[string]string "User not found"
-// @Failure      500            {object}  map[string]string "Account deletion failed"
-// @Router       /users/DeleteProfile [delete]
+// @Router       /users/profile [delete]
 func (h *Handler) DeleteAccount(c *gin.Context) {
-	userUUID, ok := authenticatedUserUUID(c)
-	if !ok {
-		return
-	}
-
-	userEmail, _ := authenticatedUserEmail(c)
-
-	if err := h.service.DeleteUser(c.Request.Context(), userUUID, userEmail); err != nil {
-		if errors.Is(err, ErrUserNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo eliminar la cuenta: " + err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Cuenta eliminada correctamente"})
-}
-
-func authenticatedUserUUID(c *gin.Context) (string, bool) {
-	userUUIDValue, exists := c.Get("user_uuid")
-	if !exists {
+	userUUID, err := middleware.AuthenticatedUserUUID(c)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión inválida o expirada"})
-		return "", false
+		return
 	}
 
-	userUUID, ok := userUUIDValue.(string)
-	if !ok || userUUID == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Identificador de usuario inválido"})
-		return "", false
+	if err := h.service.DeleteUser(c.Request.Context(), userUUID); err != nil {
+		writeUserError(c, err)
+		return
 	}
 
-	return userUUID, true
+	c.JSON(http.StatusOK, MessageResult{Message: "Cuenta eliminada correctamente."})
 }
 
-func authenticatedUserEmail(c *gin.Context) (string, bool) {
-	userEmailValue, exists := c.Get("user_email")
-	if !exists {
-		return "", false
-	}
+func sanitizeCompleteRegisterInput(input CompleteRegisterInput) CompleteRegisterInput {
+	input.VerificationToken = strings.TrimSpace(input.VerificationToken)
+	input.FirstName = strings.TrimSpace(input.FirstName)
+	input.LastName = strings.TrimSpace(input.LastName)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.ProfilePictureURL = strings.TrimSpace(input.ProfilePictureURL)
+	return input
+}
 
-	userEmail, ok := userEmailValue.(string)
-	if !ok || userEmail == "" {
-		return "", false
-	}
+func sanitizeUpdateProfileInput(input UpdateProfileInput) UpdateProfileInput {
+	input.FirstName = strings.TrimSpace(input.FirstName)
+	input.LastName = strings.TrimSpace(input.LastName)
+	input.Phone = strings.TrimSpace(input.Phone)
+	input.ProfilePictureURL = strings.TrimSpace(input.ProfilePictureURL)
+	return input
+}
 
-	return userEmail, true
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func writeUserError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ErrUserNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuario no encontrado"})
+	case errors.Is(err, ErrVerificationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Verificación no encontrada"})
+	case errors.Is(err, ErrEmailTaken):
+		c.JSON(http.StatusConflict, gin.H{"error": "El email ya está registrado"})
+	case errors.Is(err, ErrEmailAlreadyVerified):
+		c.JSON(http.StatusConflict, gin.H{"error": "El email ya fue verificado"})
+	case errors.Is(err, ErrInvalidCredentials):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Credenciales inválidas"})
+	case errors.Is(err, ErrInvalidVerificationToken):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token de verificación inválido"})
+	case errors.Is(err, ErrCodeExpired):
+		c.JSON(http.StatusGone, gin.H{"error": "El código expiró"})
+	case errors.Is(err, ErrCodeInvalid):
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Código inválido"})
+	default:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno del servidor"})
+	}
 }

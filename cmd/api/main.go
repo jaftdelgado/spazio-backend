@@ -11,7 +11,9 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 
 	_ "github.com/jaftdelgado/spazio-backend/docs"
+	"github.com/jaftdelgado/spazio-backend/internal/auth"
 	"github.com/jaftdelgado/spazio-backend/internal/config"
+	"github.com/jaftdelgado/spazio-backend/internal/email"
 	"github.com/jaftdelgado/spazio-backend/internal/middleware"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/catalogs"
 	"github.com/jaftdelgado/spazio-backend/internal/modules/clauses"
@@ -46,13 +48,16 @@ func main() {
 		log.Fatal(err)
 	}
 
+	jwtService := auth.NewJWTService(cfg.JWTSecret, cfg.JWTExpiryMinutes)
+	emailSender := email.NewResendSenderWithFrom(cfg.ResendAPIKey, cfg.ResendFromEmail)
+
 	propertiesModule := properties.NewModule(database, r2)
 	servicesModule := services.NewModule(database)
 	catalogsModule := catalogs.NewModule(database)
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
 	paymentsModule := payments.NewModule(database, cfg.MercadoPagoAccessToken, cfg.MercadoPagoWebhookSecret)
-	usersModule := users.NewModule(database, cfg)
+	usersModule := users.NewModule(database, cfg, emailSender, jwtService)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
 	contractsModule := contracts.NewModule(database, r2)
@@ -72,7 +77,7 @@ func main() {
 	locationsModule.RegisterRoutes(public)
 
 	protected := r.Group("")
-	protected.Use(middleware.Auth(cfg.SupabaseURL, cfg.SupabaseAnonKey, database))
+	protected.Use(middleware.Auth(jwtService, database))
 	{
 		propertiesModule.RegisterRoutes(protected)
 		servicesModule.RegisterRoutes(protected)

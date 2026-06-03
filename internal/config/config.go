@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -12,9 +13,11 @@ type Config struct {
 	DatabaseURL              string
 	MigrateURL               string
 	R2                       R2Config
-	SupabaseURL              string
-	SupabaseAnonKey          string
-	SupabaseJWTSecret        string
+	JWTSecret                string
+	JWTExpiryMinutes         int
+	ResendAPIKey             string
+	ResendFromEmail          string
+	AppName                  string
 	MercadoPagoAccessToken   string
 	MercadoPagoWebhookSecret string
 }
@@ -32,6 +35,21 @@ func Load() *Config {
 		log.Println("no .env file found, reading from environment")
 	}
 
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		log.Println("warning: JWT_SECRET is not configured")
+	}
+
+	jwtExpiryMinutes := 60
+	if rawExpiry := getEnv("JWT_EXPIRY_MINUTES", "60"); rawExpiry != "" {
+		parsedExpiry, err := strconv.Atoi(rawExpiry)
+		if err != nil {
+			log.Printf("warning: invalid JWT_EXPIRY_MINUTES=%q, using default 60", rawExpiry)
+		} else {
+			jwtExpiryMinutes = parsedExpiry
+		}
+	}
+
 	return &Config{
 		Port:        getEnv("APP_PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
@@ -43,9 +61,11 @@ func Load() *Config {
 			BucketName:      getEnv("R2_BUCKET_NAME", ""),
 			PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 		},
-		SupabaseURL:              getEnv("SUPABASE_URL", ""),
-		SupabaseAnonKey:          getEnv("SUPABASE_ANON_KEY", ""),
-		SupabaseJWTSecret:        getEnv("SUPABASE_JWT_SECRET", ""),
+		JWTSecret:                jwtSecret,
+		JWTExpiryMinutes:         jwtExpiryMinutes,
+		ResendAPIKey:             getEnv("RESEND_API_KEY", ""),
+		ResendFromEmail:          getEnv("RESEND_FROM_EMAIL", "noreply@spazio.com"),
+		AppName:                  getEnv("APP_NAME", "Spazio"),
 		MercadoPagoAccessToken:   getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
 		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
 	}

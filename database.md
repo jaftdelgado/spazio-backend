@@ -26,7 +26,7 @@
 **Clase: users**
 
 - `user_id` (SERIAL, PK)
-- `user_uuid` (UUID, UNIQUE) -- UID Sincronizado con Supabase
+- `user_uuid` (UUID, UNIQUE) -- Identificador publico local del usuario
 - `role_id` (INT, FK -> roles)
 - `first_name` (VARCHAR 80)
 - `last_name` (VARCHAR 80)

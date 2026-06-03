@@ -31,7 +31,7 @@
 
 | Feature               | Implementation                |
 | --------------------- | ----------------------------- |
-| **Authentication**    | JWT tokens via Supabase       |
+| **Authentication**    | Local JWT access tokens and refresh tokens |
 | **Authorization**     | Role-based permissions (RBAC) |
 | **Database**          | PostgreSQL 15+ with pgx v5    |
 | **Data Access**       | sqlc for type-safe SQL        |
@@ -414,7 +414,7 @@ JWT tokens passed in `Authorization` header:
 Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
 ```
 
-Extracted from Supabase and validated in `middleware/auth.go`.
+Signed locally with `JWT_SECRET` and validated in `middleware/auth.go`.
 
 ---
 
