@@ -13,7 +13,8 @@ import (
 
 func TestService_GetAvailableSlots(t *testing.T) {
 	ctx := context.Background()
-	date := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC) // Monday
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	date := time.Date(2024, 1, 1, 0, 0, 0, 0, loc) // Monday
 
 	tests := []struct {
 		name        string
@@ -94,9 +95,9 @@ func TestService_GetAvailableSlots(t *testing.T) {
 						}, nil
 					},
 					getOccupiedVisitsFunc: func(ctx context.Context, agentID int32, start, end time.Time) ([]time.Time, error) {
-						// Occupied at 11:00
+						// Occupied at 11:00 (local time)
 						return []time.Time{
-							time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
+							time.Date(2024, 1, 1, 11, 0, 0, 0, loc),
 						}, nil
 					},
 				}
@@ -131,7 +132,7 @@ func TestService_GetAvailableSlots(t *testing.T) {
 				}
 
 				// For the success case, let's also verify availability manually
-				if tt.wantSlots == 2 {
+				if tt.name == "success available slots with exception and occupied" {
 					if !(slots[0].Available) {
 						t.Errorf("expected true")
 					} // 09:00

@@ -53,9 +53,18 @@ func TestTranslateError(t *testing.T) {
 }
 
 func TestNormalizeDate(t *testing.T) {
-	input := time.Date(2024, 1, 1, 15, 30, 45, 123456, time.UTC)
-	expected := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
-	if expected != normalizeDate(input) {
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	// Test with a local time
+	input := time.Date(2024, 1, 1, 15, 30, 45, 123456, loc)
+	expected := time.Date(2024, 1, 1, 15, 0, 0, 0, loc)
+	if !expected.Equal(normalizeDate(input)) {
 		t.Errorf("expected %v, got %v", expected, normalizeDate(input))
+	}
+
+	// Test with a UTC time that should be converted to local
+	inputUTC := time.Date(2024, 1, 1, 15, 30, 45, 123456, time.UTC)
+	normalized := normalizeDate(inputUTC)
+	if normalized.Location().String() != "America/Mexico_City" {
+		t.Errorf("expected location America/Mexico_City, got %v", normalized.Location())
 	}
 }
