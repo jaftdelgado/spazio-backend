@@ -15,25 +15,26 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
+var errInvalidTokenFormat = errors.New("invalid token format")
+
 func Auth(jwtService auth.JWTService, db *pgxpool.Pool) gin.HandlerFunc {
 	queries := sqlcgen.New(db)
 
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		tokenString, err := resolveAccessToken(c)
+		if err != nil {
+			if errors.Is(err, errInvalidTokenFormat) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+				c.Abort()
+				return
+			}
+
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Access token was not provided"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.Fields(authHeader)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
-			c.Abort()
-			return
-		}
-
-		claims, err := jwtService.Validate(parts[1])
+		claims, err := jwtService.Validate(tokenString)
 		if err != nil || claims.UserUUID == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
@@ -75,6 +76,25 @@ func Auth(jwtService auth.JWTService, db *pgxpool.Pool) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func resolveAccessToken(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return "", errInvalidTokenFormat
+		}
+
+		return parts[1], nil
+	}
+
+	token, err := c.Cookie("spazio_access_token")
+	if err != nil || token == "" {
+		return "", errors.New("access token missing")
+	}
+
+	return token, nil
 }
 
 func toPgUUID(value string) (pgtype.UUID, error) {

@@ -1329,16 +1329,22 @@ definitions:
   users.AuthUser:
     properties:
       created_at:
+        example: "2026-01-15T10:30:00Z"
         type: string
       email:
+        example: admin@spazio.com
         type: string
       role_id:
+        example: 1
         type: integer
       role_name:
+        example: Admin
         type: string
       user_id:
+        example: 13
         type: integer
       user_uuid:
+        example: 8b227e4e-ca58-41d9-b402-d773f95470ef
         type: string
     type: object
   users.CompleteRegisterInput:
@@ -1376,8 +1382,10 @@ definitions:
   users.LoginResult:
     properties:
       access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         type: string
       refresh_token:
+        example: 4e9a58788701fce52001214130c15ac8...
         type: string
       user:
         $ref: '#/definitions/users.AuthUser'
@@ -1385,6 +1393,7 @@ definitions:
   users.MessageResult:
     properties:
       message:
+        example: Operación completada correctamente.
         type: string
     type: object
   users.PreRegisterInput:
@@ -1394,23 +1403,19 @@ definitions:
     required:
     - email
     type: object
-  users.RefreshInput:
-    properties:
-      refresh_token:
-        type: string
-    required:
-    - refresh_token
-    type: object
   users.RefreshResult:
     properties:
       access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
         type: string
       refresh_token:
+        example: 9f3b12788701fce52001214130c15ac8...
         type: string
     type: object
   users.RegisterResult:
     properties:
       message:
+        example: Cuenta creada correctamente.
         type: string
       user:
         $ref: '#/definitions/users.AuthUser'
@@ -1432,6 +1437,7 @@ definitions:
   users.UpdateProfileResult:
     properties:
       message:
+        example: Perfil actualizado correctamente.
         type: string
       user:
         $ref: '#/definitions/users.AuthUser'
@@ -1449,6 +1455,7 @@ definitions:
   users.VerifyEmailResult:
     properties:
       verification_token:
+        example: dGVzdEB...
         type: string
     type: object
   visits.CreateVisitRequest:
@@ -2986,6 +2993,336 @@ paths:
       summary: Upload property photo
       tags:
       - Uploads
+  /api/v1/users/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticates an active local user and returns an access token
+        plus an opaque refresh token.
+      parameters:
+      - description: Login credentials
+        in: body
+        name: login
+        required: true
+        schema:
+          $ref: '#/definitions/users.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.LoginResult'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login
+      tags:
+      - Users
+  /api/v1/users/logout:
+    post:
+      description: Revokes the provided refresh token for the authenticated user.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: spazio_refresh_token=<token>
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.MessageResult'
+        "401":
+          description: Invalid session or refresh token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Logout
+      tags:
+      - Users
+  /api/v1/users/pre-register:
+    post:
+      consumes:
+      - application/json
+      description: Sends a six digit verification code to an email before creating
+        a user account.
+      parameters:
+      - description: Email to verify
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/users.PreRegisterInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.MessageResult'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Email already registered
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Start email verification
+      tags:
+      - Users
+  /api/v1/users/profile:
+    delete:
+      description: Soft deletes the authenticated user's local account and revokes
+        active refresh tokens.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.MessageResult'
+        "401":
+          description: Invalid session
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete user account
+      tags:
+      - Users
+    get:
+      description: Returns the profile data of the currently authenticated user.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.AuthUser'
+        "401":
+          description: Invalid session
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get authenticated user profile
+      tags:
+      - Users
+    put:
+      description: Updates the authenticated user's local profile data.
+      parameters:
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Profile data
+        in: body
+        name: profile
+        required: true
+        schema:
+          $ref: '#/definitions/users.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.UpdateProfileResult'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid session
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update user profile
+      tags:
+      - Users
+  /api/v1/users/refresh:
+    post:
+      description: Rotates a refresh token and returns a new access token plus a new
+        refresh token.
+      parameters:
+      - description: spazio_refresh_token=<token>
+        in: header
+        name: Cookie
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.RefreshResult'
+        "401":
+          description: Invalid refresh token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Refresh session
+      tags:
+      - Users
+  /api/v1/users/register:
+    post:
+      consumes:
+      - application/json
+      description: Creates an active local user after email verification using a temporary
+        verification token.
+      parameters:
+      - description: Verified registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/users.CompleteRegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/users.RegisterResult'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid verification token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Email already taken
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Complete user registration
+      tags:
+      - Users
+  /api/v1/users/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Validates the email verification code and returns a temporary verification
+        token.
+      parameters:
+      - description: Email and verification code
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/users.VerifyEmailInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/users.VerifyEmailResult'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid code
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Verification not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "410":
+          description: Code expired
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Verify email code
+      tags:
+      - Users
   /api/v1/visits:
     get:
       description: List visits according to the authenticated user role (Admin, Agent,
@@ -3174,324 +3511,4 @@ paths:
       summary: Reschedule a visit
       tags:
       - Visits
-  /users/login:
-    post:
-      consumes:
-      - application/json
-      description: Authenticates an active local user and returns an access token
-        plus an opaque refresh token.
-      parameters:
-      - description: Login credentials
-        in: body
-        name: login
-        required: true
-        schema:
-          $ref: '#/definitions/users.LoginInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.LoginResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid credentials
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Login
-      tags:
-      - Users
-  /users/logout:
-    post:
-      consumes:
-      - application/json
-      description: Revokes the provided refresh token for the authenticated user.
-      parameters:
-      - description: Bearer access token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Refresh token
-        in: body
-        name: refresh
-        required: true
-        schema:
-          $ref: '#/definitions/users.RefreshInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.MessageResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid session or refresh token
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Logout
-      tags:
-      - Users
-  /users/pre-register:
-    post:
-      consumes:
-      - application/json
-      description: Sends a six digit verification code to an email before creating
-        a user account.
-      parameters:
-      - description: Email to verify
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/users.PreRegisterInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.MessageResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Email already registered
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Start email verification
-      tags:
-      - Users
-  /users/profile:
-    delete:
-      description: Soft deletes the authenticated user's local account and revokes
-        active refresh tokens.
-      parameters:
-      - description: Bearer access token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.MessageResult'
-        "401":
-          description: Invalid session
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: User not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Delete user account
-      tags:
-      - Users
-    put:
-      consumes:
-      - application/json
-      description: Updates the authenticated user's local profile data.
-      parameters:
-      - description: Bearer access token
-        in: header
-        name: Authorization
-        required: true
-        type: string
-      - description: Profile data
-        in: body
-        name: profile
-        required: true
-        schema:
-          $ref: '#/definitions/users.UpdateProfileInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.UpdateProfileResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid session
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: User not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Update user profile
-      tags:
-      - Users
-  /users/refresh:
-    post:
-      consumes:
-      - application/json
-      description: Rotates a refresh token and returns a new access token plus a new
-        refresh token.
-      parameters:
-      - description: Refresh token
-        in: body
-        name: refresh
-        required: true
-        schema:
-          $ref: '#/definitions/users.RefreshInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.RefreshResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid refresh token
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Refresh session
-      tags:
-      - Users
-  /users/register:
-    post:
-      consumes:
-      - application/json
-      description: Creates an active local user after email verification using a temporary
-        verification token.
-      parameters:
-      - description: Verified registration data
-        in: body
-        name: user
-        required: true
-        schema:
-          $ref: '#/definitions/users.CompleteRegisterInput'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/users.RegisterResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid verification token
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "409":
-          description: Email already taken
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "500":
-          description: Internal server error
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Complete user registration
-      tags:
-      - Users
-  /users/verify-email:
-    post:
-      consumes:
-      - application/json
-      description: Validates the email verification code and returns a temporary verification
-        token.
-      parameters:
-      - description: Email and verification code
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/users.VerifyEmailInput'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/users.VerifyEmailResult'
-        "400":
-          description: Invalid request body
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "401":
-          description: Invalid code
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "404":
-          description: Verification not found
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-        "410":
-          description: Code expired
-          schema:
-            additionalProperties:
-              type: string
-            type: object
-      summary: Verify email code
-      tags:
-      - Users
 swagger: "2.0"

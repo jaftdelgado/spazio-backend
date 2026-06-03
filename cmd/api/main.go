@@ -67,7 +67,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.SetTrustedProxies(nil)
-	r.Use(middleware.CORS())
+	r.Use(middleware.CORS(cfg.AllowedOrigin))
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 

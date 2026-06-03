@@ -163,7 +163,10 @@ func NewModule(db *pgxpool.Pool, r2Client *storage.R2Client) *Module {
 
    ```env
    APP_PORT=8080
+   APP_ENV=development
+   ALLOWED_ORIGIN=http://localhost:3000
    DATABASE_URL=postgres://user:password@localhost:5432/spazio
+   JWT_SECRET=change-me-to-a-long-random-secret
    ```
 
 ---

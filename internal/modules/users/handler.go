@@ -10,11 +10,21 @@ import (
 )
 
 type Handler struct {
-	service UserService
+	service   UserService
+	cookieCfg CookieConfig
 }
 
-func NewHandler(service UserService) *Handler {
-	return &Handler{service: service}
+type CookieConfig struct {
+	Secure             bool
+	AccessTokenMaxAge  int
+	RefreshTokenMaxAge int
+}
+
+func NewHandler(service UserService, cookieCfg CookieConfig) *Handler {
+	return &Handler{
+		service:   service,
+		cookieCfg: cookieCfg,
+	}
 }
 
 // PreRegister godoc
@@ -28,7 +38,7 @@ func NewHandler(service UserService) *Handler {
 // @Failure      400    {object}  map[string]string "Invalid request body"
 // @Failure      409    {object}  map[string]string "Email already registered"
 // @Failure      500    {object}  map[string]string "Internal server error"
-// @Router       /users/pre-register [post]
+// @Router       /api/v1/users/pre-register [post]
 func (h *Handler) PreRegister(c *gin.Context) {
 	var input PreRegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -57,7 +67,7 @@ func (h *Handler) PreRegister(c *gin.Context) {
 // @Failure      401    {object}  map[string]string "Invalid code"
 // @Failure      404    {object}  map[string]string "Verification not found"
 // @Failure      410    {object}  map[string]string "Code expired"
-// @Router       /users/verify-email [post]
+// @Router       /api/v1/users/verify-email [post]
 func (h *Handler) VerifyEmail(c *gin.Context) {
 	var input VerifyEmailInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -88,7 +98,7 @@ func (h *Handler) VerifyEmail(c *gin.Context) {
 // @Failure      401   {object}  map[string]string "Invalid verification token"
 // @Failure      409   {object}  map[string]string "Email already taken"
 // @Failure      500   {object}  map[string]string "Internal server error"
-// @Router       /users/register [post]
+// @Router       /api/v1/users/register [post]
 func (h *Handler) Register(c *gin.Context) {
 	var input CompleteRegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -107,6 +117,16 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	loginResult, err := h.service.LoginUser(c.Request.Context(), LoginInput{
+		Email:    result.User.Email,
+		Password: input.Password,
+	})
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+	setAuthCookies(c, loginResult.AccessToken, loginResult.RefreshToken, h.cookieCfg)
+
 	c.JSON(http.StatusCreated, result)
 }
 
@@ -120,7 +140,7 @@ func (h *Handler) Register(c *gin.Context) {
 // @Success      200    {object}  LoginResult
 // @Failure      400    {object}  map[string]string "Invalid request body"
 // @Failure      401    {object}  map[string]string "Invalid credentials"
-// @Router       /users/login [post]
+// @Router       /api/v1/users/login [post]
 func (h *Handler) Login(c *gin.Context) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -134,6 +154,7 @@ func (h *Handler) Login(c *gin.Context) {
 		writeUserError(c, err)
 		return
 	}
+	setAuthCookies(c, result.AccessToken, result.RefreshToken, h.cookieCfg)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -142,25 +163,24 @@ func (h *Handler) Login(c *gin.Context) {
 // @Summary      Refresh session
 // @Description  Rotates a refresh token and returns a new access token plus a new refresh token.
 // @Tags         Users
-// @Accept       json
 // @Produce      json
-// @Param        refresh  body      RefreshInput  true  "Refresh token"
+// @Param        Cookie  header    string  true  "spazio_refresh_token=<token>"
 // @Success      200      {object}  RefreshResult
-// @Failure      400      {object}  map[string]string "Invalid request body"
 // @Failure      401      {object}  map[string]string "Invalid refresh token"
-// @Router       /users/refresh [post]
+// @Router       /api/v1/users/refresh [post]
 func (h *Handler) Refresh(c *gin.Context) {
-	var input RefreshInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token requerido"})
+	refreshToken, err := c.Cookie("spazio_refresh_token")
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token requerido"})
 		return
 	}
 
-	result, err := h.service.RefreshToken(c.Request.Context(), input)
+	result, err := h.service.RefreshToken(c.Request.Context(), RefreshInput{RefreshToken: refreshToken})
 	if err != nil {
 		writeUserError(c, err)
 		return
 	}
+	setAuthCookies(c, result.AccessToken, result.RefreshToken, h.cookieCfg)
 
 	c.JSON(http.StatusOK, result)
 }
@@ -169,34 +189,59 @@ func (h *Handler) Refresh(c *gin.Context) {
 // @Summary      Logout
 // @Description  Revokes the provided refresh token for the authenticated user.
 // @Tags         Users
-// @Accept       json
 // @Produce      json
 // @Param        Authorization  header    string        true  "Bearer access token"
-// @Param        refresh        body      RefreshInput  true  "Refresh token"
+// @Param        Cookie         header    string  true  "spazio_refresh_token=<token>"
 // @Success      200            {object}  MessageResult
-// @Failure      400            {object}  map[string]string "Invalid request body"
 // @Failure      401            {object}  map[string]string "Invalid session or refresh token"
-// @Router       /users/logout [post]
+// @Router       /api/v1/users/logout [post]
 func (h *Handler) Logout(c *gin.Context) {
-	var input RefreshInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Refresh token requerido"})
+	refreshToken, err := c.Cookie("spazio_refresh_token")
+	if err != nil || refreshToken == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token requerido"})
 		return
 	}
 
-	if err := h.service.LogoutUser(c.Request.Context(), input); err != nil {
+	if err := h.service.LogoutUser(c.Request.Context(), RefreshInput{RefreshToken: refreshToken}); err != nil {
+		writeUserError(c, err)
+		return
+	}
+	clearAuthCookies(c, h.cookieCfg)
+
+	c.JSON(http.StatusOK, MessageResult{Message: "Sesión cerrada correctamente."})
+}
+
+// UpdateProfile godoc
+// GetProfile godoc
+// @Summary      Get authenticated user profile
+// @Description  Returns the profile data of the currently authenticated user.
+// @Tags         Users
+// @Produce      json
+// @Param        Authorization  header    string   true  "Bearer access token"
+// @Success      200            {object}  AuthUser
+// @Failure      401            {object}  map[string]string "Invalid session"
+// @Failure      404            {object}  map[string]string "User not found"
+// @Router       /api/v1/users/profile [get]
+func (h *Handler) GetProfile(c *gin.Context) {
+	userUUID, err := middleware.AuthenticatedUserUUID(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Sesión inválida o expirada"})
+		return
+	}
+
+	user, err := h.service.GetProfile(c.Request.Context(), userUUID)
+	if err != nil {
 		writeUserError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, MessageResult{Message: "Sesión cerrada correctamente."})
+	c.JSON(http.StatusOK, user)
 }
 
 // UpdateProfile godoc
 // @Summary      Update user profile
 // @Description  Updates the authenticated user's local profile data.
 // @Tags         Users
-// @Accept       json
 // @Produce      json
 // @Param        Authorization  header    string              true  "Bearer access token"
 // @Param        profile        body      UpdateProfileInput  true  "Profile data"
@@ -204,7 +249,7 @@ func (h *Handler) Logout(c *gin.Context) {
 // @Failure      400            {object}  map[string]string "Invalid request body"
 // @Failure      401            {object}  map[string]string "Invalid session"
 // @Failure      404            {object}  map[string]string "User not found"
-// @Router       /users/profile [put]
+// @Router       /api/v1/users/profile [put]
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	userUUID, err := middleware.AuthenticatedUserUUID(c)
 	if err != nil {
@@ -241,7 +286,7 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 // @Success      200            {object}  MessageResult
 // @Failure      401            {object}  map[string]string "Invalid session"
 // @Failure      404            {object}  map[string]string "User not found"
-// @Router       /users/profile [delete]
+// @Router       /api/v1/users/profile [delete]
 func (h *Handler) DeleteAccount(c *gin.Context) {
 	userUUID, err := middleware.AuthenticatedUserUUID(c)
 	if err != nil {
@@ -254,6 +299,7 @@ func (h *Handler) DeleteAccount(c *gin.Context) {
 		return
 	}
 
+	clearAuthCookies(c, h.cookieCfg)
 	c.JSON(http.StatusOK, MessageResult{Message: "Cuenta eliminada correctamente."})
 }
 
@@ -264,6 +310,18 @@ func sanitizeCompleteRegisterInput(input CompleteRegisterInput) CompleteRegister
 	input.Phone = strings.TrimSpace(input.Phone)
 	input.ProfilePictureURL = strings.TrimSpace(input.ProfilePictureURL)
 	return input
+}
+
+func setAuthCookies(c *gin.Context, accessToken, refreshToken string, cfg CookieConfig) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("spazio_access_token", accessToken, cfg.AccessTokenMaxAge, "/", "", cfg.Secure, true)
+	c.SetCookie("spazio_refresh_token", refreshToken, cfg.RefreshTokenMaxAge, "/", "", cfg.Secure, true)
+}
+
+func clearAuthCookies(c *gin.Context, cfg CookieConfig) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("spazio_access_token", "", -1, "/", "", cfg.Secure, true)
+	c.SetCookie("spazio_refresh_token", "", -1, "/", "", cfg.Secure, true)
 }
 
 func sanitizeUpdateProfileInput(input UpdateProfileInput) UpdateProfileInput {

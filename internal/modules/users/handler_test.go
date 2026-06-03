@@ -20,6 +20,7 @@ type mockUserService struct {
 	loginUserFunc        func(ctx context.Context, input LoginInput) (LoginResult, error)
 	refreshTokenFunc     func(ctx context.Context, input RefreshInput) (RefreshResult, error)
 	logoutUserFunc       func(ctx context.Context, input RefreshInput) error
+	getProfileFunc       func(ctx context.Context, uuidStr string) (AuthUser, error)
 	updateProfileFunc    func(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error)
 	deleteUserFunc       func(ctx context.Context, uuidStr string) error
 }
@@ -66,6 +67,13 @@ func (m *mockUserService) LogoutUser(ctx context.Context, input RefreshInput) er
 	return nil
 }
 
+func (m *mockUserService) GetProfile(ctx context.Context, uuidStr string) (AuthUser, error) {
+	if m.getProfileFunc != nil {
+		return m.getProfileFunc(ctx, uuidStr)
+	}
+	return AuthUser{}, nil
+}
+
 func (m *mockUserService) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error) {
 	if m.updateProfileFunc != nil {
 		return m.updateProfileFunc(ctx, uuidStr, input)
@@ -109,7 +117,7 @@ func TestHandler_PreRegister(t *testing.T) {
 				},
 			}
 
-			rec := callJSONHandler(http.MethodPost, "/users/pre-register", tt.body, NewHandler(service).PreRegister)
+			rec := callJSONHandler(http.MethodPost, "/users/pre-register", tt.body, NewHandler(service, testCookieConfig()).PreRegister)
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
@@ -143,7 +151,7 @@ func TestHandler_VerifyEmail(t *testing.T) {
 				},
 			}
 
-			rec := callJSONHandler(http.MethodPost, "/users/verify-email", tt.body, NewHandler(service).VerifyEmail)
+			rec := callJSONHandler(http.MethodPost, "/users/verify-email", tt.body, NewHandler(service, testCookieConfig()).VerifyEmail)
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
@@ -190,9 +198,93 @@ func TestHandler_RegisterCompletesRegistration(t *testing.T) {
 					}
 					return RegisterResult{Message: registerSuccessMessage, User: AuthUser{UserID: 1, Email: "ada@example.com"}}, tt.serviceErr
 				},
+				loginUserFunc: func(ctx context.Context, input LoginInput) (LoginResult, error) {
+					if input.Email != "ada@example.com" || input.Password != "supersecret" {
+						t.Fatalf("login input = %+v", input)
+					}
+					return LoginResult{AccessToken: "access-token", RefreshToken: "refresh-token"}, nil
+				},
 			}
 
-			rec := callJSONHandler(http.MethodPost, "/users/register", tt.body, NewHandler(service).Register)
+			rec := callJSONHandler(http.MethodPost, "/users/register", tt.body, NewHandler(service, testCookieConfig()).Register)
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if tt.wantStatus == http.StatusCreated {
+				assertCookie(t, rec, "spazio_access_token", "access-token")
+				assertCookie(t, rec, "spazio_refresh_token", "refresh-token")
+			}
+		})
+	}
+}
+
+func TestHandler_RefreshUsesRefreshCookie(t *testing.T) {
+	service := &mockUserService{
+		refreshTokenFunc: func(ctx context.Context, input RefreshInput) (RefreshResult, error) {
+			if input.RefreshToken != "old-refresh-token" {
+				t.Fatalf("refresh token = %q", input.RefreshToken)
+			}
+			return RefreshResult{AccessToken: "new-access-token", RefreshToken: "new-refresh-token"}, nil
+		},
+	}
+
+	rec := callJSONHandler(http.MethodPost, "/users/refresh", "", NewHandler(service, testCookieConfig()).Refresh, withCookie("spazio_refresh_token", "old-refresh-token"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	assertCookie(t, rec, "spazio_access_token", "new-access-token")
+	assertCookie(t, rec, "spazio_refresh_token", "new-refresh-token")
+}
+
+func TestHandler_LogoutUsesRefreshCookieAndClearsCookies(t *testing.T) {
+	service := &mockUserService{
+		logoutUserFunc: func(ctx context.Context, input RefreshInput) error {
+			if input.RefreshToken != "refresh-token" {
+				t.Fatalf("refresh token = %q", input.RefreshToken)
+			}
+			return nil
+		},
+	}
+
+	rec := callJSONHandler(http.MethodPost, "/users/logout", "", NewHandler(service, testCookieConfig()).Logout, withCookie("spazio_refresh_token", "refresh-token"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	assertCookieMaxAge(t, rec, "spazio_access_token", -1)
+	assertCookieMaxAge(t, rec, "spazio_refresh_token", -1)
+}
+
+func TestHandler_GetProfile(t *testing.T) {
+	tests := []struct {
+		name       string
+		userUUID   string
+		serviceErr error
+		wantStatus int
+	}{
+		{name: "happy path", userUUID: "8a6fbb17-b64b-4f40-a09d-b6639b357ef5", wantStatus: http.StatusOK},
+		{name: "missing auth context", wantStatus: http.StatusUnauthorized},
+		{name: "user not found", userUUID: "8a6fbb17-b64b-4f40-a09d-b6639b357ef5", serviceErr: ErrUserNotFound, wantStatus: http.StatusNotFound},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &mockUserService{
+				getProfileFunc: func(ctx context.Context, uuidStr string) (AuthUser, error) {
+					if uuidStr != tt.userUUID {
+						t.Fatalf("uuidStr = %q, want %q", uuidStr, tt.userUUID)
+					}
+					return AuthUser{UserID: 1, UserUUID: uuidStr, Email: "ada@example.com", RoleID: 1, RoleName: "Admin"}, tt.serviceErr
+				},
+			}
+
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodGet, "/users/profile", nil)
+			if tt.userUUID != "" {
+				c.Set("user_uuid", tt.userUUID)
+			}
+
+			NewHandler(service, testCookieConfig()).GetProfile(c)
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tt.wantStatus, rec.Body.String())
 			}
@@ -200,12 +292,57 @@ func TestHandler_RegisterCompletesRegistration(t *testing.T) {
 	}
 }
 
-func callJSONHandler(method, path, body string, handler gin.HandlerFunc) *httptest.ResponseRecorder {
+func callJSONHandler(method, path, body string, handler gin.HandlerFunc, opts ...func(*http.Request)) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	for _, opt := range opts {
+		opt(req)
+	}
 	c.Request = req
 	handler(c)
 	return rec
+}
+
+func testCookieConfig() CookieConfig {
+	return CookieConfig{
+		AccessTokenMaxAge:  3600,
+		RefreshTokenMaxAge: refreshTokenMaxAgeSeconds,
+	}
+}
+
+func withCookie(name, value string) func(*http.Request) {
+	return func(req *http.Request) {
+		req.AddCookie(&http.Cookie{Name: name, Value: value})
+	}
+}
+
+func assertCookie(t *testing.T, rec *httptest.ResponseRecorder, name, value string) {
+	t.Helper()
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == name {
+			if cookie.Value != value {
+				t.Fatalf("%s value = %q, want %q", name, cookie.Value, value)
+			}
+			if !cookie.HttpOnly {
+				t.Fatalf("%s should be httpOnly", name)
+			}
+			return
+		}
+	}
+	t.Fatalf("cookie %s was not set", name)
+}
+
+func assertCookieMaxAge(t *testing.T, rec *httptest.ResponseRecorder, name string, maxAge int) {
+	t.Helper()
+	for _, cookie := range rec.Result().Cookies() {
+		if cookie.Name == name {
+			if cookie.MaxAge != maxAge {
+				t.Fatalf("%s maxAge = %d, want %d", name, cookie.MaxAge, maxAge)
+			}
+			return
+		}
+	}
+	t.Fatalf("cookie %s was not set", name)
 }

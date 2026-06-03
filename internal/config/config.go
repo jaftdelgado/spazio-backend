@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +19,8 @@ type Config struct {
 	ResendAPIKey             string
 	ResendFromEmail          string
 	AppName                  string
+	AllowedOrigin            string
+	IsProduction             bool
 	MercadoPagoAccessToken   string
 	MercadoPagoWebhookSecret string
 }
@@ -66,6 +69,8 @@ func Load() *Config {
 		ResendAPIKey:             getEnv("RESEND_API_KEY", ""),
 		ResendFromEmail:          getEnv("RESEND_FROM_EMAIL", "noreply@spazio.com"),
 		AppName:                  getEnv("APP_NAME", "Spazio"),
+		AllowedOrigin:            getEnv("ALLOWED_ORIGIN", "http://localhost:3000"),
+		IsProduction:             strings.EqualFold(getEnv("APP_ENV", "development"), "production"),
 		MercadoPagoAccessToken:   getEnv("MERCADOPAGO_ACCESS_TOKEN", ""),
 		MercadoPagoWebhookSecret: getEnv("MERCADOPAGO_WEBHOOK_SECRET", ""),
 	}

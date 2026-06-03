@@ -169,7 +169,7 @@ func TestService_PreRegisterUser(t *testing.T) {
 	}{
 		{name: "happy path sends code", userErr: ErrUserNotFound, wantEmail: true},
 		{name: "email already registered", userErr: nil, wantErr: ErrEmailTaken},
-		{name: "email sender failure", userErr: ErrUserNotFound, emailErr: errors.New("resend down"), wantErr: errors.New("resend down"), wantEmail: true},
+		{name: "email sender failure logs code and continues", userErr: ErrUserNotFound, emailErr: errors.New("resend down"), wantEmail: true},
 	}
 
 	for _, tt := range tests {

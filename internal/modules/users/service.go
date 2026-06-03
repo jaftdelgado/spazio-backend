@@ -247,6 +247,22 @@ func (s *service) LogoutUser(ctx context.Context, input RefreshInput) error {
 	return nil
 }
 
+func (s *service) GetProfile(ctx context.Context, uuidStr string) (AuthUser, error) {
+	user, err := s.repository.GetUserByUUID(ctx, uuidStr)
+	if err != nil {
+		return AuthUser{}, err
+	}
+
+	return AuthUser{
+		UserID:    user.UserID,
+		UserUUID:  user.UserUUID,
+		Email:     user.Email,
+		RoleID:    user.RoleID,
+		RoleName:  user.RoleName,
+		CreatedAt: user.CreatedAt,
+	}, nil
+}
+
 func (s *service) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error) {
 	user, err := s.repository.UpdateProfile(ctx, uuidStr, input)
 	if err != nil {

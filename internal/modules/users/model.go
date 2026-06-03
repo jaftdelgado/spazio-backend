@@ -32,8 +32,9 @@ type VerifyEmailInput struct {
 	Code  string `json:"code" binding:"required"`
 }
 
+// VerifyEmailResult is the response payload returned after email verification.
 type VerifyEmailResult struct {
-	VerificationToken string `json:"verification_token"`
+	VerificationToken string `json:"verification_token" example:"dGVzdEB..."`
 }
 
 type CompleteRegisterInput struct {
@@ -62,38 +63,44 @@ type UpdateProfileInput struct {
 	ProfilePictureURL string `json:"profile_picture_url"`
 }
 
+// AuthUser represents an authenticated user returned by the API.
 type AuthUser struct {
-	UserID    int32     `json:"user_id"`
-	UserUUID  string    `json:"user_uuid"`
-	Email     string    `json:"email"`
-	RoleID    int32     `json:"role_id"`
-	RoleName  string    `json:"role_name"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
+	UserID    int32     `json:"user_id" example:"13"`
+	UserUUID  string    `json:"user_uuid" example:"8b227e4e-ca58-41d9-b402-d773f95470ef"`
+	Email     string    `json:"email" example:"admin@spazio.com"`
+	RoleID    int32     `json:"role_id" example:"1"`
+	RoleName  string    `json:"role_name" example:"Admin"`
+	CreatedAt time.Time `json:"created_at,omitempty" example:"2026-01-15T10:30:00Z"`
 }
 
+// RegisterResult is the response payload returned after successful registration.
 type RegisterResult struct {
-	Message string   `json:"message"`
+	Message string   `json:"message" example:"Cuenta creada correctamente."`
 	User    AuthUser `json:"user"`
 }
 
+// LoginResult is the response payload returned after successful login.
 type LoginResult struct {
-	AccessToken  string   `json:"access_token"`
-	RefreshToken string   `json:"refresh_token"`
+	AccessToken  string   `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	RefreshToken string   `json:"refresh_token" example:"4e9a58788701fce52001214130c15ac8..."`
 	User         AuthUser `json:"user"`
 }
 
+// RefreshResult is the response payload returned after token rotation.
 type RefreshResult struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  string `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+	RefreshToken string `json:"refresh_token" example:"9f3b12788701fce52001214130c15ac8..."`
 }
 
+// UpdateProfileResult is the response payload returned after a profile update.
 type UpdateProfileResult struct {
-	Message string   `json:"message"`
+	Message string   `json:"message" example:"Perfil actualizado correctamente."`
 	User    AuthUser `json:"user"`
 }
 
+// MessageResult is a generic message response.
 type MessageResult struct {
-	Message string `json:"message"`
+	Message string `json:"message" example:"Operación completada correctamente."`
 }
 
 type CreateUserRecord struct {
@@ -157,6 +164,7 @@ type UserService interface {
 	LoginUser(ctx context.Context, input LoginInput) (LoginResult, error)
 	RefreshToken(ctx context.Context, input RefreshInput) (RefreshResult, error)
 	LogoutUser(ctx context.Context, input RefreshInput) error
+	GetProfile(ctx context.Context, uuidStr string) (AuthUser, error)
 	UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error)
 	DeleteUser(ctx context.Context, uuidStr string) error
 }
