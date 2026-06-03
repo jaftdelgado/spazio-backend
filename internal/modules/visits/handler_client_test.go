@@ -35,7 +35,7 @@ func TestHandler_ScheduleVisit(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "500 Internal Server Error on service failure",
+			name: "400 Bad Request on service failure",
 			reqBody: CreateVisitRequest{
 				PropertyID: 1,
 				VisitDate:  time.Now().Add(72 * time.Hour).Truncate(time.Hour),
@@ -47,7 +47,7 @@ func TestHandler_ScheduleVisit(t *testing.T) {
 					},
 				}
 			},
-			wantStatus: http.StatusInternalServerError,
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "201 Created on success",
@@ -111,7 +111,7 @@ func TestHandler_RescheduleVisit(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:      "500 Internal Error on service failure",
+			name:      "400 Bad Request on service failure",
 			uuidParam: uuid.New().String(),
 			reqBody: CreateVisitRequest{
 				PropertyID: 1,
@@ -124,7 +124,7 @@ func TestHandler_RescheduleVisit(t *testing.T) {
 					},
 				}
 			},
-			wantStatus: http.StatusInternalServerError,
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:      "201 Created on success",

@@ -118,11 +118,16 @@ func (m *mockVisitsRepository) Begin(ctx context.Context) (pgx.Tx, error) {
 
 type mockTx struct {
 	pgx.Tx
+	commitErr   error
+	rollbackErr error
 	commitFunc   func(ctx context.Context) error
 	rollbackFunc func(ctx context.Context) error
 }
 
 func (m *mockTx) Commit(ctx context.Context) error {
+	if m.commitErr != nil {
+		return m.commitErr
+	}
 	if m.commitFunc != nil {
 		return m.commitFunc(ctx)
 	}
@@ -130,6 +135,9 @@ func (m *mockTx) Commit(ctx context.Context) error {
 }
 
 func (m *mockTx) Rollback(ctx context.Context) error {
+	if m.rollbackErr != nil {
+		return m.rollbackErr
+	}
 	if m.rollbackFunc != nil {
 		return m.rollbackFunc(ctx)
 	}
