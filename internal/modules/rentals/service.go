@@ -74,33 +74,52 @@ func (s *service) ConfirmRental(ctx context.Context, auth AuthContext, input Ren
 	}
 
 	totalNumeric := numericFromCents(pricing.TotalCents)
-	transaction, err := s.repo.CreateRentalTransaction(ctx, createRentalTransactionParams(property.PropertyID, auth.UserID, agentID, input.EndDate, totalNumeric))
+
+	insertTx, err := s.repo.Begin(ctx)
+	if err != nil {
+		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not start rental transaction")
+	}
+	defer insertTx.Rollback(ctx)
+
+	insertRepo := s.repo.WithTx(insertTx)
+	transaction, err := insertRepo.CreateRentalTransaction(ctx, createRentalTransactionParams(property.PropertyID, auth.UserID, agentID, input.EndDate, totalNumeric))
 	if err != nil {
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not create rental transaction")
 	}
 
+	if err := insertTx.Commit(ctx); err != nil {
+		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not commit rental transaction")
+	}
+
+	agreedAmountCents, err := numericToCents(transaction.FinalAmount)
+	if err != nil {
+		log.Printf("rentals: committed transaction amount could not be read, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)
+		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not prepare rental contract")
+	}
+
 	contractResult, err := s.contractsClient.CreateContract(ctx, auth.AuthHeader, ContractCreateInput{
 		TransactionID: transaction.TransactionID,
-		PeriodID:      int32Pointer(input.PeriodID),
+		PeriodID:      input.PeriodID,
 		Currency:      pricing.Currency,
-		AgreedAmount:  centsToFloat(pricing.TotalCents),
-		StartDate:     input.StartDate,
-		EndDate:       timePointer(input.EndDate),
+		AgreedAmount:  centsToFloat(agreedAmountCents),
+		StartDate:     input.StartDate.UTC(),
+		EndDate:       input.EndDate.UTC(),
 	})
 	if err != nil {
+		log.Printf("rentals: contract creation failed after transaction commit, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not generate rental contract")
 	}
 
 	tx, err := s.repo.Begin(ctx)
 	if err != nil {
-		log.Printf("rentals: contract created but local transaction could not start, transaction_id=%d contract_uuid=%s err=%v", transaction.TransactionID, contractResult.ContractUUID, err)
+		log.Printf("rentals: contract created but local transaction could not start, transaction_id=%d transaction_uuid=%s contract_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), contractResult.ContractUUID, err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "contract created but property status update failed")
 	}
 	defer tx.Rollback(ctx)
 
 	txRepo := s.repo.WithTx(tx)
 	if err := txRepo.UpdateRentalPropertyStatus(ctx, property.PropertyID, PropertyStatusReserved); err != nil {
-		log.Printf("rentals: property status update failed after contract creation, transaction_id=%d contract_uuid=%s err=%v", transaction.TransactionID, contractResult.ContractUUID, err)
+		log.Printf("rentals: property status update failed after contract creation, transaction_id=%d transaction_uuid=%s contract_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), contractResult.ContractUUID, err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "contract created but property status update failed")
 	}
 
@@ -110,17 +129,17 @@ func (s *service) ConfirmRental(ctx context.Context, auth AuthContext, input Ren
 		NewStatusID:      PropertyStatusReserved,
 		ChangedByUserID:  auth.UserID,
 	}); err != nil {
-		log.Printf("rentals: property status history failed after contract creation, transaction_id=%d contract_uuid=%s err=%v", transaction.TransactionID, contractResult.ContractUUID, err)
+		log.Printf("rentals: property status history failed after contract creation, transaction_id=%d transaction_uuid=%s contract_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), contractResult.ContractUUID, err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "contract created but property status history failed")
 	}
 
 	if err := txRepo.UpdateRentalTransactionStatus(ctx, transaction.TransactionID, TransactionStatusCompleted); err != nil {
-		log.Printf("rentals: transaction completion failed after contract creation, transaction_id=%d contract_uuid=%s err=%v", transaction.TransactionID, contractResult.ContractUUID, err)
+		log.Printf("rentals: transaction completion failed after contract creation, transaction_id=%d transaction_uuid=%s contract_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), contractResult.ContractUUID, err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "contract created but transaction finalization failed")
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		log.Printf("rentals: commit failed after contract creation, transaction_id=%d contract_uuid=%s err=%v", transaction.TransactionID, contractResult.ContractUUID, err)
+		log.Printf("rentals: commit failed after contract creation, transaction_id=%d transaction_uuid=%s contract_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), contractResult.ContractUUID, err)
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "contract created but local commit failed")
 	}
 
@@ -489,12 +508,11 @@ func parseMoneyString(value string) (int64, error) {
 	return units*100 + cents, nil
 }
 
-func timePointer(value time.Time) *time.Time {
-	return &value
-}
-
-func int32Pointer(value int32) *int32 {
-	return &value
+func formatUUIDValue(value pgtype.UUID) string {
+	if !value.Valid {
+		return ""
+	}
+	return fmt.Sprintf("%x-%x-%x-%x-%x", value.Bytes[0:4], value.Bytes[4:6], value.Bytes[6:8], value.Bytes[8:10], value.Bytes[10:16])
 }
 
 type httpContractsClient struct {
@@ -517,7 +535,7 @@ func (c *httpContractsClient) CreateContract(ctx context.Context, authHeader str
 		return ContractCreateResult{}, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/contracts", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/v1/contracts/rent", bytes.NewReader(payload))
 	if err != nil {
 		return ContractCreateResult{}, err
 	}
