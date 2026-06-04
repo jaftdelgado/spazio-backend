@@ -1,58 +1,56 @@
 package middleware
 
 import (
-	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jaftdelgado/spazio-backend/internal/auth"
+	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
 )
 
-func Auth(supabaseURL, supabaseAnonKey string, db *pgxpool.Pool) gin.HandlerFunc {
-	client := &http.Client{Timeout: 10 * time.Second}
+var errInvalidTokenFormat = errors.New("invalid token format")
+
+func Auth(jwtService auth.JWTService, db *pgxpool.Pool) gin.HandlerFunc {
+	queries := sqlcgen.New(db)
 
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		tokenString, err := resolveAccessToken(c)
+		if err != nil {
+			if errors.Is(err, errInvalidTokenFormat) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+				c.Abort()
+				return
+			}
+
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Access token was not provided"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.Fields(authHeader)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token format"})
+		claims, err := jwtService.Validate(tokenString)
+		if err != nil || claims.UserUUID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		tokenString := parts[1]
-
-		identity, err := validateSupabaseToken(c.Request.Context(), client, supabaseURL, supabaseAnonKey, tokenString)
+		userUUID, err := toPgUUID(claims.UserUUID)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
 			c.Abort()
 			return
 		}
 
-		var userID int32
-		var roleID int32
-		var roleName string
-		query := `
-			SELECT u.user_id, u.role_id, r.name
-			FROM users u 
-			JOIN roles r ON u.role_id = r.role_id 
-			WHERE u.deleted_at IS NULL
-				AND (u.user_uuid = $1 OR u.email = $2)`
-
-		err = db.QueryRow(c.Request.Context(), query, identity.UserUUID, identity.Email).Scan(&userID, &roleID, &roleName)
+		user, err := queries.GetAuthenticatedUserByUUID(c.Request.Context(), userUUID)
 		if err != nil {
-			if err == pgx.ErrNoRows {
+			if errors.Is(err, pgx.ErrNoRows) {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 				c.Abort()
 				return
@@ -63,55 +61,60 @@ func Auth(supabaseURL, supabaseAnonKey string, db *pgxpool.Pool) gin.HandlerFunc
 			return
 		}
 
-		c.Set(contextUserIDKey, userID)
-		c.Set(contextRoleIDKey, roleID)
-		c.Set(contextRoleNameKey, roleName)
-		c.Set(contextUserUUIDKey, identity.UserUUID)
-		c.Set(contextUserEmailKey, identity.Email)
+		resolvedUUID, err := fromPgUUID(user.UserUuid)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not resolve authenticated user"})
+			c.Abort()
+			return
+		}
+
+		c.Set(contextUserIDKey, user.UserID)
+		c.Set(contextRoleIDKey, user.RoleID)
+		c.Set(contextRoleNameKey, user.RoleName)
+		c.Set(contextUserUUIDKey, resolvedUUID)
+		c.Set(contextUserEmailKey, user.Email)
 
 		c.Next()
 	}
 }
 
-type SupabaseIdentity struct {
-	UserUUID string
-	Email    string
+func resolveAccessToken(c *gin.Context) (string, error) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return "", errInvalidTokenFormat
+		}
+
+		return parts[1], nil
+	}
+
+	token, err := c.Cookie("spazio_access_token")
+	if err != nil || token == "" {
+		return "", errors.New("access token missing")
+	}
+
+	return token, nil
 }
 
-func validateSupabaseToken(ctx context.Context, client *http.Client, supabaseURL, supabaseAnonKey, token string) (SupabaseIdentity, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(supabaseURL, "/")+"/auth/v1/user", nil)
+func toPgUUID(value string) (pgtype.UUID, error) {
+	parsed, err := uuid.Parse(value)
 	if err != nil {
-		return SupabaseIdentity{}, err
+		return pgtype.UUID{}, fmt.Errorf("parse uuid: %w", err)
 	}
 
-	req.Header.Set("apikey", supabaseAnonKey)
-	req.Header.Set("Authorization", "Bearer "+token)
+	return pgtype.UUID{Bytes: parsed, Valid: true}, nil
+}
 
-	resp, err := client.Do(req)
+func fromPgUUID(value pgtype.UUID) (string, error) {
+	if !value.Valid {
+		return "", errors.New("uuid is null")
+	}
+
+	parsed, err := uuid.FromBytes(value.Bytes[:])
 	if err != nil {
-		return SupabaseIdentity{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return SupabaseIdentity{}, fmt.Errorf("supabase auth returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("format uuid: %w", err)
 	}
 
-	var user struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return SupabaseIdentity{}, err
-	}
-
-	if user.ID == "" {
-		return SupabaseIdentity{}, fmt.Errorf("supabase user response did not include id")
-	}
-
-	return SupabaseIdentity{
-		UserUUID: user.ID,
-		Email:    user.Email,
-	}, nil
+	return parsed.String(), nil
 }

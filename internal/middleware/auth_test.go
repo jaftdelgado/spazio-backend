@@ -1,53 +1,11 @@
 package middleware
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 )
-
-func TestValidateSupabaseToken(t *testing.T) {
-	t.Run("invalid response status", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusUnauthorized)
-		}))
-		defer server.Close()
-
-		_, err := validateSupabaseToken(context.Background(), server.Client(), server.URL, "anon", "token")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("valid token", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if got := r.Header.Get("Authorization"); got != "Bearer token" {
-				t.Fatalf("authorization header = %q", got)
-			}
-			if got := r.Header.Get("apikey"); got != "anon" {
-				t.Fatalf("apikey header = %q", got)
-			}
-
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"id":    "uuid-123",
-				"email": "user@example.com",
-			})
-		}))
-		defer server.Close()
-
-		identity, err := validateSupabaseToken(context.Background(), server.Client(), server.URL, "anon", "token")
-		if err != nil {
-			t.Fatalf("validateSupabaseToken() error = %v", err)
-		}
-		if identity.UserUUID != "uuid-123" || identity.Email != "user@example.com" {
-			t.Fatalf("unexpected identity: %+v", identity)
-		}
-	})
-}
 
 func TestAuthenticatedContextHelpers(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -128,6 +86,31 @@ func TestAuthenticatedContextHelpers(t *testing.T) {
 		userEmail, err := AuthenticatedUserEmail(c)
 		if err != nil || userEmail != "user@example.com" {
 			t.Fatalf("AuthenticatedUserEmail() = %q, %v", userEmail, err)
+		}
+	})
+}
+
+func TestUUIDConversionHelpers(t *testing.T) {
+	t.Run("valid uuid roundtrip", func(t *testing.T) {
+		want := "8a6fbb17-b64b-4f40-a09d-b6639b357ef5"
+
+		pgUUID, err := toPgUUID(want)
+		if err != nil {
+			t.Fatalf("toPgUUID() error = %v", err)
+		}
+
+		got, err := fromPgUUID(pgUUID)
+		if err != nil {
+			t.Fatalf("fromPgUUID() error = %v", err)
+		}
+		if got != want {
+			t.Fatalf("uuid roundtrip = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("invalid uuid", func(t *testing.T) {
+		if _, err := toPgUUID("not-a-uuid"); err == nil {
+			t.Fatal("expected invalid uuid error")
 		}
 	})
 }
