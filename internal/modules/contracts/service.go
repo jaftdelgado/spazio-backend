@@ -180,8 +180,8 @@ func (s *service) GenerateSaleContract(ctx context.Context, userID int32, input 
 		return CreateContractResult{}, fmt.Errorf("la transacción no corresponde a una venta")
 	}
 
-	if data.OwnerID != userID {
-		return CreateContractResult{}, fmt.Errorf("no tiene permiso para generar el contrato de esta venta")
+	if data.AgentID != userID {
+		return CreateContractResult{}, fmt.Errorf("sólo el agente asignado puede generar el contrato de esta venta")
 	}
 
 	saleDate := data.ClosingDate.Time

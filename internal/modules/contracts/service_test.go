@@ -189,8 +189,9 @@ func validSaleContractData(t *testing.T) sqlcgen.GetContractDataByTransactionIDR
 		TransactionType:      sqlcgen.TransactionTypeSale,
 		FinalAmount:          numericFromString(t, "850000.00"),
 		ClosingDate:          pgtype.Date{Time: closingDate, Valid: true},
+		AgentID:              102,
 		PropertyID:           20,
-		OwnerID:              102,
+		OwnerID:              103, // Different from agent to ensure tests are using AgentID
 		ClientID:             201,
 		PropertyStatusID:     2,
 		PropertyTitle:        "Sale House",
@@ -447,7 +448,7 @@ func TestGenerateSaleContract_ServiceLogic(t *testing.T) {
 			input:   validInput,
 			repo:    &mockContractRepo{txData: validSaleContractData(t)},
 			storage: &mockStorage{},
-			wantErr: "no tiene permiso para generar el contrato de esta venta",
+			wantErr: "sólo el agente asignado puede generar el contrato de esta venta",
 		},
 		{
 			name: "rejects amount mismatch",

@@ -88,6 +88,9 @@ func TestIntegration_ProcessPayment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
+			// Clean up any payments left over from previous tests to ensure isolation
+			_, _ = pool.Exec(ctx, "DELETE FROM payments WHERE contract_id = $1", contractID)
+
 			txSvc := &service{
 				repo:          repo,
 				mpAccessToken: "TEST-TOKEN",
