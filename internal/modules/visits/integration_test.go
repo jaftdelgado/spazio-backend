@@ -17,7 +17,7 @@ func TestIntegration_ScheduleVisit(t *testing.T) {
 	ctx := context.Background()
 
 	clientID := int32(203)
-	propertyID := int32(500)
+	propertyID := int32(501) // Use property 501 (Sale, Available) to avoid conflicts with Payments test changing 500 to Rented.
 
 	now := time.Now()
 	daysUntilMonday := int((time.Monday - now.Weekday() + 7) % 7)

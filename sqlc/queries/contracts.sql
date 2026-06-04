@@ -41,6 +41,7 @@ SELECT
     t.final_amount,
     t.closing_date,
     t.status_id AS transaction_status_id,
+    t.agent_id,
     p.property_id,
     p.owner_id,
     p.status_id AS property_status_id,
