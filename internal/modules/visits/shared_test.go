@@ -19,6 +19,7 @@ type mockVisitsService struct {
 	confirmVisitFunc      func(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 	rescheduleVisitFunc   func(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error)
 	completeVisitFunc     func(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
+	cancelVisitFunc       func(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 }
 
 func (m *mockVisitsService) GetAvailableSlots(ctx context.Context, propertyID int32, date time.Time) ([]TimeSlot, error) {
@@ -59,6 +60,13 @@ func (m *mockVisitsService) RescheduleVisit(ctx context.Context, userID int32, r
 func (m *mockVisitsService) CompleteVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error {
 	if m.completeVisitFunc != nil {
 		return m.completeVisitFunc(ctx, userID, roleID, visitUUID)
+	}
+	return nil
+}
+
+func (m *mockVisitsService) CancelVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error {
+	if m.cancelVisitFunc != nil {
+		return m.cancelVisitFunc(ctx, userID, roleID, visitUUID)
 	}
 	return nil
 }

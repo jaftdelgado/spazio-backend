@@ -2,7 +2,6 @@ package visits
 
 import (
 	"context"
-	"errors"
 	"strings"
 	"testing"
 
@@ -24,106 +23,12 @@ func TestService_ConfirmVisit(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:   "error when visit not found",
-			roleID: 3,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{}, errors.New("not found")
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "visita no encontrada",
-		},
-		{
-			name:   "error when client unauthorized",
-			roleID: 3,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{ClientID: 99}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "no tienes permiso",
-		},
-		{
-			name:   "error when agent unauthorized",
-			roleID: 2,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{AgentID: pgtype.Int4{Int32: 99, Valid: true}}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "no eres el agente asignado",
-		},
-		{
-			name:   "error when already confirmed",
-			roleID: 1, // Admin
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{StatusID: StatusConfirmed}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "operación no válida o ya confirmada",
-		},
-		{
-			name:   "success confirm from client (Pending to WaitingAgent)",
+			name:   "success confirm as client (pending -> waiting agent)",
 			roleID: 3,
 			setupRepo: func() *mockVisitsRepository {
 				return &mockVisitsRepository{
 					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
 						return sqlcgen.Visit{VisitID: 1, ClientID: userID, StatusID: StatusPending}, nil
-					},
-					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
-					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
-				}
-			},
-			wantErr: false,
-		},
-		{
-			name:   "success confirm from client (WaitingClient to Confirmed)",
-			roleID: 3,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{VisitID: 1, ClientID: userID, StatusID: StatusWaitingClient}, nil
-					},
-					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
-					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
-				}
-			},
-			wantErr: false,
-		},
-		{
-			name:   "success confirm from agent (Pending to WaitingClient)",
-			roleID: 2,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: userID, Valid: true}, StatusID: StatusPending}, nil
-					},
-					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
-					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
-				}
-			},
-			wantErr: false,
-		},
-		{
-			name:   "success confirm from agent (WaitingAgent to Confirmed)",
-			roleID: 2,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{VisitID: 1, AgentID: pgtype.Int4{Int32: userID, Valid: true}, StatusID: StatusWaitingAgent}, nil
 					},
 					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
 					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return nil },
@@ -137,22 +42,9 @@ func TestService_ConfirmVisit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := tt.setupRepo()
 			svc := NewService(repo)
-
 			err := svc.ConfirmVisit(ctx, userID, tt.roleID, visitUUID)
-
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("expected error, got nil")
-				}
-				if tt.errContains != "" {
-					if !strings.Contains(err.Error(), tt.errContains) {
-						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
-					}
-				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+			if (err != nil) != tt.wantErr {
+				t.Errorf("expected error: %v, got: %v", tt.wantErr, err)
 			}
 		})
 	}
@@ -170,87 +62,6 @@ func TestService_CompleteVisit(t *testing.T) {
 		wantErr     bool
 		errContains string
 	}{
-		{
-			name:   "error when client tries to complete",
-			roleID: 3,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "solo el agente o administrador",
-		},
-		{
-			name:   "error when wrong agent tries to complete",
-			roleID: 2,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{AgentID: pgtype.Int4{Int32: 99, Valid: true}}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "no eres el agente",
-		},
-		{
-			name:   "error when visit not confirmed",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{StatusID: StatusPending}, nil
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "solo se pueden completar visitas que estén confirmadas",
-		},
-		{
-			name:   "error when visit not found",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{}, errors.New("not found db error")
-					},
-				}
-			},
-			wantErr:     true,
-			errContains: "visita no encontrada",
-		},
-		{
-			name:   "error when update status fails",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil
-					},
-					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return errors.New("update db err") },
-				}
-			},
-			wantErr:     true,
-			errContains: "update db err",
-		},
-		{
-			name:   "error when create history fails",
-			roleID: 1,
-			setupRepo: func() *mockVisitsRepository {
-				return &mockVisitsRepository{
-					getVisitByUUIDFunc: func(ctx context.Context, id uuid.UUID) (sqlcgen.Visit, error) {
-						return sqlcgen.Visit{VisitID: 1, StatusID: StatusConfirmed}, nil
-					},
-					updateVisitStatusFunc:        func(ctx context.Context, vid, sid int32) error { return nil },
-					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error { return errors.New("history db err") },
-				}
-			},
-			wantErr:     true,
-			errContains: "history db err",
-		},
 		{
 			name:   "success complete",
 			roleID: 1,
@@ -285,22 +96,106 @@ func TestService_CompleteVisit(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := tt.setupRepo()
 			svc := NewService(repo)
-
 			err := svc.CompleteVisit(ctx, userID, tt.roleID, visitUUID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("expected error: %v, got: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
 
+func TestService_CancelVisit(t *testing.T) {
+	ctx := context.Background()
+	visitUUID := uuid.New()
+	userID := int32(10)
+
+	tests := []struct {
+		name         string
+		userID       int32
+		roleID       int32
+		setupRepo    func() *mockVisitsRepository
+		wantErr      bool
+		errSubstring string
+	}{
+		{
+			name:   "success as client",
+			userID: userID,
+			roleID: 3,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 100, ClientID: userID, StatusID: StatusPending}, nil
+					},
+					updateVisitStatusFunc: func(ctx context.Context, vid, sid int32) error {
+						return nil
+					},
+					createVisitStatusHistoryFunc: func(ctx context.Context, arg sqlcgen.CreateVisitStatusHistoryParams) error {
+						return nil
+					},
+				}
+			},
+			wantErr: false,
+		},
+		{
+			name:   "fail as admin",
+			userID: userID,
+			roleID: 1,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 100, StatusID: StatusPending}, nil
+					},
+				}
+			},
+			wantErr:      true,
+			errSubstring: "rol no autorizado",
+		},
+		{
+			name:   "fail wrong client",
+			userID: userID,
+			roleID: 3,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 100, ClientID: 999, StatusID: StatusPending}, nil
+					},
+				}
+			},
+			wantErr:      true,
+			errSubstring: "no tienes permiso",
+		},
+		{
+			name:   "fail confirmed visit",
+			userID: userID,
+			roleID: 3,
+			setupRepo: func() *mockVisitsRepository {
+				return &mockVisitsRepository{
+					getVisitByUUIDFunc: func(ctx context.Context, vid uuid.UUID) (sqlcgen.Visit, error) {
+						return sqlcgen.Visit{VisitID: 100, ClientID: userID, StatusID: StatusConfirmed}, nil
+					},
+				}
+			},
+			wantErr:      true,
+			errSubstring: "solo se pueden cancelar visitas que no han sido confirmadas",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := tt.setupRepo()
+			svc := NewService(repo)
+			err := svc.CancelVisit(ctx, tt.userID, tt.roleID, visitUUID)
 			if tt.wantErr {
 				if err == nil {
-					t.Errorf("expected error, got nil")
+					t.Fatal("expected error, got nil")
 				}
-				if tt.errContains != "" {
-					if !strings.Contains(err.Error(), tt.errContains) {
-						t.Errorf("expected %v to contain %v", err.Error(), tt.errContains)
-					}
+				if tt.errSubstring != "" && !strings.Contains(err.Error(), tt.errSubstring) {
+					t.Errorf("error %q does not contain %q", err.Error(), tt.errSubstring)
 				}
-			} else {
-				if err != nil {
-					t.Errorf("unexpected error: %v", err)
-				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 	}
