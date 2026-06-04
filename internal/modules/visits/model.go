@@ -86,4 +86,5 @@ type Service interface {
 	ConfirmVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 	RescheduleVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID, newDate time.Time) (VisitResponse, error)
 	CompleteVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
+	CancelVisit(ctx context.Context, userID int32, roleID int32, visitUUID uuid.UUID) error
 }

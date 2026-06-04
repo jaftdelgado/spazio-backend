@@ -3397,6 +3397,43 @@ paths:
       summary: Schedule a visit
       tags:
       - Visits
+  /api/v1/visits/{uuid}/cancel:
+    patch:
+      consumes:
+      - application/json
+      description: Transition a visit status to 'Cancelled'. Only allowed before full
+        confirmation.
+      parameters:
+      - description: Visit UUID
+        in: path
+        name: uuid
+        required: true
+        type: string
+      - description: Bearer access token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/shared.ErrorResponse'
+      summary: Cancel a visit
+      tags:
+      - Visits
   /api/v1/visits/{uuid}/complete:
     patch:
       consumes:

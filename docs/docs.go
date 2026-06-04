@@ -2751,6 +2751,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/visits/{uuid}/cancel": {
+            "patch": {
+                "description": "Transition a visit status to 'Cancelled'. Only allowed before full confirmation.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Visits"
+                ],
+                "summary": "Cancel a visit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Visit UUID",
+                        "name": "uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/visits/{uuid}/complete": {
             "patch": {
                 "description": "Mark a confirmed visit as completed. Only for Agents or Admin from the authenticated session.",

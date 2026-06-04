@@ -82,3 +82,37 @@ func (s *service) CompleteVisit(ctx context.Context, userID int32, role int32, v
 		ChangedByUserID:  userID,
 	})
 }
+
+func (s *service) CancelVisit(ctx context.Context, userID int32, role int32, visitUUID uuid.UUID) error {
+	visit, err := s.repo.GetVisitByUUID(ctx, visitUUID)
+	if err != nil {
+		return errors.New("visita no encontrada")
+	}
+
+	if role == 3 {
+		if visit.ClientID != userID {
+			return errors.New("no tienes permiso para cancelar esta visita")
+		}
+	} else if role == 2 {
+		if !visit.AgentID.Valid || visit.AgentID.Int32 != userID {
+			return errors.New("no eres el agente asignado a esta visita")
+		}
+	} else {
+		return errors.New("rol no autorizado para cancelar visitas")
+	}
+
+	if visit.StatusID != StatusPending && visit.StatusID != StatusWaitingAgent && visit.StatusID != StatusWaitingClient {
+		return errors.New("solo se pueden cancelar visitas que no han sido confirmadas totalmente")
+	}
+
+	if err := s.repo.UpdateVisitStatus(ctx, visit.VisitID, StatusCancelled); err != nil {
+		return translateError(err)
+	}
+
+	return s.repo.CreateVisitStatusHistory(ctx, sqlcgen.CreateVisitStatusHistoryParams{
+		VisitID:          visit.VisitID,
+		PreviousStatusID: visit.StatusID,
+		NewStatusID:      StatusCancelled,
+		ChangedByUserID:  userID,
+	})
+}

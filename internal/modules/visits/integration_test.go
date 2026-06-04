@@ -98,3 +98,47 @@ func TestIntegration_ScheduleVisit(t *testing.T) {
 		})
 	}
 }
+
+func TestIntegration_CancelVisit(t *testing.T) {
+	pool := shared.SetupTestDB(t)
+	repo := NewRepository(pool)
+	ctx := context.Background()
+
+	clientID := int32(203)
+	roleID := int32(3) // Client
+	propertyID := int32(501)
+
+	now := time.Now()
+	loc, _ := time.LoadLocation("America/Mexico_City")
+	validDate := now.AddDate(0, 0, 5).In(loc)
+
+	t.Run("Success_Schedule_And_Cancel", func(t *testing.T) {
+		shared.WithTransaction(t, pool, func(tx pgx.Tx) {
+			txRepo := repo.WithTx(tx)
+			txSvc := NewService(txRepo)
+
+			// 1. Schedule
+			res, err := txSvc.ScheduleVisit(ctx, clientID, propertyID, validDate)
+			if err != nil {
+				t.Fatalf("Failed to schedule: %v", err)
+			}
+
+			// 2. Cancel
+			err = txSvc.CancelVisit(ctx, clientID, roleID, res.VisitUUID)
+			if err != nil {
+				t.Fatalf("Failed to cancel: %v", err)
+			}
+
+			// 3. Verify Status in DB
+			var statusID int
+			err = tx.QueryRow(ctx, "SELECT status_id FROM visits WHERE visit_uuid = $1", res.VisitUUID).Scan(&statusID)
+			if err != nil {
+				t.Fatalf("Query failed: %v", err)
+			}
+
+			if statusID != StatusCancelled {
+				t.Errorf("Expected status %d (Cancelled), got %d", StatusCancelled, statusID)
+			}
+		})
+	})
+}

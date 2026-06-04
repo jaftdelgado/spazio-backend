@@ -21,6 +21,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 	r.PATCH("/api/v1/visits/:uuid/confirm", h.confirmVisit)
 	r.PATCH("/api/v1/visits/:uuid/reschedule", h.rescheduleVisit)
 	r.PATCH("/api/v1/visits/:uuid/complete", h.completeVisit)
+	r.PATCH("/api/v1/visits/:uuid/cancel", h.cancelVisit)
 }
 
 func resolveAuthenticatedIdentity(c *gin.Context) (int32, int32, bool) {
