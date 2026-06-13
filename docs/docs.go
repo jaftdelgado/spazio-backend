@@ -2005,6 +2005,77 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/sales": {
+            "post": {
+                "description": "Formalizes the sale of an available property. Only accessible to authenticated users with the Agent role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Sales"
+                ],
+                "summary": "Formalize property sale",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Sale confirmation payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/sales.SaleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Sale formalized successfully",
+                        "schema": {
+                            "$ref": "#/definitions/sales.SaleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request body",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Only agents can formalize sales",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Property not found",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Property is not saleable or amount does not match the current sale price",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal error or contract generation failure",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/services": {
             "get": {
                 "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1\u0026page_size=limit.",
@@ -4822,6 +4893,51 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid",
                     "example": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            }
+        },
+        "sales.SaleRequest": {
+            "type": "object",
+            "properties": {
+                "agreed_amount": {
+                    "type": "number",
+                    "example": 1500000
+                },
+                "property_uuid": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                }
+            }
+        },
+        "sales.SaleResponse": {
+            "type": "object",
+            "properties": {
+                "contract_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "f68c08c5-e7f0-4aae-b3b1-0d81acf41c09"
+                },
+                "currency": {
+                    "type": "string",
+                    "example": "MXN"
+                },
+                "final_amount": {
+                    "type": "number",
+                    "example": 1500000
+                },
+                "property_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "8d12b3f2-6c8c-4b5f-92c9-2fd58f4f8c01"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "formalized"
+                },
+                "transaction_uuid": {
+                    "type": "string",
+                    "format": "uuid",
+                    "example": "0f8fad5b-d9cb-469f-a165-70867728950e"
                 }
             }
         },
