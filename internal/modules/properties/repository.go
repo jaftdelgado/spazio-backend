@@ -200,8 +200,8 @@ func (r *repository) createLocation(ctx context.Context, queries *sqlcgen.Querie
 		ExteriorNumber:  location.ExteriorNumber,
 		InteriorNumber:  textFromPointer(location.InteriorNumber),
 		PostalCode:      location.PostalCode,
-		StMakepoint:     *location.Longitude,
-		StMakepoint_2:   *location.Latitude,
+		Longitude:       *location.Longitude,
+		Latitude:        *location.Latitude,
 		IsPublicAddress: *location.IsPublicAddress,
 	}); err != nil {
 		return fmt.Errorf("create location: %w", err)

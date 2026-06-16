@@ -155,17 +155,19 @@ type ListPropertiesMeta struct {
 
 // PropertyCardData represents a property in card format.
 type PropertyCardData struct {
-	PropertyID    int32                    `json:"property_id" example:"5"`
-	PropertyUUID  string                   `json:"property_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
-	Title         string                   `json:"title" example:"Apartment in Downtown"`
-	CoverPhotoURL *string                  `json:"cover_photo_url" example:"https://cdn.example.com/properties/cover.jpg"`
-	PropertyType  PropertyCardTypeData     `json:"property_type"`
-	Modality      PropertyCardModalityData `json:"modality"`
-	Status        PropertyCardStatusData   `json:"status"`
-	Price         *PropertyCardPriceData   `json:"price"`
-	Bedrooms      *int16                   `json:"bedrooms,omitempty"`
-	Bathrooms     *int16                   `json:"bathrooms,omitempty"`
-	BuiltArea     *float64                 `json:"built_area,omitempty"`
+	PropertyID     int32                    `json:"property_id" example:"5"`
+	PropertyUUID   string                   `json:"property_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
+	Title          string                   `json:"title" example:"Apartment in Downtown"`
+	CoverPhotoURL  *string                  `json:"cover_photo_url" example:"https://cdn.example.com/properties/cover.jpg"`
+	PropertyType   PropertyCardTypeData     `json:"property_type"`
+	Modality       PropertyCardModalityData `json:"modality"`
+	Status         PropertyCardStatusData   `json:"status"`
+	Price          *PropertyCardPriceData   `json:"price"`
+	Location       PropertyCardLocationData `json:"location"`
+	AddressSummary string                   `json:"address_summary,omitempty" example:"Av. Principal 45, Centro, Xalapa, Veracruz, Mexico"`
+	Bedrooms       *int16                   `json:"bedrooms,omitempty"`
+	Bathrooms      *int16                   `json:"bathrooms,omitempty"`
+	BuiltArea      *float64                 `json:"built_area,omitempty"`
 }
 
 // PropertyCardTypeData contains the serialized property type used in cards.
@@ -193,6 +195,16 @@ type PropertyCardPriceData struct {
 	Currency   string  `json:"currency" example:"MXN"`
 	PriceType  string  `json:"price_type" example:"rent"`
 	PeriodName *string `json:"period_name" example:"Monthly"`
+}
+
+// PropertyCardLocationData contains the serialized readable location for property cards.
+type PropertyCardLocationData struct {
+	CountryID   int32  `json:"country_id" example:"1"`
+	CountryName string `json:"country_name" example:"Mexico"`
+	StateID     int32  `json:"state_id" example:"30"`
+	StateName   string `json:"state_name" example:"Veracruz"`
+	CityID      int32  `json:"city_id" example:"3001"`
+	CityName    string `json:"city_name" example:"Xalapa"`
 }
 
 // GetPropertyClausesResult is the response returned by the property clauses list endpoint.
@@ -266,15 +278,20 @@ type CommercialData struct {
 
 // LocationData contiene los campos de ubicación de la propiedad.
 type LocationData struct {
-	CityID          int32   `json:"city_id"`
-	Neighborhood    string  `json:"neighborhood"`
-	Street          string  `json:"street"`
-	ExteriorNumber  string  `json:"exterior_number"`
-	InteriorNumber  *string `json:"interior_number"`
-	PostalCode      string  `json:"postal_code"`
-	Latitude        float64 `json:"latitude"`
-	Longitude       float64 `json:"longitude"`
-	IsPublicAddress bool    `json:"is_public_address"`
+	CountryID       int32   `json:"country_id" example:"1"`
+	CountryName     string  `json:"country_name" example:"Mexico"`
+	StateID         int32   `json:"state_id" example:"30"`
+	StateName       string  `json:"state_name" example:"Veracruz"`
+	CityID          int32   `json:"city_id" example:"3001"`
+	CityName        string  `json:"city_name" example:"Xalapa"`
+	Neighborhood    string  `json:"neighborhood" example:"Centro"`
+	Street          string  `json:"street" example:"Av. Principal"`
+	ExteriorNumber  string  `json:"exterior_number" example:"45"`
+	InteriorNumber  *string `json:"interior_number" example:"A"`
+	PostalCode      string  `json:"postal_code" example:"91000"`
+	Latitude        float64 `json:"latitude" example:"19.5438"`
+	Longitude       float64 `json:"longitude" example:"-96.9102"`
+	IsPublicAddress bool    `json:"is_public_address" example:"true"`
 }
 
 // UpdatePropertyInput es el payload del PATCH /properties/:uuid.
@@ -360,6 +377,7 @@ type GetPropertyPhotosResult struct {
 type PropertyPhotoData struct {
 	PhotoID    int32   `json:"photo_id" example:"12"`
 	StorageKey string  `json:"storage_key" example:"properties/123/front.jpg"`
+	URL        string  `json:"url" example:"https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/123/front.jpg"`
 	MimeType   string  `json:"mime_type" example:"image/jpeg"`
 	SortOrder  int16   `json:"sort_order" example:"0"`
 	IsCover    bool    `json:"is_cover" example:"true"`
@@ -529,4 +547,5 @@ type PropertyService interface {
 
 type propertyPhotoStorage interface {
 	Delete(ctx context.Context, storageKey string) error
+	PublicURL(ctx context.Context, storageKey string) (string, error)
 }

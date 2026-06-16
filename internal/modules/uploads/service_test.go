@@ -81,7 +81,11 @@ func TestService_UploadPropertyPhoto_HappyPath(t *testing.T) {
 
 	s := &service{repository: repo, r2Client: storage, encodeToWebP: encodeFn}
 
-	_, err := s.UploadPropertyPhoto(context.Background(), UploadPhotoInput{PropertyUUID: propUUID, File: bytes.NewReader([]byte("dummy"))})
+	storage.publicURLFunc = func(ctx context.Context, storageKey string) (string, error) {
+		return "https://pub.example.com/" + storageKey, nil
+	}
+
+	result, err := s.UploadPropertyPhoto(context.Background(), UploadPhotoInput{PropertyUUID: propUUID, File: bytes.NewReader([]byte("dummy"))})
 
 	if !encodeCalled {
 		t.Fatalf("expected encodeToWebP to be called")
@@ -97,6 +101,12 @@ func TestService_UploadPropertyPhoto_HappyPath(t *testing.T) {
 	}
 	if repo.lastInput.StorageKey == "" {
 		t.Fatalf("repository SavePropertyPhoto not called with StorageKey")
+	}
+	if result.StorageKey != repo.lastInput.StorageKey {
+		t.Fatalf("result storage_key = %q, want %q", result.StorageKey, repo.lastInput.StorageKey)
+	}
+	if result.URL != "https://pub.example.com/"+repo.lastInput.StorageKey {
+		t.Fatalf("result url = %q, want public url built from storage key", result.URL)
 	}
 	// repo returned 0 by default; no PhotoID assertions needed here
 	// assert storage key structure
@@ -264,6 +274,131 @@ func TestService_UploadPropertyPhoto_FailurePaths(t *testing.T) {
 			}
 			if storage.calledPublic != tt.expectPublicCalled {
 				t.Fatalf("public called=%v want=%v", storage.calledPublic, tt.expectPublicCalled)
+			}
+		})
+	}
+}
+
+func TestService_UploadPropertyPhotos(t *testing.T) {
+	cases := []struct {
+		name              string
+		photos            []UploadPhotoInput
+		encodeFailures    map[string]error
+		wantUploadedCount int
+		wantFailedCount   int
+		wantFailedIndexes []int
+		wantErr           bool
+	}{
+		{
+			name: "1 photo success",
+			photos: []UploadPhotoInput{
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-0"))},
+			},
+			wantUploadedCount: 1,
+			wantFailedCount:   0,
+			wantErr:           false,
+		},
+		{
+			name: "3 photos index 1 encode fails",
+			photos: []UploadPhotoInput{
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-0"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-1"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-2"))},
+			},
+			encodeFailures:    map[string]error{"photo-1": errors.New("encode fail")},
+			wantUploadedCount: 2,
+			wantFailedCount:   1,
+			wantFailedIndexes: []int{1},
+			wantErr:           false,
+		},
+		{
+			name: "all fail",
+			photos: []UploadPhotoInput{
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-0"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-1"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-2"))},
+			},
+			encodeFailures: map[string]error{
+				"photo-0": errors.New("encode fail 0"),
+				"photo-1": errors.New("encode fail 1"),
+				"photo-2": errors.New("encode fail 2"),
+			},
+			wantUploadedCount: 0,
+			wantFailedCount:   3,
+			wantFailedIndexes: []int{0, 1, 2},
+			wantErr:           true,
+		},
+		{
+			name: "10 photos all successful",
+			photos: []UploadPhotoInput{
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-0"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-1"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-2"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-3"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-4"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-5"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-6"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-7"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-8"))},
+				{PropertyUUID: uuid.New().String(), File: bytes.NewReader([]byte("photo-9"))},
+			},
+			wantUploadedCount: 10,
+			wantFailedCount:   0,
+			wantErr:           false,
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockUploadsRepository{
+				savePropertyPhotoFunc: func(ctx context.Context, input SavePhotoInput) (int32, error) {
+					return 1, nil
+				},
+			}
+			storage := &mockPhotoStorage{
+				publicURLFunc: func(ctx context.Context, storageKey string) (string, error) {
+					return "https://cdn.example.com/" + storageKey, nil
+				},
+			}
+
+			s := &service{
+				repository: repo,
+				r2Client:   storage,
+				encodeToWebP: func(input UploadPhotoInput) ([]byte, error) {
+					b, err := io.ReadAll(input.File)
+					if err != nil {
+						return nil, err
+					}
+					if failErr, ok := tt.encodeFailures[string(b)]; ok {
+						return nil, failErr
+					}
+					return []byte("webp-" + string(b)), nil
+				},
+			}
+
+			result, err := s.UploadPropertyPhotos(context.Background(), UploadPhotosInput{
+				Photos: tt.photos,
+			})
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(result.Uploaded) != tt.wantUploadedCount {
+				t.Fatalf("uploaded count got %d want %d", len(result.Uploaded), tt.wantUploadedCount)
+			}
+			if len(result.Failed) != tt.wantFailedCount {
+				t.Fatalf("failed count got %d want %d", len(result.Failed), tt.wantFailedCount)
+			}
+			for i, failed := range result.Failed {
+				if failed.Index != tt.wantFailedIndexes[i] {
+					t.Fatalf("failed index got %d want %d", failed.Index, tt.wantFailedIndexes[i])
+				}
 			}
 		})
 	}

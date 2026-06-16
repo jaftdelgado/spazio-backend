@@ -67,6 +67,31 @@ func (s *service) UploadPropertyPhoto(ctx context.Context, input UploadPhotoInpu
 	}, nil
 }
 
+func (s *service) UploadPropertyPhotos(ctx context.Context, input UploadPhotosInput) (UploadPhotosBatchResult, error) {
+	result := UploadPhotosBatchResult{
+		Uploaded: make([]UploadPhotoResult, 0, len(input.Photos)),
+	}
+
+	for i, photo := range input.Photos {
+		uploaded, err := s.UploadPropertyPhoto(ctx, photo)
+		if err != nil {
+			result.Failed = append(result.Failed, UploadPhotoError{
+				Index:   i,
+				Message: err.Error(),
+			})
+			continue
+		}
+
+		result.Uploaded = append(result.Uploaded, uploaded)
+	}
+
+	if len(result.Uploaded) == 0 {
+		return result, fmt.Errorf("upload property photos: all uploads failed")
+	}
+
+	return result, nil
+}
+
 // convertToWebP decodes any supported image format and encodes it as WebP.
 // Supported inputs: image/jpeg, image/png, image/webp.
 func convertToWebP(input UploadPhotoInput) ([]byte, error) {

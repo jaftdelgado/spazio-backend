@@ -161,16 +161,16 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 
 		if locationChanged {
 			if err := queries.UpdateLocationByID(ctx, sqlcgen.UpdateLocationByIDParams{
-				PropertyID:      propertyID,
 				CityID:          *input.Location.CityID,
 				Neighborhood:    *input.Location.Neighborhood,
 				Street:          *input.Location.Street,
 				ExteriorNumber:  *input.Location.ExteriorNumber,
 				InteriorNumber:  textFromPointer(input.Location.InteriorNumber),
 				PostalCode:      *input.Location.PostalCode,
-				StMakepoint:     *input.Location.Longitude,
-				StMakepoint_2:   *input.Location.Latitude,
+				Longitude:       *input.Location.Longitude,
+				Latitude:        *input.Location.Latitude,
 				IsPublicAddress: *input.Location.IsPublicAddress,
+				PropertyID:      propertyID,
 			}); err != nil {
 				return UpdatePropertyResult{}, fmt.Errorf("update location: %w", err)
 			}

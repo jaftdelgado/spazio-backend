@@ -13,6 +13,7 @@ type PropertyType struct {
 	PropertyTypeID int32   `json:"property_type_id" example:"1"`
 	Name           string  `json:"name" example:"Apartment"`
 	Icon           *string `json:"icon,omitempty" example:"/icons/apartment.svg"`
+	Subtype        string  `json:"subtype" example:"residential"`
 }
 
 // RentPeriod is a catalog item exposed by the rent-periods endpoint.

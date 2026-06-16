@@ -904,7 +904,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
+                "description": "Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Each card includes readable location fields and an address summary. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
                 "produces": [
                     "application/json"
                 ],
@@ -1094,7 +1094,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Returns property base data, subtype, and location for the given UUID. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
+                "description": "Returns property base data, subtype, and expanded location data for the given UUID. The location payload includes country, state, and city identifiers and names in addition to the address fields. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
                 "produces": [
                     "application/json"
                 ],
@@ -1498,7 +1498,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/photos": {
             "get": {
-                "description": "Returns the photo metadata linked to a property by UUID ordered by sort_order ascending. When the property has no photos, the response contains an empty data array.",
+                "description": "Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. When the property has no photos, the response contains an empty data array.",
                 "produces": [
                     "application/json"
                 ],
@@ -3130,6 +3130,10 @@ const docTemplate = `{
                 "property_type_id": {
                     "type": "integer",
                     "example": 1
+                },
+                "subtype": {
+                    "type": "string",
+                    "example": "residential"
                 }
             }
         },
@@ -4174,37 +4178,70 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "city_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 3001
+                },
+                "city_name": {
+                    "type": "string",
+                    "example": "Xalapa"
+                },
+                "country_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "country_name": {
+                    "type": "string",
+                    "example": "Mexico"
                 },
                 "exterior_number": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "45"
                 },
                 "interior_number": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "A"
                 },
                 "is_public_address": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "latitude": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 19.5438
                 },
                 "longitude": {
-                    "type": "number"
+                    "type": "number",
+                    "example": -96.9102
                 },
                 "neighborhood": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Centro"
                 },
                 "postal_code": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "91000"
+                },
+                "state_id": {
+                    "type": "integer",
+                    "example": 30
+                },
+                "state_name": {
+                    "type": "string",
+                    "example": "Veracruz"
                 },
                 "street": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Av. Principal"
                 }
             }
         },
         "properties.PropertyCardData": {
             "type": "object",
             "properties": {
+                "address_summary": {
+                    "type": "string",
+                    "example": "Av. Principal 45, Centro, Xalapa, Veracruz, Mexico"
+                },
                 "bathrooms": {
                     "type": "integer"
                 },
@@ -4217,6 +4254,9 @@ const docTemplate = `{
                 "cover_photo_url": {
                     "type": "string",
                     "example": "https://cdn.example.com/properties/cover.jpg"
+                },
+                "location": {
+                    "$ref": "#/definitions/properties.PropertyCardLocationData"
                 },
                 "modality": {
                     "$ref": "#/definitions/properties.PropertyCardModalityData"
@@ -4241,6 +4281,35 @@ const docTemplate = `{
                 "title": {
                     "type": "string",
                     "example": "Apartment in Downtown"
+                }
+            }
+        },
+        "properties.PropertyCardLocationData": {
+            "type": "object",
+            "properties": {
+                "city_id": {
+                    "type": "integer",
+                    "example": 3001
+                },
+                "city_name": {
+                    "type": "string",
+                    "example": "Xalapa"
+                },
+                "country_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "country_name": {
+                    "type": "string",
+                    "example": "Mexico"
+                },
+                "state_id": {
+                    "type": "integer",
+                    "example": 30
+                },
+                "state_name": {
+                    "type": "string",
+                    "example": "Veracruz"
                 }
             }
         },
@@ -4363,6 +4432,10 @@ const docTemplate = `{
                 "storage_key": {
                     "type": "string",
                     "example": "properties/123/front.jpg"
+                },
+                "url": {
+                    "type": "string",
+                    "example": "https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/123/front.jpg"
                 }
             }
         },

@@ -202,7 +202,8 @@ func (m *mockPropertyRepository) DeleteProperty(ctx context.Context, propertyID 
 
 // Mock storage client
 type mockPropertyPhotoStorage struct {
-	deleteFunc func(ctx context.Context, storageKey string) error
+	deleteFunc    func(ctx context.Context, storageKey string) error
+	publicURLFunc func(ctx context.Context, storageKey string) (string, error)
 }
 
 func (m *mockPropertyPhotoStorage) Delete(ctx context.Context, storageKey string) error {
@@ -210,6 +211,13 @@ func (m *mockPropertyPhotoStorage) Delete(ctx context.Context, storageKey string
 		return m.deleteFunc(ctx, storageKey)
 	}
 	return nil
+}
+
+func (m *mockPropertyPhotoStorage) PublicURL(ctx context.Context, storageKey string) (string, error) {
+	if m.publicURLFunc != nil {
+		return m.publicURLFunc(ctx, storageKey)
+	}
+	return "", nil
 }
 
 func ptrBool(v bool) *bool {

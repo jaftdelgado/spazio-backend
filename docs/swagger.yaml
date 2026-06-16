@@ -57,6 +57,9 @@ definitions:
       property_type_id:
         example: 1
         type: integer
+      subtype:
+        example: residential
+        type: string
     type: object
   catalogs.RentPeriod:
     properties:
@@ -776,26 +779,53 @@ definitions:
   properties.LocationData:
     properties:
       city_id:
+        example: 3001
         type: integer
+      city_name:
+        example: Xalapa
+        type: string
+      country_id:
+        example: 1
+        type: integer
+      country_name:
+        example: Mexico
+        type: string
       exterior_number:
+        example: "45"
         type: string
       interior_number:
+        example: A
         type: string
       is_public_address:
+        example: true
         type: boolean
       latitude:
+        example: 19.5438
         type: number
       longitude:
+        example: -96.9102
         type: number
       neighborhood:
+        example: Centro
         type: string
       postal_code:
+        example: "91000"
+        type: string
+      state_id:
+        example: 30
+        type: integer
+      state_name:
+        example: Veracruz
         type: string
       street:
+        example: Av. Principal
         type: string
     type: object
   properties.PropertyCardData:
     properties:
+      address_summary:
+        example: Av. Principal 45, Centro, Xalapa, Veracruz, Mexico
+        type: string
       bathrooms:
         type: integer
       bedrooms:
@@ -805,6 +835,8 @@ definitions:
       cover_photo_url:
         example: https://cdn.example.com/properties/cover.jpg
         type: string
+      location:
+        $ref: '#/definitions/properties.PropertyCardLocationData'
       modality:
         $ref: '#/definitions/properties.PropertyCardModalityData'
       price:
@@ -821,6 +853,27 @@ definitions:
         $ref: '#/definitions/properties.PropertyCardStatusData'
       title:
         example: Apartment in Downtown
+        type: string
+    type: object
+  properties.PropertyCardLocationData:
+    properties:
+      city_id:
+        example: 3001
+        type: integer
+      city_name:
+        example: Xalapa
+        type: string
+      country_id:
+        example: 1
+        type: integer
+      country_name:
+        example: Mexico
+        type: string
+      state_id:
+        example: 30
+        type: integer
+      state_name:
+        example: Veracruz
         type: string
     type: object
   properties.PropertyCardModalityData:
@@ -908,6 +961,9 @@ definitions:
         type: integer
       storage_key:
         example: properties/123/front.jpg
+        type: string
+      url:
+        example: https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/123/front.jpg
         type: string
     type: object
   properties.PropertyPriceHistoryData:
@@ -2169,8 +2225,9 @@ paths:
         view non-deleted properties, while agents can only view properties assigned
         in property_agents. Supports filtering by search query, status, property type,
         modality, location (country, state, city), price range, and minimum bedrooms.
-        Price selection logic prioritizes sale price, then the best current rent price
-        (Monthly > Annual > Weekly > Daily).
+        Each card includes readable location fields and an address summary. Price
+        selection logic prioritizes sale price, then the best current rent price (Monthly
+        > Annual > Weekly > Daily).
       parameters:
       - default: 1
         description: Page number (starts at 1)
@@ -2342,9 +2399,11 @@ paths:
       tags:
       - Properties
     get:
-      description: Returns property base data, subtype, and location for the given
-        UUID. Administrators can view all fields including registered_by. Agents can
-        only access assigned properties and do not receive registered_by.
+      description: Returns property base data, subtype, and expanded location data
+        for the given UUID. The location payload includes country, state, and city
+        identifiers and names in addition to the address fields. Administrators can
+        view all fields including registered_by. Agents can only access assigned properties
+        and do not receive registered_by.
       parameters:
       - description: Property UUID
         in: path
@@ -2574,7 +2633,8 @@ paths:
   /api/v1/properties/{uuid}/photos:
     get:
       description: Returns the photo metadata linked to a property by UUID ordered
-        by sort_order ascending. When the property has no photos, the response contains
+        by sort_order ascending, including the storage key and the resolved public
+        URL for each photo. When the property has no photos, the response contains
         an empty data array.
       parameters:
       - description: Property UUID

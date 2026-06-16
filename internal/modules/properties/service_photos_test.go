@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -21,11 +22,25 @@ func TestService_GetPhotos(t *testing.T) {
 		{
 			name: "returns property photos when photos are found",
 			repoResult: GetPropertyPhotosResult{
-				Data: []PropertyPhotoData{{PhotoID: 1}, {PhotoID: 2}},
+				Data: []PropertyPhotoData{
+					{PhotoID: 1, StorageKey: "properties/uuid/photos/1.webp"},
+					{PhotoID: 2, StorageKey: "properties/uuid/photos/2.webp"},
+				},
 			},
-			repoErr:  nil,
-			wantErr:  false,
-			wantData: []PropertyPhotoData{{PhotoID: 1}, {PhotoID: 2}},
+			repoErr: nil,
+			wantErr: false,
+			wantData: []PropertyPhotoData{
+				{
+					PhotoID:    1,
+					StorageKey: "properties/uuid/photos/1.webp",
+					URL:        "https://cdn.example.com/properties/uuid/photos/1.webp",
+				},
+				{
+					PhotoID:    2,
+					StorageKey: "properties/uuid/photos/2.webp",
+					URL:        "https://cdn.example.com/properties/uuid/photos/2.webp",
+				},
+			},
 		},
 		{
 			name: "returns empty property photos when no photos are found",
@@ -48,6 +63,15 @@ func TestService_GetPhotos(t *testing.T) {
 			repoErr:    errors.New("db"),
 			wantErr:    true,
 		},
+		{
+			name: "returns error when public url generation fails",
+			repoResult: GetPropertyPhotosResult{
+				Data: []PropertyPhotoData{{PhotoID: 1, StorageKey: "properties/uuid/photos/1.webp"}},
+			},
+			repoErr:  nil,
+			wantErr:  true,
+			wantData: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -58,7 +82,16 @@ func TestService_GetPhotos(t *testing.T) {
 				},
 			}
 
-			svc := NewService(repo, &mockPropertyPhotoStorage{})
+			storage := &mockPropertyPhotoStorage{
+				publicURLFunc: func(ctx context.Context, storageKey string) (string, error) {
+					if tt.name == "returns error when public url generation fails" {
+						return "", errors.New("url failed")
+					}
+					return "https://cdn.example.com/" + storageKey, nil
+				},
+			}
+
+			svc := NewService(repo, storage)
 			result, err := svc.GetPhotos(context.Background(), validUUID)
 
 			if tt.wantErr {
@@ -67,6 +100,9 @@ func TestService_GetPhotos(t *testing.T) {
 				}
 				if tt.repoErr == ErrPropertyNotFound && !errors.Is(err, ErrPropertyNotFound) {
 					t.Fatalf("error type: got %v, want ErrPropertyNotFound", err)
+				}
+				if tt.name == "returns error when public url generation fails" && !strings.Contains(err.Error(), "build property photo public url") {
+					t.Fatalf("unexpected error: %v", err)
 				}
 			} else {
 				if err != nil {

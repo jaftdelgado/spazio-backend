@@ -51,6 +51,7 @@ func (r *repository) ListPropertyTypes(ctx context.Context) ([]PropertyType, err
 			PropertyTypeID: row.PropertyTypeID,
 			Name:           row.Name,
 			Icon:           icon,
+			Subtype:        row.Subtype,
 		})
 	}
 

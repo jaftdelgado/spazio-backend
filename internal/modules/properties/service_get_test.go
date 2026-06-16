@@ -21,16 +21,19 @@ func TestService_ListProperties_CU12(t *testing.T) {
 		wantMeta        ListPropertiesMeta
 	}{
 		{
-			name:      "uses admin repository and forces available status when no status is provided",
-			input:     ListPropertiesInput{Page: 1, PageSize: 20, RoleID: RoleAdminID},
-			repoItems: []PropertyCardData{{PropertyUUID: "a"}},
+			name:  "uses admin repository and forces available status when no status is provided",
+			input: ListPropertiesInput{Page: 1, PageSize: 20, RoleID: RoleAdminID},
+			repoItems: []PropertyCardData{{
+				PropertyUUID:  "a",
+				CoverPhotoURL: ptrString("properties/a/photos/cover.webp"),
+			}},
 			repoTotal: 1,
 			wantMeta:  ListPropertiesMeta{TotalCount: 1, TotalPages: 1, CurrentPage: 1, PageSize: 20, HasNext: false, HasPrev: false},
 		},
 		{
 			name:         "uses agent repository for agent role",
 			input:        ListPropertiesInput{Page: 2, PageSize: 20, RoleID: RoleAgentID, UserID: 9},
-			repoItems:    []PropertyCardData{{PropertyUUID: "b"}},
+			repoItems:    []PropertyCardData{{PropertyUUID: "b", CoverPhotoURL: ptrString("properties/b/photos/cover.webp")}},
 			repoTotal:    45,
 			useAgentRepo: true,
 			wantMeta:     ListPropertiesMeta{TotalCount: 45, TotalPages: 3, CurrentPage: 2, PageSize: 20, HasNext: true, HasPrev: true},
@@ -41,6 +44,14 @@ func TestService_ListProperties_CU12(t *testing.T) {
 			repoErr:         errors.New("db"),
 			wantErr:         true,
 			wantErrContains: "list properties:",
+		},
+		{
+			name:            "wraps public url generation error",
+			input:           ListPropertiesInput{Page: 1, PageSize: 20, RoleID: RoleAdminID},
+			repoItems:       []PropertyCardData{{PropertyUUID: "c", CoverPhotoURL: ptrString("properties/c/photos/cover.webp")}},
+			repoTotal:       1,
+			wantErr:         true,
+			wantErrContains: "attach public cover photo urls:",
 		},
 	}
 
@@ -69,7 +80,16 @@ func TestService_ListProperties_CU12(t *testing.T) {
 				},
 			}
 
-			svc := NewService(repo, &mockPropertyPhotoStorage{})
+			storage := &mockPropertyPhotoStorage{
+				publicURLFunc: func(ctx context.Context, storageKey string) (string, error) {
+					if tt.name == "wraps public url generation error" {
+						return "", errors.New("url failed")
+					}
+					return "https://cdn.example.com/" + storageKey, nil
+				},
+			}
+
+			svc := NewService(repo, storage)
 			result, err := svc.ListProperties(context.Background(), tt.input)
 
 			if tt.wantErr {
@@ -95,7 +115,16 @@ func TestService_ListProperties_CU12(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(result.Data, tt.repoItems) {
-				t.Fatalf("data mismatch: got %#v want %#v", result.Data, tt.repoItems)
+				expected := tt.repoItems
+				for i := range expected {
+					if expected[i].CoverPhotoURL != nil {
+						url := "https://cdn.example.com/" + *expected[i].CoverPhotoURL
+						expected[i].CoverPhotoURL = &url
+					}
+				}
+				if !reflect.DeepEqual(result.Data, expected) {
+					t.Fatalf("data mismatch: got %#v want %#v", result.Data, expected)
+				}
 			}
 			if !reflect.DeepEqual(result.Meta, tt.wantMeta) {
 				t.Fatalf("meta mismatch: got %#v want %#v", result.Meta, tt.wantMeta)

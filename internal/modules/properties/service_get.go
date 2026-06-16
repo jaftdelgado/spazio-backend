@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error) {
@@ -33,6 +34,10 @@ func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput)
 	}
 	if err != nil {
 		return ListPropertiesResult{}, fmt.Errorf("list properties: %w", err)
+	}
+
+	if err := s.attachPublicCoverPhotoURLs(ctx, items); err != nil {
+		return ListPropertiesResult{}, fmt.Errorf("attach public cover photo urls: %w", err)
 	}
 
 	totalPages := resolvePropertiesTotalPages(total, input.PageSize)
@@ -81,6 +86,28 @@ func (s *service) GetPricesHistory(ctx context.Context, propertyUUID string) (Ge
 	}
 
 	return result, nil
+}
+
+func (s *service) attachPublicCoverPhotoURLs(ctx context.Context, items []PropertyCardData) error {
+	for i := range items {
+		coverPhotoURL := items[i].CoverPhotoURL
+		if coverPhotoURL == nil || *coverPhotoURL == "" || isAbsoluteURL(*coverPhotoURL) {
+			continue
+		}
+
+		url, err := s.r2Client.PublicURL(ctx, *coverPhotoURL)
+		if err != nil {
+			return fmt.Errorf("build cover photo url for property_uuid %s: %w", items[i].PropertyUUID, err)
+		}
+
+		items[i].CoverPhotoURL = &url
+	}
+
+	return nil
+}
+
+func isAbsoluteURL(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
 }
 
 func resolvePropertiesTotalPages(total int64, pageSize int32) int32 {
