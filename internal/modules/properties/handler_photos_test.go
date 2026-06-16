@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -54,9 +55,13 @@ func TestHandler_GetPhotos(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
-			name:       "returns ok with property photos data",
-			uuid:       validUUID,
-			mockResult: GetPropertyPhotosResult{Data: []PropertyPhotoData{{PhotoID: 1}}},
+			name: "returns ok with property photos data",
+			uuid: validUUID,
+			mockResult: GetPropertyPhotosResult{Data: []PropertyPhotoData{{
+				PhotoID:    1,
+				StorageKey: "properties/123e4567-e89b-12d3-a456-426614174000/photos/1.webp",
+				URL:        "https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/123e4567-e89b-12d3-a456-426614174000/photos/1.webp",
+			}}},
 			mockErr:    nil,
 			wantStatus: http.StatusOK,
 		},
@@ -84,12 +89,20 @@ func TestHandler_GetPhotos(t *testing.T) {
 			}
 
 			if tt.wantStatus == http.StatusOK {
-				var body map[string]json.RawMessage
+				var body GetPropertyPhotosResult
 				if err := json.NewDecoder(recorder.Body).Decode(&body); err != nil {
 					t.Fatalf("decode response body: %v", err)
 				}
-				if _, ok := body["data"]; !ok {
-					t.Fatal("response body missing key 'data'")
+				if len(body.Data) != len(tt.mockResult.Data) {
+					t.Fatalf("data length: got %d, want %d", len(body.Data), len(tt.mockResult.Data))
+				}
+				if len(body.Data) > 0 {
+					if body.Data[0].StorageKey == "" {
+						t.Fatal("storage_key should not be empty")
+					}
+					if !strings.HasPrefix(body.Data[0].URL, "https://") {
+						t.Fatalf("url = %q, want public https url", body.Data[0].URL)
+					}
 				}
 			}
 		})

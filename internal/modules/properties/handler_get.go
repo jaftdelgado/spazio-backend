@@ -20,7 +20,7 @@ const (
 
 // listProperties godoc
 // @Summary      List properties with advanced filters
-// @Description  Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
+// @Description  Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Each card includes readable location fields and an address summary. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
 // @Tags         Properties
 // @Produce      json
 // @Security     BearerAuth
@@ -196,7 +196,7 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 
 // getProperty godoc
 // @Summary      Get property by UUID
-// @Description  Returns property base data, subtype, and location for the given UUID. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
+// @Description  Returns property base data, subtype, and expanded location data for the given UUID. The location payload includes country, state, and city identifiers and names in addition to the address fields. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
 // @Tags         Properties
 // @Produce      json
 // @Security     BearerAuth

@@ -21,5 +21,6 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 	uploads := router.Group("/api/v1/uploads")
 	{
 		uploads.POST("/properties/:property_uuid/photos", m.handler.uploadPropertyPhoto)
+		uploads.POST("/properties/:property_uuid/photos/batch", m.handler.uploadPropertyPhotos)
 	}
 }

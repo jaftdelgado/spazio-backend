@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,20 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 			queryParams: "?min_price=1000&max_price=5000&min_bedrooms=3&q=xalapa",
 			setAuth:     true,
 			mockResult: ListPropertiesResult{
-				Data: []PropertyCardData{{PropertyUUID: "abc", Title: "Casa Xalapa"}},
+				Data: []PropertyCardData{{
+					PropertyUUID:   "abc",
+					Title:          "Casa Xalapa",
+					CoverPhotoURL:  ptrString("https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/abc/photos/cover.webp"),
+					AddressSummary: "Av. Principal 45, Centro, Xalapa, Veracruz, Mexico",
+					Location: PropertyCardLocationData{
+						CountryID:   1,
+						CountryName: "Mexico",
+						StateID:     30,
+						StateName:   "Veracruz",
+						CityID:      3001,
+						CityName:    "Xalapa",
+					},
+				}},
 				Meta: ListPropertiesMeta{TotalCount: 1, TotalPages: 1},
 			},
 			wantStatus:     http.StatusOK,
@@ -109,6 +123,17 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 				}
 				if len(res.Data) != len(tt.mockResult.Data) {
 					t.Fatalf("data length: got %d, want %d", len(res.Data), len(tt.mockResult.Data))
+				}
+				if tt.name == "valid search with all CU-12 filters" {
+					if res.Data[0].Location.CityName != "Xalapa" {
+						t.Fatalf("location.city_name = %q, want Xalapa", res.Data[0].Location.CityName)
+					}
+					if res.Data[0].AddressSummary == "" {
+						t.Fatal("address_summary should not be empty")
+					}
+					if res.Data[0].CoverPhotoURL == nil || !strings.HasPrefix(*res.Data[0].CoverPhotoURL, "https://") {
+						t.Fatalf("cover_photo_url = %#v, want public https url", res.Data[0].CoverPhotoURL)
+					}
 				}
 			}
 		})
@@ -249,6 +274,21 @@ func TestHandler_GetProperty(t *testing.T) {
 					PropertyUUID: validUUID,
 					Title:        "Casa",
 					RegisteredBy: "Admin User",
+					Location: &LocationData{
+						CountryID:       1,
+						CountryName:     "Mexico",
+						StateID:         30,
+						StateName:       "Veracruz",
+						CityID:          3001,
+						CityName:        "Xalapa",
+						Neighborhood:    "Centro",
+						Street:          "Av. Principal",
+						ExteriorNumber:  "45",
+						PostalCode:      "91000",
+						Latitude:        19.5438,
+						Longitude:       -96.9102,
+						IsPublicAddress: true,
+					},
 				},
 			},
 			wantStatus: http.StatusOK,
@@ -284,6 +324,31 @@ func TestHandler_GetProperty(t *testing.T) {
 
 			if recorder.Code != tt.wantStatus {
 				t.Fatalf("status: got %d, want %d", recorder.Code, tt.wantStatus)
+			}
+
+			if tt.wantStatus == http.StatusOK {
+				var res GetPropertyResult
+				if err := json.NewDecoder(recorder.Body).Decode(&res); err != nil {
+					t.Fatalf("decode response: %v", err)
+				}
+				if res.Data.Location == nil {
+					t.Fatal("location should not be nil")
+				}
+				if res.Data.Location.CountryName != "Mexico" {
+					t.Fatalf("location.country_name = %q, want Mexico", res.Data.Location.CountryName)
+				}
+				if res.Data.Location.StateName != "Veracruz" {
+					t.Fatalf("location.state_name = %q, want Veracruz", res.Data.Location.StateName)
+				}
+				if res.Data.Location.CityName != "Xalapa" {
+					t.Fatalf("location.city_name = %q, want Xalapa", res.Data.Location.CityName)
+				}
+				if res.Data.Location.Latitude != 19.5438 {
+					t.Fatalf("location.latitude = %v, want 19.5438", res.Data.Location.Latitude)
+				}
+				if res.Data.Location.Longitude != -96.9102 {
+					t.Fatalf("location.longitude = %v, want -96.9102", res.Data.Location.Longitude)
+				}
 			}
 		})
 	}

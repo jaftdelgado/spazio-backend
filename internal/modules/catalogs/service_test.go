@@ -122,12 +122,12 @@ func TestService_ListPropertyTypes(t *testing.T) {
 			repo: &mockCatalogsRepository{
 				listPropertyTypesFunc: func(ctx context.Context) ([]PropertyType, error) {
 					icon := "/icons/apartment.svg"
-					return []PropertyType{{PropertyTypeID: 1, Name: "Apartment", Icon: &icon}}, nil
+					return []PropertyType{{PropertyTypeID: 1, Name: "Apartment", Icon: &icon, Subtype: "residential"}}, nil
 				},
 			},
 			want: func() []PropertyType {
 				icon := "/icons/apartment.svg"
-				return []PropertyType{{PropertyTypeID: 1, Name: "Apartment", Icon: &icon}}
+				return []PropertyType{{PropertyTypeID: 1, Name: "Apartment", Icon: &icon, Subtype: "residential"}}
 			}(),
 		},
 		{

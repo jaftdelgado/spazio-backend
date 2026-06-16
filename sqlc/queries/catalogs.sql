@@ -9,7 +9,8 @@ ORDER BY modality_id ASC;
 SELECT
     property_type_id,
     name,
-    icon
+    icon,
+    subtype
 FROM property_types
 WHERE is_deprecated = false
 ORDER BY property_type_id ASC;

@@ -29,9 +29,15 @@ INSERT INTO locations (
   property_id, city_id, neighborhood, street, exterior_number,
   interior_number, postal_code, coordinates, is_public_address
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7,
-  ST_SetSRID(ST_MakePoint($8, $9), 4326),
-  $10
+  sqlc.arg(property_id),
+  sqlc.arg(city_id),
+  sqlc.arg(neighborhood),
+  sqlc.arg(street),
+  sqlc.arg(exterior_number),
+  sqlc.arg(interior_number),
+  sqlc.arg(postal_code),
+  ST_SetSRID(ST_MakePoint(sqlc.arg(longitude), sqlc.arg(latitude)), 4326),
+  sqlc.arg(is_public_address)
 );
 
 -- name: CreateSalePrice :exec
@@ -146,6 +152,34 @@ SELECT
       ELSE ''
     END AS text
   ) AS display_period_name,
+  co.country_id,
+  COALESCE(co.name, '') AS country_name,
+  st.state_id,
+  COALESCE(st.name, '') AS state_name,
+  ci.city_id,
+  COALESCE(ci.name, '') AS city_name,
+  CAST(
+    NULLIF(
+      CONCAT_WS(
+        ', ',
+        NULLIF(
+          TRIM(
+            CONCAT_WS(
+              ' ',
+              NULLIF(l.street, ''),
+              NULLIF(l.exterior_number, '')
+            )
+          ),
+          ''
+        ),
+        NULLIF(l.neighborhood, ''),
+        NULLIF(ci.name, ''),
+        NULLIF(st.name, ''),
+        NULLIF(co.name, '')
+      ),
+      ''
+    ) AS text
+  ) AS address_summary,
   res.bedrooms,
   res.bathrooms,
   res.built_area,
@@ -303,6 +337,34 @@ SELECT
       ELSE ''
     END AS text
   ) AS display_period_name,
+  co.country_id,
+  COALESCE(co.name, '') AS country_name,
+  st.state_id,
+  COALESCE(st.name, '') AS state_name,
+  ci.city_id,
+  COALESCE(ci.name, '') AS city_name,
+  CAST(
+    NULLIF(
+      CONCAT_WS(
+        ', ',
+        NULLIF(
+          TRIM(
+            CONCAT_WS(
+              ' ',
+              NULLIF(l.street, ''),
+              NULLIF(l.exterior_number, '')
+            )
+          ),
+          ''
+        ),
+        NULLIF(l.neighborhood, ''),
+        NULLIF(ci.name, ''),
+        NULLIF(st.name, ''),
+        NULLIF(co.name, '')
+      ),
+      ''
+    ) AS text
+  ) AS address_summary,
   res.bedrooms,
   res.bathrooms,
   res.built_area,
@@ -606,17 +668,25 @@ WHERE property_id = $1;
 
 -- name: GetLocationByPropertyID :one
 SELECT
-  city_id,
-  neighborhood,
-  street,
-  exterior_number,
-  interior_number,
-  postal_code,
-  ST_Y(coordinates)::float8 AS latitude,
-  ST_X(coordinates)::float8 AS longitude,
-  is_public_address
-FROM locations
-WHERE property_id = $1;
+  co.country_id,
+  co.name AS country_name,
+  st.state_id,
+  st.name AS state_name,
+  ci.city_id,
+  ci.name AS city_name,
+  l.neighborhood,
+  l.street,
+  l.exterior_number,
+  l.interior_number,
+  l.postal_code,
+  ST_Y(l.coordinates)::float8 AS latitude,
+  ST_X(l.coordinates)::float8 AS longitude,
+  l.is_public_address
+FROM locations l
+JOIN cities ci ON ci.city_id = l.city_id
+JOIN states st ON st.state_id = ci.state_id
+JOIN countries co ON co.country_id = st.country_id
+WHERE l.property_id = $1;
 
 -- name: UpdatePropertyBaseByID :exec
 UPDATE properties
@@ -651,15 +721,15 @@ WHERE property_id = $1;
 
 -- name: UpdateLocationByID :exec
 UPDATE locations
-SET city_id = $2,
-    neighborhood = $3,
-    street = $4,
-    exterior_number = $5,
-    interior_number = $6,
-    postal_code = $7,
-    coordinates = ST_SetSRID(ST_MakePoint($9, $8), 4326),
-    is_public_address = $10
-WHERE property_id = $1;
+SET city_id = sqlc.arg(city_id),
+    neighborhood = sqlc.arg(neighborhood),
+    street = sqlc.arg(street),
+    exterior_number = sqlc.arg(exterior_number),
+    interior_number = sqlc.arg(interior_number),
+    postal_code = sqlc.arg(postal_code),
+    coordinates = ST_SetSRID(ST_MakePoint(sqlc.arg(longitude), sqlc.arg(latitude)), 4326),
+    is_public_address = sqlc.arg(is_public_address)
+WHERE property_id = sqlc.arg(property_id);
 
 -- name: GetPropertyStorageKeys :many
 SELECT storage_key

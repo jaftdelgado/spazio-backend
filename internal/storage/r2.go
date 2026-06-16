@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -67,7 +68,9 @@ func (r *R2Client) PresignGetURL(ctx context.Context, storageKey string, ttl tim
 // otherwise falls back to a presigned URL with a 1-hour TTL.
 func (r *R2Client) PublicURL(ctx context.Context, storageKey string) (string, error) {
 	if r.publicURL != "" {
-		return fmt.Sprintf("%s/%s", r.publicURL, storageKey), nil
+		baseURL := strings.TrimRight(r.publicURL, "/")
+		key := strings.TrimLeft(storageKey, "/")
+		return fmt.Sprintf("%s/%s", baseURL, key), nil
 	}
 	return r.PresignGetURL(ctx, storageKey, time.Hour)
 }

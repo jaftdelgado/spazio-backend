@@ -277,7 +277,12 @@ func (r *repository) getPropertyDataFromBaseRow(ctx context.Context, baseRow sql
 
 	if locRow, err := r.queries.GetLocationByPropertyID(ctx, propertyID); err == nil {
 		data.Location = &LocationData{
+			CountryID:       locRow.CountryID,
+			CountryName:     locRow.CountryName,
+			StateID:         locRow.StateID,
+			StateName:       locRow.StateName,
 			CityID:          locRow.CityID,
+			CityName:        locRow.CityName,
 			Neighborhood:    locRow.Neighborhood,
 			Street:          locRow.Street,
 			ExteriorNumber:  locRow.ExteriorNumber,
@@ -315,6 +320,13 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		row.DisplayPriceCurrency,
 		row.DisplayPriceType,
 		row.DisplayPeriodName,
+		row.CountryID,
+		row.CountryName,
+		row.StateID,
+		row.StateName,
+		row.CityID,
+		row.CityName,
+		row.AddressSummary,
 		row.Bedrooms,
 		row.Bathrooms,
 		row.BuiltArea,
@@ -338,6 +350,13 @@ func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (P
 		row.DisplayPriceCurrency,
 		row.DisplayPriceType,
 		row.DisplayPeriodName,
+		row.CountryID,
+		row.CountryName,
+		row.StateID,
+		row.StateName,
+		row.CityID,
+		row.CityName,
+		row.AddressSummary,
 		row.Bedrooms,
 		row.Bathrooms,
 		row.BuiltArea,
@@ -360,6 +379,13 @@ func propertyCardDataFromValues(
 	displayPriceCurrency string,
 	displayPriceType string,
 	displayPeriodName string,
+	countryID pgtype.Int4,
+	countryName string,
+	stateID pgtype.Int4,
+	stateName string,
+	cityID pgtype.Int4,
+	cityName string,
+	addressSummary string,
 	bedrooms pgtype.Int2,
 	bathrooms pgtype.Int2,
 	builtArea pgtype.Numeric,
@@ -382,6 +408,18 @@ func propertyCardDataFromValues(
 			StatusID: statusID,
 			Name:     statusName,
 		},
+		Location: PropertyCardLocationData{
+			CountryID:   countryID.Int32,
+			CountryName: countryName,
+			StateID:     stateID.Int32,
+			StateName:   stateName,
+			CityID:      cityID.Int32,
+			CityName:    cityName,
+		},
+	}
+
+	if addressSummary != "" {
+		card.AddressSummary = addressSummary
 	}
 
 	if bedrooms.Valid {

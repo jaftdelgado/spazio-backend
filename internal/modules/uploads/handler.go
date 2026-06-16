@@ -2,6 +2,8 @@ package uploads
 
 import (
 	"errors"
+	"fmt"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"strings"
@@ -115,4 +117,98 @@ func (h *Handler) uploadPropertyPhoto(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, result)
+}
+
+func (h *Handler) uploadPropertyPhotos(c *gin.Context) {
+	propertyUUID := strings.TrimSpace(c.Param("property_uuid"))
+	if propertyUUID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "property_uuid is required"})
+		return
+	}
+
+	if _, err := uuid.Parse(propertyUUID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "property_uuid must be a valid UUID"})
+		return
+	}
+
+	if err := c.Request.ParseMultipartForm(50 << 20); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid multipart form"})
+		return
+	}
+
+	headers := c.Request.MultipartForm.File["file"]
+	if len(headers) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one file is required"})
+		return
+	}
+	if len(headers) > 10 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "maximum 10 files allowed"})
+		return
+	}
+
+	for i, header := range headers {
+		if err := validateUploadPhotoHeader(header); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("file[%d]: %s", i, err.Error())})
+			return
+		}
+	}
+
+	photos := make([]UploadPhotoInput, 0, len(headers))
+	defer closeUploadFiles(photos)
+
+	for i, header := range headers {
+		file, err := header.Open()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("file[%d]: could not open file", i)})
+			return
+		}
+
+		photos = append(photos, UploadPhotoInput{
+			PropertyUUID: propertyUUID,
+			MimeType:     header.Header.Get("Content-Type"),
+			File:         file,
+		})
+	}
+
+	ctx := c.Request.Context()
+	result, err := h.service.UploadPropertyPhotos(ctx, UploadPhotosInput{
+		PropertyUUID: propertyUUID,
+		Photos:       photos,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, result)
+		return
+	}
+
+	if len(result.Uploaded) > 0 && len(result.Failed) > 0 {
+		c.JSON(http.StatusMultiStatus, result)
+		return
+	}
+
+	c.JSON(http.StatusCreated, result)
+}
+
+func validateUploadPhotoHeader(header *multipart.FileHeader) error {
+	if header.Size > 5*1024*1024 {
+		return errors.New("file size must be less than 5MB")
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType != "image/jpeg" && mimeType != "image/png" && mimeType != "image/webp" {
+		return errors.New("allowed MIME types: image/jpeg, image/png, image/webp")
+	}
+
+	return nil
+}
+
+func closeUploadFiles(photos []UploadPhotoInput) {
+	for _, photo := range photos {
+		closer, ok := photo.File.(interface{ Close() error })
+		if !ok {
+			continue
+		}
+		if err := closer.Close(); err != nil {
+			continue
+		}
+	}
 }

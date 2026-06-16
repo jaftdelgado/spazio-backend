@@ -11,6 +11,14 @@ func (s *service) GetPhotos(ctx context.Context, propertyUUID string) (GetProper
 		return GetPropertyPhotosResult{}, fmt.Errorf("get property photos: %w", err)
 	}
 
+	for i := range result.Data {
+		url, err := s.r2Client.PublicURL(ctx, result.Data[i].StorageKey)
+		if err != nil {
+			return GetPropertyPhotosResult{}, fmt.Errorf("build property photo public url: %w", err)
+		}
+		result.Data[i].URL = url
+	}
+
 	return result, nil
 }
 

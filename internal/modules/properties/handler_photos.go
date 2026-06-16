@@ -14,7 +14,7 @@ import (
 
 // getPhotos godoc
 // @Summary      List property photos
-// @Description  Returns the photo metadata linked to a property by UUID ordered by sort_order ascending. When the property has no photos, the response contains an empty data array.
+// @Description  Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. When the property has no photos, the response contains an empty data array.
 // @Tags         Properties
 // @Produce      json
 // @Param        uuid  path     string                   true  "Property UUID"

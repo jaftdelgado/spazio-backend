@@ -62,7 +62,7 @@ func Load() *Config {
 			AccessKeyID:     getEnv("R2_ACCESS_KEY_ID", ""),
 			SecretAccessKey: getEnv("R2_SECRET_ACCESS_KEY", ""),
 			BucketName:      getEnv("R2_BUCKET_NAME", ""),
-			PublicURL:       getEnv("R2_PUBLIC_URL", ""),
+			PublicURL:       getEnv("R2_PUBLIC_BASE_URL", getEnv("R2_PUBLIC_URL", "")),
 		},
 		JWTSecret:                jwtSecret,
 		JWTExpiryMinutes:         jwtExpiryMinutes,
