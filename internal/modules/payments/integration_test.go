@@ -94,6 +94,15 @@ func TestIntegration_ProcessPayment(t *testing.T) {
 			txSvc := &service{
 				repo:          repo,
 				mpAccessToken: "TEST-TOKEN",
+				mpClient: &mockMPClient{
+					createPaymentFunc: func(ctx context.Context, req payment.Request) (*payment.Response, error) {
+						return &payment.Response{
+							ID:           123456789,
+							Status:       "approved",
+							StatusDetail: "accredited",
+						}, nil
+					},
+				},
 			}
 
 			res, err := txSvc.ProcessPayment(ctx, clientID, tt.req)

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	mpConfig "github.com/mercadopago/sdk-go/pkg/config"
 	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
@@ -117,12 +116,6 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		return PaymentResponse{}, fmt.Errorf("el monto del pago (%.2f) no coincide con el monto pactado en el contrato (%.2f)", float64(req.Amount)/100.0, contractAmount.Float64)
 	}
 
-	mpCfg, err := mpConfig.New(s.mpAccessToken)
-	if err != nil {
-		return PaymentResponse{}, fmt.Errorf("error de configuración MP: %w", err)
-	}
-	mpClient := payment.NewClient(mpCfg)
-
 	installments := req.Installments
 	if installments == 0 {
 		installments = 1
@@ -143,22 +136,13 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		mpReq.IssuerID = req.IssuerID
 	}
 
-	var mpResp *payment.Response
-	if s.mpAccessToken == "TEST-TOKEN" || req.Token == "TEST-TOKEN" || s.mpAccessToken == "TEST-REJECTED" || s.mpAccessToken == "TEST-PENDING" || s.mpAccessToken == "TEST-REFUNDED" {
-		mpResp = &payment.Response{ID: 123456789, Status: "approved", StatusDetail: "accredited"}
-		if s.mpAccessToken == "TEST-REJECTED" {
-			mpResp.Status = "rejected"
-			mpResp.StatusDetail = "cc_rejected_bad_filled_security_code"
-		}
-		if s.mpAccessToken == "TEST-PENDING" {
-			mpResp.Status = "pending"
-			mpResp.StatusDetail = "pending_waiting_payment"
-		}
-	} else {
-		mpResp, err = mpClient.Create(ctx, mpReq)
-		if err != nil {
-			return PaymentResponse{}, fmt.Errorf("error al procesar pago en pasarela: %w", err)
-		}
+	if s.mpClient == nil {
+		return PaymentResponse{}, errors.New("pasarela de pagos no inicializada")
+	}
+
+	mpResp, err := s.mpClient.CreatePayment(ctx, mpReq)
+	if err != nil {
+		return PaymentResponse{}, fmt.Errorf("error al procesar pago en pasarela: %w", err)
 	}
 
 	statusID := int32(PaymentStatusFailed)
