@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_user_verification_challenges_user_id_purpose;
+DROP INDEX IF EXISTS idx_user_verification_challenges_email_purpose;
+DROP TABLE IF EXISTS user_verification_challenges;
