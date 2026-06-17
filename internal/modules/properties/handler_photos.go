@@ -3,7 +3,6 @@ package properties
 import (
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -42,7 +41,6 @@ func (h *Handler) getPhotos(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property photos: %v", err)
 		shared.InternalError(c, "could not get property photos")
 		return
 	}
@@ -97,7 +95,6 @@ func (h *Handler) updatePhotos(c *gin.Context) {
 			return
 		}
 
-		log.Printf("update property photos: %v", err)
 		shared.InternalError(c, "could not update property photos")
 		return
 	}

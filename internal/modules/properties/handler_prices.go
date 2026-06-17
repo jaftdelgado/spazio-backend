@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -41,7 +40,6 @@ func (h *Handler) getPrices(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property prices: %v", err)
 		shared.InternalError(c, "could not get property prices")
 		return
 	}
@@ -94,7 +92,6 @@ func (h *Handler) updatePrices(c *gin.Context) {
 			return
 		}
 
-		log.Printf("update property prices: %v", err)
 		shared.InternalError(c, "could not update property prices")
 		return
 	}

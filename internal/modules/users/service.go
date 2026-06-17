@@ -376,9 +376,7 @@ func (s *service) UploadProfilePhoto(ctx context.Context, input UploadProfilePho
 
 	user, err := s.repository.UpdateUserProfilePhoto(ctx, input.UserUUID, publicURL)
 	if err != nil {
-		if deleteErr := s.photoStorage.Delete(ctx, storageKey); deleteErr != nil {
-			log.Printf("delete orphaned profile photo %s: %v", storageKey, deleteErr)
-		}
+		_ = s.photoStorage.Delete(ctx, storageKey)
 		return UpdateProfileResult{}, fmt.Errorf("update profile photo url: %w", err)
 	}
 

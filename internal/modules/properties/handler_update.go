@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -135,7 +134,6 @@ func (h *Handler) updateProperty(c *gin.Context) {
 			return
 		}
 
-		log.Printf("update property: %v", err)
 		shared.InternalError(c, "could not update property")
 		return
 	}
