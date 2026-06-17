@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -174,7 +173,6 @@ func (h *Handler) listProperties(c *gin.Context) {
 		Order:           resolvePropertySortOrder(sortOrder),
 	})
 	if err != nil {
-		log.Printf("list properties: %v", err)
 		shared.InternalError(c, "could not list properties")
 		return
 	}
@@ -210,7 +208,6 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property history: %v", err)
 		shared.InternalError(c, "could not get property history")
 		return
 	}
@@ -262,7 +259,6 @@ func (h *Handler) getProperty(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property: %v", err)
 		shared.InternalError(c, "could not get property")
 		return
 	}
@@ -298,7 +294,6 @@ func (h *Handler) getPricesHistory(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property prices history: %v", err)
 		shared.InternalError(c, "could not get property prices history")
 		return
 	}

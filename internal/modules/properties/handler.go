@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -96,7 +95,6 @@ func (h *Handler) createProperty(c *gin.Context) {
 			return
 		}
 
-		log.Printf("create property: %v", err)
 		shared.InternalError(c, "could not create property")
 		return
 	}

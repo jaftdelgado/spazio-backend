@@ -7,7 +7,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"log"
 
 	"github.com/google/uuid"
 	"github.com/nickalie/go-webpbin"
@@ -49,9 +48,7 @@ func (s *service) UploadPropertyPhoto(ctx context.Context, input UploadPhotoInpu
 		IsCover:      input.IsCover,
 	})
 	if err != nil {
-		if deleteErr := s.r2Client.Delete(ctx, storageKey); deleteErr != nil {
-			log.Printf("delete orphaned upload %s: %v", storageKey, deleteErr)
-		}
+		_ = s.r2Client.Delete(ctx, storageKey)
 		return UploadPhotoResult{}, fmt.Errorf("save property photo: %w", err)
 	}
 

@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -62,7 +61,6 @@ func (h *Handler) deleteProperty(c *gin.Context) {
 			return
 		}
 
-		log.Printf("delete property: %v", err)
 		shared.InternalError(c, err.Error())
 		return
 	}

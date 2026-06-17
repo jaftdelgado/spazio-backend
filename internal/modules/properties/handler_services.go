@@ -3,7 +3,6 @@ package properties
 import (
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -42,7 +41,6 @@ func (h *Handler) getServices(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property services: %v", err)
 		shared.InternalError(c, "could not get property services")
 		return
 	}
@@ -97,7 +95,6 @@ func (h *Handler) updateServices(c *gin.Context) {
 			return
 		}
 
-		log.Printf("update property services: %v", err)
 		shared.InternalError(c, "could not update property services")
 		return
 	}

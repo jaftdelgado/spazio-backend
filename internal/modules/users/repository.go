@@ -203,7 +203,12 @@ func (r *repository) UpdateProfile(ctx context.Context, uuidStr string, input Up
 		return UserProfile{}, fmt.Errorf("update profile: %w", err)
 	}
 
-	return r.GetUserProfileByUUID(ctx, uuidStr)
+	profile, err := r.GetUserProfileByUUID(ctx, uuidStr)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	return profile, nil
 }
 
 func (r *repository) UpdateUserEmail(ctx context.Context, userID int32, email string) (UserProfile, error) {
@@ -275,7 +280,12 @@ func (r *repository) UpdateUserProfilePhoto(ctx context.Context, uuidStr string,
 		return UserProfile{}, fmt.Errorf("update user profile photo: %w", err)
 	}
 
-	return r.GetUserProfileByUUID(ctx, uuidStr)
+	profile, err := r.GetUserProfileByUUID(ctx, uuidStr)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	return profile, nil
 }
 
 func (r *repository) SoftDeleteUser(ctx context.Context, uuidStr string) error {

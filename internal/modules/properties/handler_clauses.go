@@ -2,7 +2,6 @@ package properties
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 
@@ -41,7 +40,6 @@ func (h *Handler) getClauses(c *gin.Context) {
 			return
 		}
 
-		log.Printf("get property clauses: %v", err)
 		shared.InternalError(c, "could not get property clauses")
 		return
 	}
@@ -94,7 +92,6 @@ func (h *Handler) updateClauses(c *gin.Context) {
 			return
 		}
 
-		log.Printf("update property clauses: %v", err)
 		shared.InternalError(c, "could not update property clauses")
 		return
 	}

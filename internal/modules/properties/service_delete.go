@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 )
 
 func (s *service) DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error {
@@ -33,9 +32,7 @@ func (s *service) DeleteProperty(ctx context.Context, propertyUUID string, input
 	}
 
 	for _, storageKey := range storageKeys {
-		if err := s.r2Client.Delete(ctx, storageKey); err != nil {
-			log.Printf("property delete storage cleanup failed for property_id=%d storage_key=%s: %v", propertyID, storageKey, err)
-		}
+		_ = s.r2Client.Delete(ctx, storageKey)
 	}
 
 	return nil
