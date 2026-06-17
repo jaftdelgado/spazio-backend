@@ -85,20 +85,15 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 	for i, row := range rows {
 		amount, _ := row.AgreedAmount.Float64Value()
 
-		clientName := ""
-		if cn, ok := row.ClientName.(string); ok {
-			clientName = cn
-		}
-
 		result[i] = ContractListItem{
-			ContractUUID:    fmt.Sprintf("%x-%x-%x-%x-%x", row.ContractUuid.Bytes[0:4], row.ContractUuid.Bytes[4:6], row.ContractUuid.Bytes[6:8], row.ContractUuid.Bytes[8:10], row.ContractUuid.Bytes[10:16]),
+			ContractUUID:    formatPgUUID(row.ContractUuid),
 			TransactionType: string(row.TransactionType),
 			PropertyTitle:   row.PropertyTitle,
 			AgreedAmount:    amount.Float64,
 			Currency:        row.Currency,
 			StartDate:       row.StartDate.Time,
 			Status:          row.StatusName,
-			ClientName:      clientName,
+			ClientName:      strings.TrimSpace(row.ClientName),
 			CreatedAt:       row.CreatedAt.Time,
 		}
 	}
@@ -112,17 +107,18 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 		return ContractDetail{}, fmt.Errorf("get contract by uuid: %w", err)
 	}
 
-	// Allowed: Admin, Agent, Owner, or Client of the contract
-	if roleID != roleAdminID && roleID != roleAgentID && row.OwnerID != userID && row.ClientID != userID {
+	clientHasAccess := row.ClientID != 0 && row.ClientID == userID
+
+	if roleID != roleAdminID && roleID != roleAgentID && row.OwnerID != userID && !clientHasAccess {
 		return ContractDetail{}, fmt.Errorf("no tiene permiso para ver este contrato")
 	}
 
 	amount, _ := row.AgreedAmount.Float64Value()
 
 	pdfURL, err := s.storage.PublicURL(ctx, row.StorageKey)
-if err != nil {
-	return ContractDetail{}, fmt.Errorf("generate contract public url: %w", err)
-}
+	if err != nil {
+		return ContractDetail{}, fmt.Errorf("generate contract public url: %w", err)
+	}
 
 	var endDate *time.Time
 	if row.EndDate.Valid {
@@ -130,10 +126,10 @@ if err != nil {
 	}
 
 	return ContractDetail{
-		ContractUUID:  fmt.Sprintf("%x-%x-%x-%x-%x", row.ContractUuid.Bytes[0:4], row.ContractUuid.Bytes[4:6], row.ContractUuid.Bytes[6:8], row.ContractUuid.Bytes[8:10], row.ContractUuid.Bytes[10:16]),
+		ContractUUID:  formatPgUUID(row.ContractUuid),
 		PropertyTitle: row.PropertyTitle,
-		OwnerName:     row.OwnerFirstName + " " + row.OwnerLastName,
-		ClientName:    row.ClientFirstName + " " + row.ClientLastName,
+		OwnerName:     fullName(row.OwnerFirstName, row.OwnerLastName),
+		ClientName:    fullName(row.ClientFirstName, row.ClientLastName),
 		AgreedAmount:  amount.Float64,
 		Currency:      row.Currency,
 		PeriodName:    row.PeriodName.String,
@@ -154,7 +150,7 @@ func (s *service) GenerateRentContract(ctx context.Context, userID int32, input 
 		return CreateContractResult{}, fmt.Errorf("la transacción no corresponde a una renta")
 	}
 
-	if data.ClientID != userID {
+	if data.ClientID == 0 || data.ClientID != userID {
 		return CreateContractResult{}, fmt.Errorf("no tiene permiso para generar el contrato de esta renta")
 	}
 
@@ -211,7 +207,6 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 		return CreateContractResult{}, fmt.Errorf("ya existe un contrato generado para esta transacción")
 	}
 
-	// F7: Robust Financial Security Check using integer cents to avoid float precision issues
 	transactionAmount, _ := data.FinalAmount.Float64Value()
 	if int64(input.AgreedAmount*100) != int64(transactionAmount.Float64*100) {
 		return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) no coincide con el monto de la transacción (%.2f)", input.AgreedAmount, transactionAmount.Float64)
@@ -228,7 +223,7 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 	}
 
 	var parentContractID *int32
-	if data.TransactionType == sqlcgen.TransactionTypeRent {
+	if data.TransactionType == sqlcgen.TransactionTypeRent && data.ClientID != 0 {
 		if prevID, err := s.repository.FindLatestContractByPropertyAndClient(ctx, data.PropertyID, data.ClientID); err == nil && prevID > 0 {
 			parentContractID = &prevID
 		}
@@ -241,7 +236,6 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 		return CreateContractResult{}, fmt.Errorf("generate pdf: %w", err)
 	}
 
-	// F5: Atomic Transaction Implementation
 	tx, err := s.repository.Begin(ctx)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("begin transaction: %w", err)
@@ -252,19 +246,16 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 
 	storageKey := fmt.Sprintf("contracts/%s.pdf", contractUUID.String())
 
-	// Step 1: Insert DB Record first (within transaction)
 	record, err := repoTx.CreateContract(ctx, contractUUID, input, parentContractID, storageKey)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("create contract record: %w", err)
 	}
 
-	// Step 2: Upload to R2. If it fails, defer Rollback handles DB consistency.
 	err = s.storage.Upload(ctx, storageKey, "application/pdf", bytes.NewReader(pdfBytes))
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("upload pdf to storage: %w", err)
 	}
 
-	// Step 3: Update Transaction and Property Status
 	err = repoTx.UpdateTransactionStatus(ctx, input.TransactionID, transactionStatusClosedID)
 	if err != nil {
 		return CreateContractResult{}, fmt.Errorf("update transaction status: %w", err)
@@ -277,14 +268,13 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 		}
 	}
 
-	// Step 4: Commit
 	if err := tx.Commit(ctx); err != nil {
 		return CreateContractResult{}, fmt.Errorf("commit transaction: %w", err)
 	}
 
 	pdfURL, err := s.storage.PublicURL(ctx, storageKey)
 	if err != nil {
-		pdfURL = "" // Non-critical for return result, but logged if we had a logger
+		pdfURL = ""
 	}
 
 	return CreateContractResult{
@@ -324,6 +314,8 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 	title := "CONTRATO DE ARRENDAMIENTO"
 	periodInfo := ""
 	isRent := data.TransactionType == sqlcgen.TransactionTypeRent
+	clientName := fullName(data.ClientFirstName, data.ClientLastName)
+
 	if !isRent {
 		title = "CONTRATO DE COMPRAVENTA"
 	} else {
@@ -342,6 +334,7 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		} else if data.PeriodName.Valid {
 			pName = translatePeriod(data.PeriodName.String)
 		}
+
 		periodInfo = fmt.Sprintf(" con frecuencia de pago %s", strings.ToLower(pName))
 	}
 
@@ -354,7 +347,6 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 
 	m := maroto.New(cfg)
 
-	// --- HEADER ---
 	m.AddRows(
 		row.New(20).Add(
 			col.New(12).Add(
@@ -385,7 +377,6 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		line.NewRow(5),
 	)
 
-	// --- SECTION I: DECLARACIONES ---
 	m.AddRows(
 		row.New(12).Add(
 			col.New(12).Add(
@@ -397,15 +388,28 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 				text.New(fmt.Sprintf("1.1 EL PROPIETARIO: %s %s, con plena capacidad legal para celebrar el presente contrato.", data.OwnerFirstName, data.OwnerLastName), props.Text{Size: 10}),
 			),
 		),
-		row.New(8).Add(
-			col.New(12).Add(
-				text.New(fmt.Sprintf("1.2 EL CLIENTE: %s %s, quien manifiesta su interés en adquirir los derechos de uso sobre el inmueble.", data.ClientFirstName, data.ClientLastName), props.Text{Size: 10}),
-			),
-		),
-		row.New(10),
 	)
 
-	// --- SECTION II: DEL INMUEBLE ---
+	if isRent || clientName != "" {
+		m.AddRows(
+			row.New(8).Add(
+				col.New(12).Add(
+					text.New(fmt.Sprintf("1.2 EL CLIENTE: %s, quien manifiesta su interés en adquirir los derechos de uso sobre el inmueble.", clientName), props.Text{Size: 10}),
+				),
+			),
+		)
+	} else {
+		m.AddRows(
+			row.New(8).Add(
+				col.New(12).Add(
+					text.New("1.2 OPERACIÓN DE COMPRAVENTA: La venta fue formalizada por el agente responsable, sin cliente registrado en la transacción.", props.Text{Size: 10}),
+				),
+			),
+		)
+	}
+
+	m.AddRows(row.New(10))
+
 	m.AddRows(
 		row.New(12).Add(
 			col.New(12).Add(
@@ -424,13 +428,13 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		),
 	)
 
-	// Technical Details
 	lotArea, _ := data.LotArea.Float64Value()
 	techInfo := fmt.Sprintf("Tipo: %s | Terreno: %.2f m2", data.PropertyTypeName, lotArea.Float64)
 	if data.Bedrooms.Valid {
 		builtArea, _ := data.BuiltArea.Float64Value()
 		techInfo += fmt.Sprintf(" | Área Const.: %.2f m2 | Habitaciones: %d | Baños: %d | Pisos: %d", builtArea.Float64, data.Bedrooms.Int16, data.Bathrooms.Int16, data.Floors.Int16)
 	}
+
 	m.AddRows(
 		row.New(8).Add(
 			col.New(12).Add(
@@ -439,7 +443,6 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		),
 	)
 
-	// Amenities
 	if len(amenities) > 0 {
 		var translatedAmenities []string
 		for _, a := range amenities {
@@ -459,9 +462,14 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 			),
 		)
 	}
+
 	m.AddRows(row.New(10))
 
-	// --- SECTION III: CLÁUSULAS ---
+	objectText := "El propietario otorga al cliente la " + translateType(string(data.TransactionType)) + " del inmueble anteriormente descrito."
+	if !isRent && clientName == "" {
+		objectText = "El propietario formaliza la venta del inmueble anteriormente descrito mediante el agente responsable."
+	}
+
 	m.AddRows(
 		row.New(12).Add(
 			col.New(12).Add(
@@ -470,7 +478,7 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		),
 		row.New(12).Add(
 			col.New(12).Add(
-				text.New(fmt.Sprintf("PRIMERA (Objeto): El propietario otorga al cliente la %s del inmueble anteriormente descrito.", translateType(string(data.TransactionType))), props.Text{Size: 10}),
+				text.New(fmt.Sprintf("PRIMERA (Objeto): %s", objectText), props.Text{Size: 10}),
 			),
 		),
 		row.New(12).Add(
@@ -497,6 +505,7 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 		clauseCount := 4
 		for _, c := range clauses {
 			phrase := ""
+
 			switch c.ClauseName {
 			case "pets allowed":
 				if c.BooleanValue.Valid && c.BooleanValue.Bool {
@@ -517,7 +526,6 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 					phrase = "No se permite la residencia de menores de edad en el inmueble."
 				}
 			default:
-				// Fallback natural para otras posibles cláusulas
 				switch c.ValueTypeCode {
 				case "BOOLEAN":
 					if c.BooleanValue.Valid && c.BooleanValue.Bool {
@@ -542,12 +550,19 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 						),
 					),
 				)
+
 				clauseCount++
 			}
 		}
 	}
 
-	// --- SIGNATURES ---
+	secondSignatureLabel := "EL CLIENTE"
+	secondSignatureName := clientName
+	if !isRent && clientName == "" {
+		secondSignatureLabel = "AGENTE RESPONSABLE"
+		secondSignatureName = "Agente responsable"
+	}
+
 	m.AddRows(
 		row.New(40),
 		row.New(10).Add(
@@ -565,16 +580,16 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 			),
 			col.New(2),
 			col.New(5).Add(
-				text.New("EL CLIENTE", props.Text{Align: align.Center, Size: 9, Style: fontstyle.Bold}),
+				text.New(secondSignatureLabel, props.Text{Align: align.Center, Size: 9, Style: fontstyle.Bold}),
 			),
 		),
 		row.New(8).Add(
 			col.New(5).Add(
-				text.New(fmt.Sprintf("%s %s", data.OwnerFirstName, data.OwnerLastName), props.Text{Align: align.Center, Size: 9}),
+				text.New(fullName(data.OwnerFirstName, data.OwnerLastName), props.Text{Align: align.Center, Size: 9}),
 			),
 			col.New(2),
 			col.New(5).Add(
-				text.New(fmt.Sprintf("%s %s", data.ClientFirstName, data.ClientLastName), props.Text{Align: align.Center, Size: 9}),
+				text.New(secondSignatureName, props.Text{Align: align.Center, Size: 9}),
 			),
 		),
 	)
@@ -585,6 +600,18 @@ func (s *service) generatePDF(data sqlcgen.GetContractDataByTransactionIDRow, cl
 	}
 
 	return document.GetBytes(), nil
+}
+
+func fullName(firstName string, lastName string) string {
+	return strings.TrimSpace(firstName + " " + lastName)
+}
+
+func formatPgUUID(value pgtype.UUID) string {
+	if !value.Valid {
+		return ""
+	}
+
+	return fmt.Sprintf("%x-%x-%x-%x-%x", value.Bytes[0:4], value.Bytes[4:6], value.Bytes[6:8], value.Bytes[8:10], value.Bytes[10:16])
 }
 
 func translatePeriod(p string) string {
@@ -604,6 +631,7 @@ func translateType(t string) string {
 	if t == "rent" {
 		return "renta"
 	}
+
 	return "venta"
 }
 
@@ -644,6 +672,7 @@ func translateAmenity(code string) string {
 				words[i] = strings.ToUpper(string(w[0])) + w[1:]
 			}
 		}
+
 		return strings.Join(words, " ")
 	}
 }
