@@ -45,7 +45,7 @@ SELECT
     p.property_id,
     p.owner_id,
     p.status_id AS property_status_id,
-    t.client_id,
+    COALESCE(t.client_id, 0) AS client_id,
     p.title AS property_title,
     p.description AS property_description,
     pt.name AS property_type_name,
@@ -62,10 +62,10 @@ SELECT
     u_owner.first_name AS owner_first_name,
     u_owner.last_name AS owner_last_name,
     u_owner.email AS owner_email,
-    u_client.first_name AS client_first_name,
-    u_client.last_name AS client_last_name,
-    u_client.email AS client_email,
-    rper.name as period_name
+    COALESCE(u_client.first_name, '') AS client_first_name,
+    COALESCE(u_client.last_name, '') AS client_last_name,
+    COALESCE(u_client.email, '') AS client_email,
+    rper.name AS period_name
 FROM transactions t
 JOIN properties p ON t.property_id = p.property_id
 JOIN property_types pt ON p.property_type_id = pt.property_type_id
@@ -74,7 +74,7 @@ JOIN locations l ON p.property_id = l.property_id
 JOIN cities ct ON l.city_id = ct.city_id
 JOIN states st ON ct.state_id = st.state_id
 JOIN users u_owner ON p.owner_id = u_owner.user_id
-JOIN users u_client ON t.client_id = u_client.user_id
+LEFT JOIN users u_client ON t.client_id = u_client.user_id
 LEFT JOIN rent_prices rpr ON p.property_id = rpr.property_id AND rpr.is_current = true
 LEFT JOIN rent_periods rper ON rpr.period_id = rper.period_id
 WHERE t.transaction_id = $1 LIMIT 1;
@@ -120,13 +120,13 @@ SELECT
     t.transaction_type,
     p.title AS property_title,
     p.owner_id,
-    t.client_id,
-    u_client.first_name || ' ' || u_client.last_name as client_name
+    COALESCE(t.client_id, 0) AS client_id,
+    TRIM(COALESCE(u_client.first_name, '') || ' ' || COALESCE(u_client.last_name, '')) AS client_name
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
 JOIN properties p ON t.property_id = p.property_id
 JOIN contract_status cs ON c.status_id = cs.status_id
-JOIN users u_client ON t.client_id = u_client.user_id
+LEFT JOIN users u_client ON t.client_id = u_client.user_id
 WHERE c.deleted_at IS NULL
     AND (
         sqlc.narg('filter_user_id')::int IS NULL OR 
@@ -137,10 +137,12 @@ WHERE c.deleted_at IS NULL
     AND (sqlc.narg('status_id')::int IS NULL OR c.status_id = sqlc.narg('status_id'))
     AND (sqlc.narg('start_date')::timestamptz IS NULL OR c.created_at >= sqlc.narg('start_date'))
     AND (sqlc.narg('end_date')::timestamptz IS NULL OR c.created_at <= sqlc.narg('end_date'))
-    AND (sqlc.narg('search')::text IS NULL OR 
-         p.title ILIKE '%' || sqlc.narg('search') || '%' OR 
-         u_client.first_name ILIKE '%' || sqlc.narg('search') || '%' OR 
-         u_client.last_name ILIKE '%' || sqlc.narg('search') || '%')
+    AND (
+        sqlc.narg('search')::text IS NULL OR 
+        p.title ILIKE '%' || sqlc.narg('search') || '%' OR 
+        u_client.first_name ILIKE '%' || sqlc.narg('search') || '%' OR 
+        u_client.last_name ILIKE '%' || sqlc.narg('search') || '%'
+    )
 ORDER BY c.created_at DESC
 LIMIT $1 OFFSET $2;
 
@@ -159,7 +161,7 @@ SELECT
     t.transaction_type,
     p.property_id,
     p.owner_id,
-    t.client_id,
+    COALESCE(t.client_id, 0) AS client_id,
     p.title AS property_title,
     l.street,
     l.exterior_number,
@@ -169,9 +171,9 @@ SELECT
     u_owner.first_name AS owner_first_name,
     u_owner.last_name AS owner_last_name,
     u_owner.email AS owner_email,
-    u_client.first_name AS client_first_name,
-    u_client.last_name AS client_last_name,
-    u_client.email AS client_email,
+    COALESCE(u_client.first_name, '') AS client_first_name,
+    COALESCE(u_client.last_name, '') AS client_last_name,
+    COALESCE(u_client.email, '') AS client_email,
     rper.name AS period_name
 FROM contracts c
 JOIN transactions t ON c.transaction_id = t.transaction_id
@@ -181,6 +183,6 @@ JOIN locations l ON p.property_id = l.property_id
 JOIN cities ct ON l.city_id = ct.city_id
 JOIN states st ON ct.state_id = st.state_id
 JOIN users u_owner ON p.owner_id = u_owner.user_id
-JOIN users u_client ON t.client_id = u_client.user_id
+LEFT JOIN users u_client ON t.client_id = u_client.user_id
 LEFT JOIN rent_periods rper ON c.period_id = rper.period_id
 WHERE c.contract_uuid = $1 AND c.deleted_at IS NULL LIMIT 1;
