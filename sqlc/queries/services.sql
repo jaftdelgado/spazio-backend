@@ -28,7 +28,19 @@ JOIN service_categories AS sc ON sc.category_id = s.category_id
 WHERE s.is_active = true
   AND s.is_deprecated = false
   AND (sqlc.arg(category_id)::int = 0 OR s.category_id = sqlc.arg(category_id)::int)
-  AND s.code ILIKE '%' || sqlc.arg(query) || '%'
+  AND (
+      s.code ILIKE '%' || sqlc.arg(query) || '%'
+      OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(s.search_tags->'es', '[]'::jsonb)) AS tag_es(value)
+          WHERE tag_es.value ILIKE '%' || sqlc.arg(query) || '%'
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements_text(COALESCE(s.search_tags->'en', '[]'::jsonb)) AS tag_en(value)
+          WHERE tag_en.value ILIKE '%' || sqlc.arg(query) || '%'
+      )
+  )
 ORDER BY s.sort_order ASC, s.service_id ASC
 LIMIT sqlc.arg(page_size)
 OFFSET sqlc.arg(page_offset);
