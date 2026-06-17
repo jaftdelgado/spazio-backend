@@ -19,7 +19,19 @@ JOIN roles r ON r.role_id = u.role_id
 WHERE u.email = $1 AND u.deleted_at IS NULL;
 
 -- name: GetUserByUUID :one
-SELECT u.user_id, u.user_uuid, u.email, u.role_id, r.name AS role_name, u.status_id, u.created_at
+SELECT
+    u.user_id,
+    u.user_uuid,
+    u.email,
+    u.password,
+    u.role_id,
+    r.name AS role_name,
+    u.status_id,
+    u.first_name,
+    u.last_name,
+    u.phone,
+    u.profile_picture_url,
+    u.created_at
 FROM users u
 JOIN roles r ON r.role_id = u.role_id
 WHERE u.user_uuid = $1 AND u.deleted_at IS NULL;
@@ -48,15 +60,51 @@ UPDATE users
 SET status_id = $1, updated_at = now()
 WHERE user_id = $2 AND deleted_at IS NULL;
 
+-- name: GetUserProfileByUUID :one
+SELECT
+    u.user_id,
+    u.user_uuid,
+    u.email,
+    u.role_id,
+    r.name AS role_name,
+    u.first_name,
+    u.last_name,
+    u.phone,
+    u.profile_picture_url,
+    u.status_id,
+    u.created_at
+FROM users u
+JOIN roles r ON r.role_id = u.role_id
+WHERE u.user_uuid = $1 AND u.deleted_at IS NULL;
+
 -- name: UpdateUserProfile :one
 UPDATE users
 SET first_name = $1,
     last_name = $2,
     phone = $3,
-    profile_picture_url = $4,
     updated_at = now()
-WHERE user_uuid = $5 AND deleted_at IS NULL
-RETURNING user_id, user_uuid, email, created_at;
+WHERE user_uuid = $4 AND deleted_at IS NULL
+RETURNING user_id, user_uuid, email, first_name, last_name, phone, profile_picture_url, status_id, created_at;
+
+-- name: UpdateUserEmail :one
+UPDATE users
+SET email = $1,
+    updated_at = now()
+WHERE user_id = $2 AND deleted_at IS NULL
+RETURNING user_id, user_uuid, email, first_name, last_name, phone, profile_picture_url, status_id, created_at;
+
+-- name: UpdateUserPassword :execrows
+UPDATE users
+SET password = $1,
+    updated_at = now()
+WHERE user_id = $2 AND deleted_at IS NULL;
+
+-- name: UpdateUserProfilePhoto :one
+UPDATE users
+SET profile_picture_url = $1,
+    updated_at = now()
+WHERE user_uuid = $2 AND deleted_at IS NULL
+RETURNING user_id, user_uuid, email, first_name, last_name, phone, profile_picture_url, status_id, created_at;
 
 -- name: SoftDeleteUser :execrows
 UPDATE users

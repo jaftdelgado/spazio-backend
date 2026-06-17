@@ -58,7 +58,7 @@ func main() {
 	clausesModule := clauses.NewModule(database)
 	locationsModule := locations.NewModule(database)
 	paymentsModule := payments.NewModule(database, cfg.MercadoPagoAccessToken, cfg.MercadoPagoWebhookSecret)
-	usersModule := users.NewModule(database, cfg, emailSender, jwtService)
+	usersModule := users.NewModule(database, cfg, emailSender, jwtService, r2)
 	uploadsModule := uploads.NewModule(database, r2)
 	visitsModule := visits.NewModule(database)
 	contractsModule := contracts.NewModule(database, r2)

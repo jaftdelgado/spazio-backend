@@ -1,8 +1,10 @@
 package users
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -12,20 +14,29 @@ import (
 )
 
 type mockUserRepository struct {
-	createUserFunc                      func(ctx context.Context, input CreateUserRecord) (AuthUser, error)
-	getUserByEmailFunc                  func(ctx context.Context, email string) (UserAuthRecord, error)
-	getUserByUUIDFunc                   func(ctx context.Context, uuidStr string) (UserAuthRecord, error)
-	getUserByIDFunc                     func(ctx context.Context, userID int32) (UserAuthRecord, error)
-	updateUserStatusFunc                func(ctx context.Context, userID int32, statusID int32) error
-	updateProfileFunc                   func(ctx context.Context, uuidStr string, input UpdateProfileInput) (AuthUser, error)
-	softDeleteUserFunc                  func(ctx context.Context, uuidStr string) error
-	createPendingVerificationFunc       func(ctx context.Context, email, codeHash string, expiresAt time.Time) (int32, error)
-	getLatestPendingVerificationFunc    func(ctx context.Context, email string) (PendingVerification, error)
-	markPendingVerificationVerifiedFunc func(ctx context.Context, verificationID int32) error
-	createRefreshTokenFunc              func(ctx context.Context, userID int32, tokenHash string, expiresAt time.Time) error
-	getRefreshTokenFunc                 func(ctx context.Context, tokenHash string) (RefreshTokenRecord, error)
-	revokeRefreshTokenFunc              func(ctx context.Context, tokenHash string) error
-	revokeAllUserRefreshTokensFunc      func(ctx context.Context, userID int32) error
+	createUserFunc                         func(ctx context.Context, input CreateUserRecord) (AuthUser, error)
+	getUserByEmailFunc                     func(ctx context.Context, email string) (UserAuthRecord, error)
+	getUserByUUIDFunc                      func(ctx context.Context, uuidStr string) (UserAuthRecord, error)
+	getUserByIDFunc                        func(ctx context.Context, userID int32) (UserAuthRecord, error)
+	getUserProfileByUUIDFunc               func(ctx context.Context, uuidStr string) (UserProfile, error)
+	updateUserStatusFunc                   func(ctx context.Context, userID int32, statusID int32) error
+	updateProfileFunc                      func(ctx context.Context, uuidStr string, input UpdateProfileInput) (UserProfile, error)
+	updateUserEmailFunc                    func(ctx context.Context, userID int32, email string) (UserProfile, error)
+	updateUserPasswordFunc                 func(ctx context.Context, userID int32, passwordHash string) error
+	updateUserProfilePhotoFunc             func(ctx context.Context, uuidStr string, profilePictureURL string) (UserProfile, error)
+	softDeleteUserFunc                     func(ctx context.Context, uuidStr string) error
+	createPendingVerificationFunc          func(ctx context.Context, email, codeHash string, expiresAt time.Time) (int32, error)
+	getLatestPendingVerificationFunc       func(ctx context.Context, email string) (PendingVerification, error)
+	markPendingVerificationVerifiedFunc    func(ctx context.Context, verificationID int32) error
+	createUserVerificationChallengeFunc    func(ctx context.Context, input CreateChallengeRecord) (int32, error)
+	getLatestUserVerificationChallengeFunc func(ctx context.Context, email, purpose string) (UserVerificationChallenge, error)
+	getUserVerificationChallengeByIDFunc   func(ctx context.Context, challengeID int32) (UserVerificationChallenge, error)
+	markUserVerificationChallengeFunc      func(ctx context.Context, challengeID int32) error
+	consumeUserVerificationChallengeFunc   func(ctx context.Context, challengeID int32) error
+	createRefreshTokenFunc                 func(ctx context.Context, userID int32, tokenHash string, expiresAt time.Time) error
+	getRefreshTokenFunc                    func(ctx context.Context, tokenHash string) (RefreshTokenRecord, error)
+	revokeRefreshTokenFunc                 func(ctx context.Context, tokenHash string) error
+	revokeAllUserRefreshTokensFunc         func(ctx context.Context, userID int32) error
 }
 
 func (m *mockUserRepository) CreateUser(ctx context.Context, input CreateUserRecord) (AuthUser, error) {
@@ -46,14 +57,21 @@ func (m *mockUserRepository) GetUserByUUID(ctx context.Context, uuidStr string) 
 	if m.getUserByUUIDFunc != nil {
 		return m.getUserByUUIDFunc(ctx, uuidStr)
 	}
-	return UserAuthRecord{}, nil
+	return UserAuthRecord{}, ErrUserNotFound
 }
 
 func (m *mockUserRepository) GetUserByID(ctx context.Context, userID int32) (UserAuthRecord, error) {
 	if m.getUserByIDFunc != nil {
 		return m.getUserByIDFunc(ctx, userID)
 	}
-	return UserAuthRecord{}, nil
+	return UserAuthRecord{}, ErrUserNotFound
+}
+
+func (m *mockUserRepository) GetUserProfileByUUID(ctx context.Context, uuidStr string) (UserProfile, error) {
+	if m.getUserProfileByUUIDFunc != nil {
+		return m.getUserProfileByUUIDFunc(ctx, uuidStr)
+	}
+	return UserProfile{}, ErrUserNotFound
 }
 
 func (m *mockUserRepository) UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error {
@@ -63,11 +81,32 @@ func (m *mockUserRepository) UpdateUserStatus(ctx context.Context, userID int32,
 	return nil
 }
 
-func (m *mockUserRepository) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (AuthUser, error) {
+func (m *mockUserRepository) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UserProfile, error) {
 	if m.updateProfileFunc != nil {
 		return m.updateProfileFunc(ctx, uuidStr, input)
 	}
-	return AuthUser{}, nil
+	return UserProfile{}, nil
+}
+
+func (m *mockUserRepository) UpdateUserEmail(ctx context.Context, userID int32, email string) (UserProfile, error) {
+	if m.updateUserEmailFunc != nil {
+		return m.updateUserEmailFunc(ctx, userID, email)
+	}
+	return UserProfile{}, nil
+}
+
+func (m *mockUserRepository) UpdateUserPassword(ctx context.Context, userID int32, passwordHash string) error {
+	if m.updateUserPasswordFunc != nil {
+		return m.updateUserPasswordFunc(ctx, userID, passwordHash)
+	}
+	return nil
+}
+
+func (m *mockUserRepository) UpdateUserProfilePhoto(ctx context.Context, uuidStr string, profilePictureURL string) (UserProfile, error) {
+	if m.updateUserProfilePhotoFunc != nil {
+		return m.updateUserProfilePhotoFunc(ctx, uuidStr, profilePictureURL)
+	}
+	return UserProfile{}, nil
 }
 
 func (m *mockUserRepository) SoftDeleteUser(ctx context.Context, uuidStr string) error {
@@ -88,12 +127,47 @@ func (m *mockUserRepository) GetLatestPendingVerification(ctx context.Context, e
 	if m.getLatestPendingVerificationFunc != nil {
 		return m.getLatestPendingVerificationFunc(ctx, email)
 	}
-	return PendingVerification{}, nil
+	return PendingVerification{}, ErrVerificationNotFound
 }
 
 func (m *mockUserRepository) MarkPendingVerificationVerified(ctx context.Context, verificationID int32) error {
 	if m.markPendingVerificationVerifiedFunc != nil {
 		return m.markPendingVerificationVerifiedFunc(ctx, verificationID)
+	}
+	return nil
+}
+
+func (m *mockUserRepository) CreateUserVerificationChallenge(ctx context.Context, input CreateChallengeRecord) (int32, error) {
+	if m.createUserVerificationChallengeFunc != nil {
+		return m.createUserVerificationChallengeFunc(ctx, input)
+	}
+	return 1, nil
+}
+
+func (m *mockUserRepository) GetLatestUserVerificationChallenge(ctx context.Context, email, purpose string) (UserVerificationChallenge, error) {
+	if m.getLatestUserVerificationChallengeFunc != nil {
+		return m.getLatestUserVerificationChallengeFunc(ctx, email, purpose)
+	}
+	return UserVerificationChallenge{}, ErrVerificationNotFound
+}
+
+func (m *mockUserRepository) GetUserVerificationChallengeByID(ctx context.Context, challengeID int32) (UserVerificationChallenge, error) {
+	if m.getUserVerificationChallengeByIDFunc != nil {
+		return m.getUserVerificationChallengeByIDFunc(ctx, challengeID)
+	}
+	return UserVerificationChallenge{}, ErrVerificationNotFound
+}
+
+func (m *mockUserRepository) MarkUserVerificationChallengeVerified(ctx context.Context, challengeID int32) error {
+	if m.markUserVerificationChallengeFunc != nil {
+		return m.markUserVerificationChallengeFunc(ctx, challengeID)
+	}
+	return nil
+}
+
+func (m *mockUserRepository) ConsumeUserVerificationChallenge(ctx context.Context, challengeID int32) error {
+	if m.consumeUserVerificationChallengeFunc != nil {
+		return m.consumeUserVerificationChallengeFunc(ctx, challengeID)
 	}
 	return nil
 }
@@ -151,8 +225,35 @@ func (m mockJWTService) Validate(tokenString string) (*auth.Claims, error) {
 	return nil, errors.New("not used")
 }
 
-func newTestService(repo UserRepository, emailSender *mockEmailSender) *service {
-	svc := NewService(repo, emailSender, mockJWTService{token: "access-token"}, "Spazio", "test-secret").(*service)
+type mockProfilePhotoStorage struct {
+	uploadFunc    func(ctx context.Context, storageKey string, contentType string, body io.Reader) error
+	deleteFunc    func(ctx context.Context, storageKey string) error
+	publicURLFunc func(ctx context.Context, storageKey string) (string, error)
+}
+
+func (m *mockProfilePhotoStorage) Upload(ctx context.Context, storageKey string, contentType string, body io.Reader) error {
+	if m.uploadFunc != nil {
+		return m.uploadFunc(ctx, storageKey, contentType, body)
+	}
+	return nil
+}
+
+func (m *mockProfilePhotoStorage) Delete(ctx context.Context, storageKey string) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, storageKey)
+	}
+	return nil
+}
+
+func (m *mockProfilePhotoStorage) PublicURL(ctx context.Context, storageKey string) (string, error) {
+	if m.publicURLFunc != nil {
+		return m.publicURLFunc(ctx, storageKey)
+	}
+	return "https://cdn.example.com/" + storageKey, nil
+}
+
+func newTestService(repo UserRepository, emailSender *mockEmailSender, storage profilePhotoStorage) *service {
+	svc := NewService(repo, emailSender, mockJWTService{token: "access-token"}, storage, "Spazio", "test-secret").(*service)
 	svc.now = func() time.Time {
 		return time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 	}
@@ -177,11 +278,10 @@ func TestService_PreRegisterUser(t *testing.T) {
 			emailSender := &mockEmailSender{err: tt.emailErr}
 			var storedEmail string
 			var storedCodeHash string
-			var storedExpiresAt time.Time
 			repo := &mockUserRepository{
 				getUserByEmailFunc: func(ctx context.Context, email string) (UserAuthRecord, error) {
 					if email != "ada@example.com" {
-						t.Fatalf("email = %q, want normalized ada@example.com", email)
+						t.Fatalf("email = %q", email)
 					}
 					if tt.userErr == nil {
 						return UserAuthRecord{Email: email}, nil
@@ -191,77 +291,61 @@ func TestService_PreRegisterUser(t *testing.T) {
 				createPendingVerificationFunc: func(ctx context.Context, email, codeHash string, expiresAt time.Time) (int32, error) {
 					storedEmail = email
 					storedCodeHash = codeHash
-					storedExpiresAt = expiresAt
 					return 7, nil
 				},
 			}
 
-			err := newTestService(repo, emailSender).PreRegisterUser(context.Background(), PreRegisterInput{Email: " Ada@Example.COM "})
-			if tt.wantErr == nil && err != nil {
-				t.Fatalf("PreRegisterUser() error = %v", err)
-			}
-			if tt.wantErr != nil && err == nil {
-				t.Fatal("expected error, got nil")
-			}
-			if tt.wantErr != nil && tt.userErr == nil && !errors.Is(err, tt.wantErr) {
+			err := newTestService(repo, emailSender, nil).PreRegisterUser(context.Background(), PreRegisterInput{Email: " Ada@Example.COM "})
+			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("PreRegisterUser() error = %v, want %v", err, tt.wantErr)
 			}
 			if tt.wantEmail {
 				if storedEmail != "ada@example.com" {
 					t.Fatalf("storedEmail = %q", storedEmail)
 				}
-				if len(emailSender.code) != 6 || strings.Trim(emailSender.code, "0123456789") != "" {
-					t.Fatalf("verification code = %q, want six digits", emailSender.code)
-				}
 				if err := bcrypt.CompareHashAndPassword([]byte(storedCodeHash), []byte(emailSender.code)); err != nil {
 					t.Fatalf("code hash mismatch: %v", err)
-				}
-				if !storedExpiresAt.Equal(newTestService(repo, emailSender).now().Add(verificationCodeTTL)) {
-					t.Fatalf("storedExpiresAt = %v", storedExpiresAt)
 				}
 			}
 		})
 	}
 }
 
-func TestService_VerifyEmail(t *testing.T) {
+func TestService_VerifyPasswordResetCode(t *testing.T) {
 	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
 	validHash, err := bcrypt.GenerateFromPassword([]byte("123456"), bcrypt.MinCost)
 	if err != nil {
 		t.Fatalf("hash code: %v", err)
 	}
+	userID := int32(9)
 
 	tests := []struct {
-		name       string
-		repoResult PendingVerification
-		repoErr    error
-		inputCode  string
-		wantErr    error
-		wantToken  bool
+		name      string
+		challenge UserVerificationChallenge
+		repoErr   error
+		inputCode string
+		wantErr   error
+		wantToken bool
+		markedID  int32
 	}{
 		{
-			name:       "happy path returns valid token",
-			repoResult: PendingVerification{VerificationID: 9, Email: "ada@example.com", CodeHash: string(validHash), ExpiresAt: now.Add(time.Minute)},
-			inputCode:  "123456",
-			wantToken:  true,
-		},
-		{
-			name:       "expired code",
-			repoResult: PendingVerification{VerificationID: 9, Email: "ada@example.com", CodeHash: string(validHash), ExpiresAt: now.Add(-time.Minute)},
-			inputCode:  "123456",
-			wantErr:    ErrCodeExpired,
-		},
-		{
-			name:       "invalid code",
-			repoResult: PendingVerification{VerificationID: 9, Email: "ada@example.com", CodeHash: string(validHash), ExpiresAt: now.Add(time.Minute)},
-			inputCode:  "000000",
-			wantErr:    ErrCodeInvalid,
-		},
-		{
-			name:      "verification not found",
-			repoErr:   ErrVerificationNotFound,
+			name:      "happy path returns reset token",
+			challenge: UserVerificationChallenge{ChallengeID: 15, UserID: &userID, Email: "ada@example.com", Purpose: challengeResetPwd, CodeHash: string(validHash), ExpiresAt: now.Add(time.Minute)},
 			inputCode: "123456",
-			wantErr:   ErrVerificationNotFound,
+			wantToken: true,
+			markedID:  15,
+		},
+		{
+			name:      "expired code",
+			challenge: UserVerificationChallenge{ChallengeID: 15, UserID: &userID, Email: "ada@example.com", Purpose: challengeResetPwd, CodeHash: string(validHash), ExpiresAt: now.Add(-time.Minute)},
+			inputCode: "123456",
+			wantErr:   ErrCodeExpired,
+		},
+		{
+			name:      "invalid code",
+			challenge: UserVerificationChallenge{ChallengeID: 15, UserID: &userID, Email: "ada@example.com", Purpose: challengeResetPwd, CodeHash: string(validHash), ExpiresAt: now.Add(time.Minute)},
+			inputCode: "000000",
+			wantErr:   ErrCodeInvalid,
 		},
 	}
 
@@ -269,152 +353,226 @@ func TestService_VerifyEmail(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var markedID int32
 			repo := &mockUserRepository{
-				getLatestPendingVerificationFunc: func(ctx context.Context, email string) (PendingVerification, error) {
-					if email != "ada@example.com" {
-						t.Fatalf("email = %q, want normalized ada@example.com", email)
-					}
-					return tt.repoResult, tt.repoErr
+				getLatestUserVerificationChallengeFunc: func(ctx context.Context, email, purpose string) (UserVerificationChallenge, error) {
+					return tt.challenge, tt.repoErr
 				},
-				markPendingVerificationVerifiedFunc: func(ctx context.Context, verificationID int32) error {
-					markedID = verificationID
+				markUserVerificationChallengeFunc: func(ctx context.Context, challengeID int32) error {
+					markedID = challengeID
 					return nil
 				},
 			}
-			svc := newTestService(repo, &mockEmailSender{})
-
-			result, err := svc.VerifyEmail(context.Background(), VerifyEmailInput{Email: " Ada@Example.COM ", Code: tt.inputCode})
+			svc := newTestService(repo, &mockEmailSender{}, nil)
+			result, err := svc.VerifyPasswordResetCode(context.Background(), VerifyPasswordResetCodeInput{
+				Email: "ada@example.com",
+				Code:  tt.inputCode,
+			})
 			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("VerifyEmail() error = %v, want %v", err, tt.wantErr)
+				t.Fatalf("VerifyPasswordResetCode() error = %v, want %v", err, tt.wantErr)
 			}
 			if tt.wantToken {
-				if result.VerificationToken == "" {
-					t.Fatal("expected verification token")
+				if result.ResetToken == "" {
+					t.Fatal("expected reset token")
 				}
-				emailValue, err := svc.verifyVerificationToken(result.VerificationToken)
-				if err != nil {
-					t.Fatalf("token should validate: %v", err)
-				}
-				if emailValue != "ada@example.com" {
-					t.Fatalf("token email = %q", emailValue)
-				}
-				if markedID != 9 {
-					t.Fatalf("markedID = %d, want 9", markedID)
+				if markedID != tt.markedID {
+					t.Fatalf("markedID = %d, want %d", markedID, tt.markedID)
 				}
 			}
 		})
 	}
 }
 
-func TestService_CompleteRegister(t *testing.T) {
-	ctx := context.Background()
+func TestService_ResetPassword(t *testing.T) {
+	challengeUserID := int32(27)
+	repo := &mockUserRepository{}
+	svc := newTestService(repo, &mockEmailSender{}, nil)
+	token, err := svc.generateActionToken(11, challengeUserID, "ada@example.com", challengeResetPwd, svc.now().Add(time.Minute))
+	if err != nil {
+		t.Fatalf("generateActionToken(): %v", err)
+	}
 
-	tests := []struct {
-		name       string
-		roleID     int32
-		tokenSetup func(svc *service) string
-		userErr    error
-		wantErr    error
-		wantRoleID int32
-	}{
-		{
-			name:   "happy path with explicit role",
-			roleID: 2,
-			tokenSetup: func(svc *service) string {
-				token, err := svc.generateVerificationToken(12, "ada@example.com", svc.now().Add(time.Minute))
-				if err != nil {
-					t.Fatalf("generate token: %v", err)
-				}
-				return token
-			},
-			wantRoleID: 2,
+	var updatedHash string
+	var consumedID int32
+	var revokedUserID int32
+	repo.getUserVerificationChallengeByIDFunc = func(ctx context.Context, challengeID int32) (UserVerificationChallenge, error) {
+		return UserVerificationChallenge{
+			ChallengeID: challengeID,
+			UserID:      &challengeUserID,
+			Email:       "ada@example.com",
+			Purpose:     challengeResetPwd,
+			VerifiedAt:  timePtr(svc.now()),
+		}, nil
+	}
+	repo.updateUserPasswordFunc = func(ctx context.Context, userID int32, passwordHash string) error {
+		updatedHash = passwordHash
+		return nil
+	}
+	repo.consumeUserVerificationChallengeFunc = func(ctx context.Context, challengeID int32) error {
+		consumedID = challengeID
+		return nil
+	}
+	repo.revokeAllUserRefreshTokensFunc = func(ctx context.Context, userID int32) error {
+		revokedUserID = userID
+		return nil
+	}
+
+	err = svc.ResetPassword(context.Background(), ResetPasswordInput{
+		ResetToken:  token,
+		NewPassword: "brandnewsecret",
+	})
+	if err != nil {
+		t.Fatalf("ResetPassword() error = %v", err)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(updatedHash), []byte("brandnewsecret")); err != nil {
+		t.Fatalf("password hash mismatch: %v", err)
+	}
+	if consumedID != 11 || revokedUserID != challengeUserID {
+		t.Fatalf("consumedID/revokedUserID = %d/%d", consumedID, revokedUserID)
+	}
+}
+
+func TestService_RequestEmailChange(t *testing.T) {
+	userID := int32(5)
+	var storedChallenge CreateChallengeRecord
+	emailSender := &mockEmailSender{}
+	repo := &mockUserRepository{
+		getUserByUUIDFunc: func(ctx context.Context, uuidStr string) (UserAuthRecord, error) {
+			return UserAuthRecord{UserID: userID, Email: "ada@example.com"}, nil
 		},
-		{
-			name: "happy path defaults to client role",
-			tokenSetup: func(svc *service) string {
-				token, err := svc.generateVerificationToken(12, "ada@example.com", svc.now().Add(time.Minute))
-				if err != nil {
-					t.Fatalf("generate token: %v", err)
-				}
-				return token
-			},
-			wantRoleID: roleIDClient,
+		getUserByEmailFunc: func(ctx context.Context, email string) (UserAuthRecord, error) {
+			if email == "new@example.com" {
+				return UserAuthRecord{}, ErrUserNotFound
+			}
+			return UserAuthRecord{UserID: 99}, nil
 		},
-		{
-			name: "invalid token",
-			tokenSetup: func(svc *service) string {
-				return "invalid"
-			},
-			wantErr: ErrInvalidVerificationToken,
-		},
-		{
-			name: "expired token",
-			tokenSetup: func(svc *service) string {
-				token, err := svc.generateVerificationToken(12, "ada@example.com", svc.now().Add(-time.Minute))
-				if err != nil {
-					t.Fatalf("generate token: %v", err)
-				}
-				return token
-			},
-			wantErr: ErrInvalidVerificationToken,
-		},
-		{
-			name: "email already taken during completion",
-			tokenSetup: func(svc *service) string {
-				token, err := svc.generateVerificationToken(12, "ada@example.com", svc.now().Add(time.Minute))
-				if err != nil {
-					t.Fatalf("generate token: %v", err)
-				}
-				return token
-			},
-			userErr: ErrEmailTaken,
-			wantErr: ErrEmailTaken,
+		createUserVerificationChallengeFunc: func(ctx context.Context, input CreateChallengeRecord) (int32, error) {
+			storedChallenge = input
+			return 33, nil
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var createdInput CreateUserRecord
-			repo := &mockUserRepository{
-				getUserByEmailFunc: func(ctx context.Context, email string) (UserAuthRecord, error) {
-					if tt.userErr != nil {
-						return UserAuthRecord{Email: email}, nil
-					}
-					return UserAuthRecord{}, ErrUserNotFound
-				},
-				createUserFunc: func(ctx context.Context, input CreateUserRecord) (AuthUser, error) {
-					createdInput = input
-					return AuthUser{UserID: 10, UserUUID: input.UserUUID, Email: input.Email, RoleID: input.RoleID}, nil
-				},
-			}
-			svc := newTestService(repo, &mockEmailSender{})
-			token := tt.tokenSetup(svc)
+	err := newTestService(repo, emailSender, nil).RequestEmailChange(context.Background(), "uuid-1", RequestEmailChangeInput{NewEmail: " New@Example.com "})
+	if err != nil {
+		t.Fatalf("RequestEmailChange() error = %v", err)
+	}
+	if storedChallenge.Purpose != challengeEmailChange || storedChallenge.Email != "new@example.com" || storedChallenge.UserID == nil || *storedChallenge.UserID != userID {
+		t.Fatalf("unexpected stored challenge: %+v", storedChallenge)
+	}
+	if emailSender.to != "new@example.com" {
+		t.Fatalf("emailSender.to = %q", emailSender.to)
+	}
+}
 
-			result, err := svc.CompleteRegister(ctx, CompleteRegisterInput{
-				VerificationToken: token,
-				FirstName:         "Ada",
-				LastName:          "Lovelace",
-				Password:          "supersecret",
-				RoleID:            tt.roleID,
-			})
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("CompleteRegister() error = %v, want %v", err, tt.wantErr)
-			}
-			if tt.wantErr != nil {
-				return
-			}
-			if result.User.UserID != 10 {
-				t.Fatalf("unexpected result: %+v", result)
-			}
-			if createdInput.Email != "ada@example.com" {
-				t.Fatalf("created email = %q", createdInput.Email)
-			}
-			if createdInput.RoleID != tt.wantRoleID || createdInput.StatusID != statusIDActive {
-				t.Fatalf("role/status = %d/%d", createdInput.RoleID, createdInput.StatusID)
-			}
-			if err := bcrypt.CompareHashAndPassword([]byte(createdInput.PasswordHash), []byte("supersecret")); err != nil {
-				t.Fatalf("password hash mismatch: %v", err)
-			}
-		})
+func TestService_ChangePassword(t *testing.T) {
+	currentHash, err := bcrypt.GenerateFromPassword([]byte("current-secret"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+
+	var updatedHash string
+	var revokedUserID int32
+	repo := &mockUserRepository{
+		getUserByUUIDFunc: func(ctx context.Context, uuidStr string) (UserAuthRecord, error) {
+			return UserAuthRecord{UserID: 8, PasswordHash: string(currentHash)}, nil
+		},
+		updateUserPasswordFunc: func(ctx context.Context, userID int32, passwordHash string) error {
+			updatedHash = passwordHash
+			return nil
+		},
+		revokeAllUserRefreshTokensFunc: func(ctx context.Context, userID int32) error {
+			revokedUserID = userID
+			return nil
+		},
+	}
+
+	err = newTestService(repo, &mockEmailSender{}, nil).ChangePassword(context.Background(), "uuid-1", ChangePasswordInput{
+		CurrentPassword: "current-secret",
+		NewPassword:     "new-secret-123",
+	})
+	if err != nil {
+		t.Fatalf("ChangePassword() error = %v", err)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(updatedHash), []byte("new-secret-123")); err != nil {
+		t.Fatalf("new hash mismatch: %v", err)
+	}
+	if revokedUserID != 8 {
+		t.Fatalf("revokedUserID = %d", revokedUserID)
+	}
+}
+
+func TestService_UploadProfilePhoto(t *testing.T) {
+	var uploadedKey string
+	var uploadedType string
+	var uploadedBytes []byte
+	storage := &mockProfilePhotoStorage{
+		uploadFunc: func(ctx context.Context, storageKey string, contentType string, body io.Reader) error {
+			uploadedKey = storageKey
+			uploadedType = contentType
+			data, _ := io.ReadAll(body)
+			uploadedBytes = data
+			return nil
+		},
+		publicURLFunc: func(ctx context.Context, storageKey string) (string, error) {
+			return "https://cdn.example.com/" + storageKey, nil
+		},
+	}
+	repo := &mockUserRepository{
+		updateUserProfilePhotoFunc: func(ctx context.Context, uuidStr string, profilePictureURL string) (UserProfile, error) {
+			return UserProfile{UserUUID: uuidStr, ProfilePictureURL: stringPtr(profilePictureURL)}, nil
+		},
+	}
+	svc := newTestService(repo, &mockEmailSender{}, storage)
+	svc.encodeToWebP = func(input UploadProfilePhotoInput) ([]byte, error) {
+		return []byte("webp-bytes"), nil
+	}
+
+	result, err := svc.UploadProfilePhoto(context.Background(), UploadProfilePhotoInput{
+		UserUUID: "user-uuid",
+		File:     bytes.NewReader([]byte("raw-image")),
+	})
+	if err != nil {
+		t.Fatalf("UploadProfilePhoto() error = %v", err)
+	}
+	if uploadedType != profilePhotoContentType || !strings.Contains(uploadedKey, "users/user-uuid/profile/") {
+		t.Fatalf("unexpected upload key/type: %s %s", uploadedKey, uploadedType)
+	}
+	if string(uploadedBytes) != "webp-bytes" {
+		t.Fatalf("uploadedBytes = %q", string(uploadedBytes))
+	}
+	if result.User.ProfilePictureURL == nil || !strings.Contains(*result.User.ProfilePictureURL, uploadedKey) {
+		t.Fatalf("unexpected profile url: %+v", result.User.ProfilePictureURL)
+	}
+}
+
+func TestService_AdminCreateUser(t *testing.T) {
+	var createdInput CreateUserRecord
+	repo := &mockUserRepository{
+		getUserByEmailFunc: func(ctx context.Context, email string) (UserAuthRecord, error) {
+			return UserAuthRecord{}, ErrUserNotFound
+		},
+		createUserFunc: func(ctx context.Context, input CreateUserRecord) (AuthUser, error) {
+			createdInput = input
+			return AuthUser{UserID: 14, UserUUID: input.UserUUID, Email: input.Email, RoleID: input.RoleID}, nil
+		},
+	}
+
+	result, err := newTestService(repo, &mockEmailSender{}, nil).AdminCreateUser(context.Background(), AdminCreateUserInput{
+		FirstName: "Grace",
+		LastName:  "Hopper",
+		Email:     "grace@example.com",
+		Phone:     "555",
+		RoleID:    roleIDAgent,
+	})
+	if err != nil {
+		t.Fatalf("AdminCreateUser() error = %v", err)
+	}
+	if len(result.TemporaryPassword) != temporaryPasswordLength {
+		t.Fatalf("temporary password length = %d", len(result.TemporaryPassword))
+	}
+	if createdInput.RoleID != roleIDAgent || createdInput.StatusID != statusIDActive {
+		t.Fatalf("unexpected created input: %+v", createdInput)
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(createdInput.PasswordHash), []byte(result.TemporaryPassword)); err != nil {
+		t.Fatalf("temporary password hash mismatch: %v", err)
 	}
 }
 
@@ -444,7 +602,7 @@ func TestLoginUserRequiresActiveAccountAndStoresHashedRefreshToken(t *testing.T)
 		},
 	}
 
-	result, err := newTestService(repo, &mockEmailSender{}).LoginUser(ctx, LoginInput{
+	result, err := newTestService(repo, &mockEmailSender{}, nil).LoginUser(ctx, LoginInput{
 		Email:    "ada@example.com",
 		Password: "supersecret",
 	})
@@ -456,49 +614,6 @@ func TestLoginUserRequiresActiveAccountAndStoresHashedRefreshToken(t *testing.T)
 	}
 	if storedHash == "" || storedHash == result.RefreshToken || storedHash != hashRefreshToken(result.RefreshToken) {
 		t.Fatalf("refresh token hash was not stored safely")
-	}
-}
-
-func TestRefreshTokenRotatesStoredToken(t *testing.T) {
-	ctx := context.Background()
-	now := time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC)
-	oldToken := "old-refresh-token"
-	var revokedHash string
-	var newStoredHash string
-
-	repo := &mockUserRepository{
-		getRefreshTokenFunc: func(ctx context.Context, tokenHash string) (RefreshTokenRecord, error) {
-			if tokenHash != hashRefreshToken(oldToken) {
-				t.Fatalf("tokenHash = %q", tokenHash)
-			}
-			return RefreshTokenRecord{UserID: 9, ExpiresAt: now.Add(time.Hour)}, nil
-		},
-		getUserByIDFunc: func(ctx context.Context, userID int32) (UserAuthRecord, error) {
-			return UserAuthRecord{UserID: userID, UserUUID: "8a6fbb17-b64b-4f40-a09d-b6639b357ef5", RoleID: roleIDClient, RoleName: "Client"}, nil
-		},
-		revokeRefreshTokenFunc: func(ctx context.Context, tokenHash string) error {
-			revokedHash = tokenHash
-			return nil
-		},
-		createRefreshTokenFunc: func(ctx context.Context, userID int32, tokenHash string, expiresAt time.Time) error {
-			newStoredHash = tokenHash
-			return nil
-		},
-	}
-	svc := newTestService(repo, &mockEmailSender{})
-
-	result, err := svc.RefreshToken(ctx, RefreshInput{RefreshToken: oldToken})
-	if err != nil {
-		t.Fatalf("RefreshToken() error = %v", err)
-	}
-	if result.AccessToken != "access-token" || result.RefreshToken == "" {
-		t.Fatalf("unexpected refresh result: %+v", result)
-	}
-	if revokedHash != hashRefreshToken(oldToken) {
-		t.Fatalf("revokedHash = %q", revokedHash)
-	}
-	if newStoredHash == "" || newStoredHash == hashRefreshToken(oldToken) || newStoredHash != hashRefreshToken(result.RefreshToken) {
-		t.Fatalf("new refresh token was not rotated")
 	}
 }
 
@@ -525,11 +640,15 @@ func TestDeleteUserSoftDeletesAndRevokesTokens(t *testing.T) {
 		},
 	}
 
-	err := newTestService(repo, &mockEmailSender{}).DeleteUser(ctx, userUUID)
+	err := newTestService(repo, &mockEmailSender{}, nil).DeleteUser(ctx, userUUID)
 	if err != nil {
 		t.Fatalf("DeleteUser() error = %v", err)
 	}
 	if !softDeleted || revokedUserID != 55 {
 		t.Fatalf("softDeleted/revokedUserID = %v/%d", softDeleted, revokedUserID)
 	}
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

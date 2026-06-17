@@ -18,7 +18,7 @@ CREATE TABLE users (
 	email varchar(150) NOT NULL UNIQUE,
 	password varchar(255) NOT NULL DEFAULT '',
 	phone varchar(20) NOT NULL,
-	profile_picture_url varchar(255) NOT NULL,
+	profile_picture_url varchar(255),
 	status_id int NOT NULL REFERENCES user_status(status_id),
 	created_at timestamptz NOT NULL DEFAULT now(),
 	updated_at timestamptz NOT NULL DEFAULT now(),
@@ -46,6 +46,23 @@ CREATE TABLE email_verification_codes (
 );
 
 CREATE INDEX idx_email_verification_codes_user_id ON email_verification_codes(user_id);
+
+CREATE TABLE user_verification_challenges (
+	challenge_id serial PRIMARY KEY,
+	user_id integer REFERENCES users(user_id) ON DELETE CASCADE,
+	email varchar(150) NOT NULL,
+	purpose varchar(40) NOT NULL,
+	code_hash varchar(255) NOT NULL,
+	expires_at timestamptz NOT NULL,
+	verified_at timestamptz,
+	consumed_at timestamptz,
+	created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_user_verification_challenges_email_purpose
+	ON user_verification_challenges(email, purpose, created_at DESC);
+CREATE INDEX idx_user_verification_challenges_user_id_purpose
+	ON user_verification_challenges(user_id, purpose, created_at DESC);
 
 CREATE TABLE pending_verifications (
 	verification_id serial PRIMARY KEY,
