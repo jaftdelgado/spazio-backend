@@ -31,10 +31,10 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 
 // listServices godoc
 // @Summary      List services
-// @Description  Returns popular active services when q is empty, or matching active services when q is provided. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1&page_size=limit.
+// @Description  Returns popular active services when q is empty, or matching active services when q is provided. Search matches the service code plus Spanish and English synonyms stored in multilingual search_tags. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1&page_size=limit.
 // @Tags         Services
 // @Produce      json
-// @Param        q            query     string              false  "Search term"
+// @Param        q            query     string              false  "Search term matched against service code and multilingual search_tags (es/en)"
 // @Param        category_id  query     int                 false  "Service category ID"
 // @Param        page         query     int                 false  "Page number" default(1)
 // @Param        page_size    query     int                 false  "Results per page"

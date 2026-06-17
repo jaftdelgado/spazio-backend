@@ -2078,7 +2078,7 @@ const docTemplate = `{
         },
         "/api/v1/services": {
             "get": {
-                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1\u0026page_size=limit.",
+                "description": "Returns popular active services when q is empty, or matching active services when q is provided. Search matches the service code plus Spanish and English synonyms stored in multilingual search_tags. Results can be filtered by category_id and paginated with page/page_size. The legacy limit parameter is still supported as a shorthand for page=1\u0026page_size=limit.",
                 "produces": [
                     "application/json"
                 ],
@@ -2089,7 +2089,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search term",
+                        "description": "Search term matched against service code and multilingual search_tags (es/en)",
                         "name": "q",
                         "in": "query"
                     },

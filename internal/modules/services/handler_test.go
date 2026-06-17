@@ -80,6 +80,7 @@ func TestHandler_ListServices_LimitValidation(t *testing.T) {
 	}{
 		{"no limit no q", "/api/v1/services", http.StatusOK, "", false},
 		{"no limit with q", "/api/v1/services?q=wifi", http.StatusOK, "", false},
+		{"search by tag", "/api/v1/services?q=internet", http.StatusOK, "", false},
 		{"limit abc", "/api/v1/services?limit=abc", http.StatusBadRequest, "must be a valid integer", true},
 		{"limit 0", "/api/v1/services?limit=0", http.StatusBadRequest, "page_size must be greater than 0", true},
 		{"limit -1", "/api/v1/services?limit=-1", http.StatusBadRequest, "page_size must be greater than 0", true},
@@ -152,6 +153,23 @@ func TestHandler_ListServices_RoutingToServiceMethods(t *testing.T) {
 	assertStatus(t, rec2, http.StatusOK)
 	if !svc2.calledSearch || svc2.calledListPopular {
 		t.Fatalf("q=wifi: expected SearchServices called and ListPopularServices not called")
+	}
+
+	// q from a search tag should still route to SearchServices
+	ctx2b, rec2b := newTestContext(http.MethodGet, "/api/v1/services?q=internet")
+	svc2b := &mockServicesService{
+		searchServicesFunc: func(ctx context.Context, input SearchInput) (ListServicesResult, error) {
+			if input.Query != "internet" || input.Page != 1 || input.PageSize != 10 || input.CategoryID != 0 {
+				t.Fatalf("unexpected input: %#v", input)
+			}
+			return ListServicesResult{Data: []Service{{ServiceID: 3}}, Meta: ListServicesMeta{Total: 1, Shown: 1, Query: &input.Query}}, nil
+		},
+	}
+	h2b := NewHandler(svc2b)
+	h2b.listServices(ctx2b)
+	assertStatus(t, rec2b, http.StatusOK)
+	if !svc2b.calledSearch || svc2b.calledListPopular {
+		t.Fatalf("q=internet: expected SearchServices called and ListPopularServices not called")
 	}
 
 	// q="  " whitespace -> trimmed to empty -> ListPopularServices called
