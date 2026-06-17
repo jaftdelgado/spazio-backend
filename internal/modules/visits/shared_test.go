@@ -2,10 +2,8 @@ package visits
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -82,14 +80,4 @@ func setAuthenticatedContext(ctx *gin.Context, userID int32, roleID int32) {
 	ctx.Set("user_id", userID)
 	ctx.Set("role_id", roleID)
 	ctx.Set("user_role", "client")
-}
-
-func assertErrorResponse(t *testing.T, body []byte, wantMsg string) {
-	var resp struct {
-		Error string `json:"error"`
-	}
-	json.Unmarshal(body, &resp)
-	if resp.Error == "" {
-		t.Errorf("expected error message %q, but got empty body or different structure: %s", wantMsg, string(body))
-	}
 }

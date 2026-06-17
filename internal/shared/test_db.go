@@ -24,7 +24,10 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		t.Fatalf("TEST_DATABASE_URL environment variable is not set in .env")
+		dbURL = os.Getenv("DATABASE_URL")
+	}
+	if dbURL == "" {
+		t.Fatalf("TEST_DATABASE_URL or DATABASE_URL environment variable is not set in .env")
 	}
 
 	ctx := context.Background()

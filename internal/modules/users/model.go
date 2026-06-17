@@ -11,7 +11,6 @@ const (
 	roleIDAdmin          int32 = 1
 	roleIDAgent          int32 = 2
 	roleIDClient         int32 = 3
-	statusIDPending      int32 = 3
 	statusIDActive       int32 = 1
 	challengeResetPwd          = "password_reset"
 	challengeEmailChange       = "email_change"

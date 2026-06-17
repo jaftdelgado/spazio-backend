@@ -17,7 +17,8 @@ func (s *service) ConfirmVisit(ctx context.Context, userID int32, role int32, vi
 	currentStatus := visit.StatusID
 	newStatus := currentStatus
 
-	if role == 3 {
+	switch role {
+	case 3:
 		if visit.ClientID != userID {
 			return errors.New("no tienes permiso para confirmar esta visita")
 		}
@@ -27,7 +28,7 @@ func (s *service) ConfirmVisit(ctx context.Context, userID int32, role int32, vi
 		case StatusWaitingClient:
 			newStatus = StatusConfirmed
 		}
-	} else if role == 2 { // Agente
+	case 2: // Agente
 		if !visit.AgentID.Valid || visit.AgentID.Int32 != userID {
 			return errors.New("no eres el agente asignado a esta visita")
 		}
@@ -37,7 +38,7 @@ func (s *service) ConfirmVisit(ctx context.Context, userID int32, role int32, vi
 		case StatusWaitingAgent:
 			newStatus = StatusConfirmed
 		}
-	} else if role == 1 {
+	case 1:
 		newStatus = StatusConfirmed
 	}
 
@@ -89,15 +90,16 @@ func (s *service) CancelVisit(ctx context.Context, userID int32, role int32, vis
 		return errors.New("visita no encontrada")
 	}
 
-	if role == 3 {
+	switch role {
+	case 3:
 		if visit.ClientID != userID {
 			return errors.New("no tienes permiso para cancelar esta visita")
 		}
-	} else if role == 2 {
+	case 2:
 		if !visit.AgentID.Valid || visit.AgentID.Int32 != userID {
 			return errors.New("no eres el agente asignado a esta visita")
 		}
-	} else {
+	default:
 		return errors.New("rol no autorizado para cancelar visitas")
 	}
 

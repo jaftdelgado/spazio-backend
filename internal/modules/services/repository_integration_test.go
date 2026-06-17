@@ -29,14 +29,14 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			icon:       "pool",
 			categoryID: wellnessCategoryID,
 			sortOrder:  10,
-			searchTags: `{"es":["alberca","piscina"],"en":["swimming pool","pool"]}`,
+			searchTags: fmt.Sprintf(`{"es":["alberca-it-%d","piscina-it-%d"],"en":["swimming-pool-it-%d","pool-it-%d"]}`, suffix, suffix, suffix, suffix),
 		})
 		wifiServiceID := insertService(t, ctx, tx, serviceSeed{
 			code:       fmt.Sprintf("WIFI_IT_%d", suffix),
 			icon:       "wifi",
 			categoryID: featuresCategoryID,
 			sortOrder:  20,
-			searchTags: `{"es":["internet inalámbrico","red"],"en":["wireless internet","network"]}`,
+			searchTags: fmt.Sprintf(`{"es":["internet-it-%d","red-it-%d"],"en":["wireless-internet-it-%d","network-it-%d"]}`, suffix, suffix, suffix, suffix),
 		})
 		nullTagsServiceID := insertService(t, ctx, tx, serviceSeed{
 			code:       fmt.Sprintf("NULL_TAGS_IT_%d", suffix),
@@ -50,20 +50,20 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			icon:       "yoga",
 			categoryID: wellnessCategoryID,
 			sortOrder:  40,
-			searchTags: `{"es":["yoga","bienestar"],"en":["yoga","wellness"]}`,
+			searchTags: fmt.Sprintf(`{"es":["yoga-it-%d","bienestar-it-%d"],"en":["yoga-it-%d","wellness-it-%d"]}`, suffix, suffix, suffix, suffix),
 		})
 
 		tests := []struct {
-			name       string
-			input      SearchInput
-			wantIDs    []int32
-			wantTotal  int64
-			wantPage   int32
-			wantSize   int32
+			name      string
+			input     SearchInput
+			wantIDs   []int32
+			wantTotal int64
+			wantPage  int32
+			wantSize  int32
 		}{
 			{
 				name:      "matches spanish tag",
-				input:     SearchInput{Query: "alberca", Page: 1, PageSize: 10},
+				input:     SearchInput{Query: fmt.Sprintf("alberca-it-%d", suffix), Page: 1, PageSize: 10},
 				wantIDs:   []int32{poolServiceID},
 				wantTotal: 1,
 				wantPage:  1,
@@ -71,7 +71,7 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			},
 			{
 				name:      "matches english tag",
-				input:     SearchInput{Query: "swimming pool", Page: 1, PageSize: 10},
+				input:     SearchInput{Query: fmt.Sprintf("swimming-pool-it-%d", suffix), Page: 1, PageSize: 10},
 				wantIDs:   []int32{poolServiceID},
 				wantTotal: 1,
 				wantPage:  1,
@@ -79,7 +79,7 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			},
 			{
 				name:      "matches code case-insensitively",
-				input:     SearchInput{Query: "wifi", Page: 1, PageSize: 10},
+				input:     SearchInput{Query: fmt.Sprintf("wifi_it_%d", suffix), Page: 1, PageSize: 10},
 				wantIDs:   []int32{wifiServiceID},
 				wantTotal: 1,
 				wantPage:  1,
@@ -95,7 +95,7 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			},
 			{
 				name:      "null search tags do not break unrelated search",
-				input:     SearchInput{Query: "wireless internet", Page: 1, PageSize: 10},
+				input:     SearchInput{Query: fmt.Sprintf("wireless-internet-it-%d", suffix), Page: 1, PageSize: 10},
 				wantIDs:   []int32{wifiServiceID},
 				wantTotal: 1,
 				wantPage:  1,
@@ -103,7 +103,7 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 			},
 			{
 				name:      "category filter with tag match",
-				input:     SearchInput{Query: "yoga", CategoryID: wellnessCategoryID, Page: 1, PageSize: 10},
+				input:     SearchInput{Query: fmt.Sprintf("yoga-it-%d", suffix), CategoryID: wellnessCategoryID, Page: 1, PageSize: 10},
 				wantIDs:   []int32{yogaServiceID},
 				wantTotal: 1,
 				wantPage:  1,
@@ -142,6 +142,59 @@ func TestIntegration_SearchServices_MultilingualTags(t *testing.T) {
 		}
 		if total != 1 || len(items) != 1 || items[0].ServiceID != nullTagsServiceID {
 			t.Fatalf("expected NULL-tagged service to remain searchable by code, got total=%d items=%v", total, items)
+		}
+	})
+}
+
+func TestIntegration_ListPopularServices_PaginatesAndFiltersByCategory(t *testing.T) {
+	pool := shared.SetupTestDB(t)
+	ctx := context.Background()
+	suffix := time.Now().UnixNano()
+
+	shared.WithTransaction(t, pool, func(tx pgx.Tx) {
+		repo := &repository{queries: sqlcgen.New(tx)}
+
+		categoryID := insertServiceCategory(t, ctx, tx, fmt.Sprintf("popular_it_%d", suffix), "Popular IT")
+		otherCategoryID := insertServiceCategory(t, ctx, tx, fmt.Sprintf("popular_other_it_%d", suffix), "Popular Other IT")
+
+		firstID := insertService(t, ctx, tx, serviceSeed{
+			code:       fmt.Sprintf("POPULAR_A_%d", suffix),
+			icon:       "sparkles",
+			categoryID: categoryID,
+			sortOrder:  10,
+			searchTags: `{"es":["popular"],"en":["popular"]}`,
+		})
+		_ = insertService(t, ctx, tx, serviceSeed{
+			code:       fmt.Sprintf("POPULAR_B_%d", suffix),
+			icon:       "sparkles",
+			categoryID: categoryID,
+			sortOrder:  20,
+			searchTags: `{"es":["popular"],"en":["popular"]}`,
+		})
+		_ = insertService(t, ctx, tx, serviceSeed{
+			code:       fmt.Sprintf("POPULAR_C_%d", suffix),
+			icon:       "sparkles",
+			categoryID: otherCategoryID,
+			sortOrder:  30,
+			searchTags: `{"es":["popular"],"en":["popular"]}`,
+		})
+
+		items, total, err := repo.ListPopularServices(ctx, ListPopularInput{
+			CategoryID: categoryID,
+			Page:       1,
+			PageSize:   1,
+		})
+		if err != nil {
+			t.Fatalf("ListPopularServices() error = %v", err)
+		}
+		if total != 2 {
+			t.Fatalf("total mismatch: got %d want 2", total)
+		}
+		if len(items) != 1 {
+			t.Fatalf("expected one paginated result, got %d", len(items))
+		}
+		if items[0].ServiceID != firstID {
+			t.Fatalf("expected first paginated item %d, got %d", firstID, items[0].ServiceID)
 		}
 	})
 }
