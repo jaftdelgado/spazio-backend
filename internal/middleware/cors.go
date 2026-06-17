@@ -1,12 +1,22 @@
 package middleware
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 )
 
-func CORS(allowedOrigin string) gin.HandlerFunc {
+func CORS(allowedOrigins string) gin.HandlerFunc {
+	origins := strings.Split(allowedOrigins, ",")
+
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", allowedOrigin)
+		origin := c.Request.Header.Get("Origin")
+
+		if slices.Contains(origins, origin) {
+			c.Header("Access-Control-Allow-Origin", origin)
+		}
+
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie")
