@@ -13,6 +13,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
+	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 func TestService_HandleWebhook(t *testing.T) {
@@ -25,6 +26,7 @@ func TestService_HandleWebhook(t *testing.T) {
 		requestID     string
 		body          string
 		setupRepo     func() *mockPaymentRepository
+		setupMPClient func() *mockMPClient
 		setupSig      func(body string) string
 		wantErr       bool
 		errContains   string
@@ -71,11 +73,17 @@ func TestService_HandleWebhook(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := tt.setupRepo()
-			token := tt.mpAccessToken
-			if token == "" {
-				token = "TOKEN"
+			var mpClient *mockMPClient
+			if tt.setupMPClient != nil {
+				mpClient = tt.setupMPClient()
+			} else {
+				mpClient = &mockMPClient{
+					getPaymentFunc: func(ctx context.Context, id int) (*payment.Response, error) {
+						return &payment.Response{ID: id, Status: "approved"}, nil
+					},
+				}
 			}
-			svc := NewService(repo, token, secret)
+			svc := NewTestService(repo, mpClient, "TOKEN", secret)
 
 			sig := tt.setupSig(tt.body)
 			reqID := tt.requestID

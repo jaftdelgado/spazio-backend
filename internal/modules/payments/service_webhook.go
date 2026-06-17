@@ -14,8 +14,6 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
-	mpConfig "github.com/mercadopago/sdk-go/pkg/config"
-	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 func (s *service) HandleWebhook(ctx context.Context, xSignature string, xRequestID string, body []byte) error {
@@ -40,28 +38,19 @@ func (s *service) HandleWebhook(ctx context.Context, xSignature string, xRequest
 	}
 
 	paymentIDStr := webhookData.Data.ID
-	mpCfg, _ := mpConfig.New(s.mpAccessToken)
-	mpClient := payment.NewClient(mpCfg)
 
 	mpPaymentID, err := strconv.ParseInt(paymentIDStr, 10, 64)
 	if err != nil {
 		return nil
 	}
 
-	var mpResp *payment.Response
-	if s.mpAccessToken == "TEST-TOKEN" || s.mpAccessToken == "TEST-REFUNDED" || s.mpAccessToken == "TEST-REJECTED" {
-		mpResp = &payment.Response{ID: int(mpPaymentID), Status: "approved"}
-		if s.mpAccessToken == "TEST-REFUNDED" {
-			mpResp.Status = "refunded"
-		}
-		if s.mpAccessToken == "TEST-REJECTED" {
-			mpResp.Status = "rejected"
-		}
-	} else {
-		mpResp, err = mpClient.Get(ctx, int(mpPaymentID))
-		if err != nil {
-			return err
-		}
+	if s.mpClient == nil {
+		return errors.New("pasarela de pagos no inicializada")
+	}
+
+	mpResp, err := s.mpClient.GetPayment(ctx, int(mpPaymentID))
+	if err != nil {
+		return err
 	}
 
 	tx, err := s.repo.Begin(ctx)

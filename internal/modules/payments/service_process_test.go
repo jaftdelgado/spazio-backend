@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
+	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 func TestService_ProcessPayment(t *testing.T) {
@@ -31,6 +32,7 @@ func TestService_ProcessPayment(t *testing.T) {
 		mpAccessToken string
 		req           RegisterPaymentRequest
 		setupRepo     func() *mockPaymentRepository
+		setupMPClient func() *mockMPClient
 		wantErr       bool
 		errContains   string
 		wantStatus    string
@@ -152,8 +154,7 @@ func TestService_ProcessPayment(t *testing.T) {
 			errContains: "operación no autorizada",
 		},
 		{
-			name:          "error when gateway rejects payment",
-			mpAccessToken: "TEST-REJECTED",
+			name: "error when gateway rejects payment",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{
 					beginFunc: func(ctx context.Context) (pgx.Tx, error) { return &mockTx{}, nil },
@@ -166,6 +167,17 @@ func TestService_ProcessPayment(t *testing.T) {
 					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) { return 1, nil },
 					getPaymentByContractFunc: func(ctx context.Context, cid, sid int32) ([]sqlcgen.Payment, error) { return nil, nil },
 					getPendingPaymentsFunc: func(ctx context.Context, cid int32) ([]sqlcgen.GetPendingPaymentsRow, error) { return nil, nil },
+				}
+			},
+			setupMPClient: func() *mockMPClient {
+				return &mockMPClient{
+					createPaymentFunc: func(ctx context.Context, req payment.Request) (*payment.Response, error) {
+						return &payment.Response{
+							ID:           123456789,
+							Status:       "rejected",
+							StatusDetail: "cc_rejected_bad_filled_security_code",
+						}, nil
+					},
 				}
 			},
 			wantErr:     true,
@@ -218,11 +230,21 @@ func TestService_ProcessPayment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := tt.setupRepo()
-			token := tt.mpAccessToken
-			if token == "" {
-				token = "TOKEN"
+			var mpClient *mockMPClient
+			if tt.setupMPClient != nil {
+				mpClient = tt.setupMPClient()
+			} else {
+				mpClient = &mockMPClient{
+					createPaymentFunc: func(ctx context.Context, req payment.Request) (*payment.Response, error) {
+						return &payment.Response{
+							ID:           123456789,
+							Status:       "approved",
+							StatusDetail: "accredited",
+						}, nil
+					},
+				}
 			}
-			svc := NewService(repo, token, "SECRET")
+			svc := NewTestService(repo, mpClient, "TOKEN", "SECRET")
 
 			req := tt.req
 			if req.ContractID == 0 {

@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jaftdelgado/spazio-backend/internal/sqlcgen"
+	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 // mockPaymentRepository is a manual mock implementation of the Repository interface.
@@ -167,4 +168,24 @@ func (m *mockTx) Rollback(ctx context.Context) error {
 		return m.rollbackFunc(ctx)
 	}
 	return nil
+}
+
+// mockMPClient is a manual mock implementation of the MPClient interface.
+type mockMPClient struct {
+	createPaymentFunc func(ctx context.Context, req payment.Request) (*payment.Response, error)
+	getPaymentFunc    func(ctx context.Context, id int) (*payment.Response, error)
+}
+
+func (m *mockMPClient) CreatePayment(ctx context.Context, req payment.Request) (*payment.Response, error) {
+	if m.createPaymentFunc != nil {
+		return m.createPaymentFunc(ctx, req)
+	}
+	return nil, nil
+}
+
+func (m *mockMPClient) GetPayment(ctx context.Context, id int) (*payment.Response, error) {
+	if m.getPaymentFunc != nil {
+		return m.getPaymentFunc(ctx, id)
+	}
+	return nil, nil
 }
