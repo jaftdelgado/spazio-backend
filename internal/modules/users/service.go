@@ -13,7 +13,6 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
-	"log"
 	"math/big"
 	"strconv"
 	"strings"
@@ -94,9 +93,7 @@ func (s *service) PreRegisterUser(ctx context.Context, input PreRegisterInput) e
 		return fmt.Errorf("store pending verification: %w", err)
 	}
 
-	if err := s.emailSender.SendVerificationCode(emailValue, code, s.appName); err != nil {
-		log.Printf("[DEV] verification code for %s: %s", emailValue, code)
-	}
+	_ = s.emailSender.SendVerificationCode(emailValue, code, s.appName)
 
 	return nil
 }
@@ -581,9 +578,7 @@ func (s *service) createAndSendChallenge(ctx context.Context, input CreateChalle
 		return fmt.Errorf("store user verification challenge: %w", err)
 	}
 
-	if err := s.emailSender.SendVerificationCode(input.Email, code, s.appName); err != nil {
-		log.Printf("[DEV] verification code for %s (%s): %s", input.Email, input.Purpose, code)
-	}
+	_ = s.emailSender.SendVerificationCode(input.Email, code, s.appName)
 
 	return nil
 }
