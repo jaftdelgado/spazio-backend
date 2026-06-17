@@ -36,6 +36,9 @@ const (
 // @Param        min_price         query     number                false  "Minimum price filter"
 // @Param        max_price         query     number                false  "Maximum price filter"
 // @Param        min_bedrooms      query     int                   false  "Minimum bedrooms filter (Residential only)"
+// @Param        is_featured       query     bool                  false  "Filter featured properties"
+// @Param        min_parking_spots query     int                   false  "Minimum parking spots filter (Residential only)"
+// @Param        pet_friendly      query     bool                  false  "Filter properties that allow pets"
 // @Param        sort              query     string                false  "Sort by: created_at, title, price"
 // @Param        order             query     string                false  "Sort order: asc, desc"
 // @Success      200               {object}  ListPropertiesResult  "Paginated list of property cards"
@@ -123,6 +126,24 @@ func (h *Handler) listProperties(c *gin.Context) {
 		return
 	}
 
+	isFeatured, err := resolveOptionalBoolPointerQuery(strings.TrimSpace(c.Query("is_featured")), "is_featured")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	minParkingSpots, err := resolveOptionalPositivePropertyInt(strings.TrimSpace(c.Query("min_parking_spots")), "min_parking_spots")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	petFriendly, err := resolveOptionalBoolQuery(strings.TrimSpace(c.Query("pet_friendly")), false, "pet_friendly")
+	if err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
 	sortField := strings.ToLower(strings.TrimSpace(c.Query("sort")))
 	sortOrder := strings.ToLower(strings.TrimSpace(c.Query("order")))
 
@@ -132,22 +153,25 @@ func (h *Handler) listProperties(c *gin.Context) {
 	}
 
 	result, err := h.service.ListProperties(c.Request.Context(), ListPropertiesInput{
-		Page:           int32(page),
-		PageSize:       int32(pageSize),
-		Query:          strings.TrimSpace(c.Query("q")),
-		StatusIDs:      statusIDs,
-		PropertyTypeID: int32(propertyTypeID),
-		ModalityID:     int32(modalityID),
-		CountryID:      int32(countryID),
-		StateID:        int32(stateID),
-		CityID:         int32(cityID),
-		MinPrice:       minPrice,
-		MaxPrice:       maxPrice,
-		MinBedrooms:    int32(minBedrooms),
-		UserID:         userID,
-		RoleID:         roleID,
-		Sort:           sortField,
-		Order:          resolvePropertySortOrder(sortOrder),
+		Page:            int32(page),
+		PageSize:        int32(pageSize),
+		Query:           strings.TrimSpace(c.Query("q")),
+		StatusIDs:       statusIDs,
+		PropertyTypeID:  int32(propertyTypeID),
+		ModalityID:      int32(modalityID),
+		CountryID:       int32(countryID),
+		StateID:         int32(stateID),
+		CityID:          int32(cityID),
+		MinPrice:        minPrice,
+		MaxPrice:        maxPrice,
+		MinBedrooms:     int32(minBedrooms),
+		IsFeatured:      isFeatured,
+		MinParkingSpots: int32(minParkingSpots),
+		PetFriendly:     petFriendly,
+		UserID:          userID,
+		RoleID:          roleID,
+		Sort:            sortField,
+		Order:           resolvePropertySortOrder(sortOrder),
 	})
 	if err != nil {
 		log.Printf("list properties: %v", err)
@@ -369,6 +393,32 @@ func resolveOptionalFloat64Query(rawValue string, fallback float64, field string
 	value, err := strconv.ParseFloat(rawValue, 64)
 	if err != nil {
 		return 0, errors.New(field + " must be a valid number")
+	}
+
+	return value, nil
+}
+
+func resolveOptionalBoolPointerQuery(rawValue string, field string) (*bool, error) {
+	if rawValue == "" {
+		return nil, nil
+	}
+
+	value, err := strconv.ParseBool(rawValue)
+	if err != nil {
+		return nil, errors.New(field + " must be a valid boolean")
+	}
+
+	return &value, nil
+}
+
+func resolveOptionalBoolQuery(rawValue string, fallback bool, field string) (bool, error) {
+	if rawValue == "" {
+		return fallback, nil
+	}
+
+	value, err := strconv.ParseBool(rawValue)
+	if err != nil {
+		return false, errors.New(field + " must be a valid boolean")
 	}
 
 	return value, nil

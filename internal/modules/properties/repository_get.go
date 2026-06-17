@@ -64,20 +64,23 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 	}
 
 	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
-		SearchQuery:    input.Query,
-		StatusIds:      statusIDs,
-		PropertyTypeID: input.PropertyTypeID,
-		ModalityID:     input.ModalityID,
-		CountryID:      input.CountryID,
-		StateID:        input.StateID,
-		CityID:         input.CityID,
-		MinPrice:       float64ToNumeric(input.MinPrice),
-		MaxPrice:       float64ToNumeric(input.MaxPrice),
-		MinBedrooms:    input.MinBedrooms,
-		SortField:      input.Sort,
-		SortOrder:      input.Order,
-		PageOffset:     resolvePageOffset(input.Page, input.PageSize),
-		PageSize:       input.PageSize,
+		SearchQuery:     input.Query,
+		StatusIds:       statusIDs,
+		PropertyTypeID:  input.PropertyTypeID,
+		ModalityID:      input.ModalityID,
+		CountryID:       input.CountryID,
+		StateID:         input.StateID,
+		CityID:          input.CityID,
+		MinPrice:        float64ToNumeric(input.MinPrice),
+		MaxPrice:        float64ToNumeric(input.MaxPrice),
+		MinBedrooms:     input.MinBedrooms,
+		IsFeatured:      boolPointerToPgBool(input.IsFeatured),
+		MinParkingSpots: input.MinParkingSpots,
+		PetFriendly:     input.PetFriendly,
+		SortField:       input.Sort,
+		SortOrder:       input.Order,
+		PageOffset:      resolvePageOffset(input.Page, input.PageSize),
+		PageSize:        input.PageSize,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list properties: %w", err)
@@ -106,21 +109,24 @@ func (r *repository) ListPropertiesForAgent(ctx context.Context, input ListPrope
 	}
 
 	rows, err := r.queries.ListPropertiesCardsForAgent(ctx, sqlcgen.ListPropertiesCardsForAgentParams{
-		AgentID:        input.UserID,
-		SearchQuery:    input.Query,
-		StatusIds:      statusIDs,
-		PropertyTypeID: input.PropertyTypeID,
-		ModalityID:     input.ModalityID,
-		CountryID:      input.CountryID,
-		StateID:        input.StateID,
-		CityID:         input.CityID,
-		MinPrice:       float64ToNumeric(input.MinPrice),
-		MaxPrice:       float64ToNumeric(input.MaxPrice),
-		MinBedrooms:    input.MinBedrooms,
-		SortField:      input.Sort,
-		SortOrder:      input.Order,
-		PageOffset:     resolvePageOffset(input.Page, input.PageSize),
-		PageSize:       input.PageSize,
+		AgentID:         input.UserID,
+		SearchQuery:     input.Query,
+		StatusIds:       statusIDs,
+		PropertyTypeID:  input.PropertyTypeID,
+		ModalityID:      input.ModalityID,
+		CountryID:       input.CountryID,
+		StateID:         input.StateID,
+		CityID:          input.CityID,
+		MinPrice:        float64ToNumeric(input.MinPrice),
+		MaxPrice:        float64ToNumeric(input.MaxPrice),
+		MinBedrooms:     input.MinBedrooms,
+		IsFeatured:      boolPointerToPgBool(input.IsFeatured),
+		MinParkingSpots: input.MinParkingSpots,
+		PetFriendly:     input.PetFriendly,
+		SortField:       input.Sort,
+		SortOrder:       input.Order,
+		PageOffset:      resolvePageOffset(input.Page, input.PageSize),
+		PageSize:        input.PageSize,
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("list properties for agent: %w", err)
@@ -147,6 +153,14 @@ func float64ToNumeric(val float64) pgtype.Numeric {
 		return pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true}
 	}
 	return pgtype.Numeric{Int: big.NewInt(int64(val * 100)), Exp: -2, Valid: true}
+}
+
+func boolPointerToPgBool(value *bool) pgtype.Bool {
+	if value == nil {
+		return pgtype.Bool{}
+	}
+
+	return pgtype.Bool{Bool: *value, Valid: true}
 }
 
 func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
@@ -309,6 +323,7 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		row.PropertyUuid,
 		row.Title,
 		row.CoverPhotoUrl,
+		row.IsFeatured,
 		row.PropertyTypeID,
 		row.PropertyTypeName,
 		row.PropertyTypeIcon,
@@ -326,10 +341,13 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		row.StateName,
 		row.CityID,
 		row.CityName,
+		row.Neighborhood,
 		row.AddressSummary,
 		row.Bedrooms,
 		row.Bathrooms,
+		row.ParkingSpots,
 		row.BuiltArea,
+		row.PetFriendly,
 	)
 }
 
@@ -339,6 +357,7 @@ func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (P
 		row.PropertyUuid,
 		row.Title,
 		row.CoverPhotoUrl,
+		row.IsFeatured,
 		row.PropertyTypeID,
 		row.PropertyTypeName,
 		row.PropertyTypeIcon,
@@ -356,10 +375,13 @@ func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (P
 		row.StateName,
 		row.CityID,
 		row.CityName,
+		row.Neighborhood,
 		row.AddressSummary,
 		row.Bedrooms,
 		row.Bathrooms,
+		row.ParkingSpots,
 		row.BuiltArea,
+		row.PetFriendly,
 	)
 }
 
@@ -368,6 +390,7 @@ func propertyCardDataFromValues(
 	propertyUUID pgtype.UUID,
 	title string,
 	coverPhotoURL pgtype.Text,
+	isFeatured bool,
 	propertyTypeID int32,
 	propertyTypeName string,
 	propertyTypeIcon pgtype.Text,
@@ -385,16 +408,21 @@ func propertyCardDataFromValues(
 	stateName string,
 	cityID pgtype.Int4,
 	cityName string,
+	neighborhood string,
 	addressSummary string,
 	bedrooms pgtype.Int2,
 	bathrooms pgtype.Int2,
+	parkingSpots pgtype.Int2,
 	builtArea pgtype.Numeric,
+	petFriendly bool,
 ) (PropertyCardData, error) {
 	card := PropertyCardData{
 		PropertyID:    propertyID,
 		PropertyUUID:  propertyUUID.String(),
 		Title:         title,
 		CoverPhotoURL: stringPointerFromText(coverPhotoURL),
+		IsFeatured:    isFeatured,
+		PetFriendly:   petFriendly,
 		PropertyType: PropertyCardTypeData{
 			PropertyTypeID: propertyTypeID,
 			Name:           propertyTypeName,
@@ -422,6 +450,16 @@ func propertyCardDataFromValues(
 		card.AddressSummary = addressSummary
 	}
 
+	if cityName != "" {
+		v := cityName
+		card.City = &v
+	}
+
+	if neighborhood != "" {
+		v := neighborhood
+		card.Neighborhood = &v
+	}
+
 	if bedrooms.Valid {
 		v := bedrooms.Int16
 		card.Bedrooms = &v
@@ -429,6 +467,10 @@ func propertyCardDataFromValues(
 	if bathrooms.Valid {
 		v := bathrooms.Int16
 		card.Bathrooms = &v
+	}
+	if parkingSpots.Valid {
+		v := parkingSpots.Int16
+		card.ParkingSpots = &v
 	}
 	if builtArea.Valid {
 		v, _ := builtArea.Float64Value()

@@ -17,7 +17,7 @@ func (s *service) GetPropertyHistory(ctx context.Context, propertyUUID string) (
 }
 
 func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
-	if len(input.StatusIDs) == 0 && input.RoleID == RoleAgentID {
+	if len(input.StatusIDs) == 0 && (input.RoleID == RoleAgentID || input.RoleID == RoleClientID) {
 		input.StatusIDs = []int32{StatusAvailable}
 	}
 
@@ -56,7 +56,7 @@ func (s *service) ListProperties(ctx context.Context, input ListPropertiesInput)
 }
 
 func (s *service) GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
-	if roleID != RoleAdminID && roleID != RoleAgentID {
+	if roleID != RoleAdminID && roleID != RoleAgentID && roleID != RoleClientID {
 		return GetPropertyResult{}, errors.New("forbidden: unsupported role")
 	}
 
@@ -65,18 +65,33 @@ func (s *service) GetPropertyForRole(ctx context.Context, propertyUUID string, u
 		return GetPropertyResult{}, fmt.Errorf("get property: %w", err)
 	}
 
-	if roleID == RoleAgentID {
+	switch roleID {
+	case RoleAdminID:
+		return result, nil
+
+	case RoleAgentID:
 		assigned, err := s.repository.IsPropertyAssignedToAgent(ctx, result.Data.PropertyID, userID)
 		if err != nil {
 			return GetPropertyResult{}, fmt.Errorf("check agent assignment: %w", err)
 		}
+
 		if !assigned {
 			return GetPropertyResult{}, errors.New("forbidden: property not assigned to agent")
 		}
+
 		result.Data.RegisteredBy = ""
+		return result, nil
+
+	case RoleClientID:
+		if result.Data.StatusID != StatusAvailable {
+			return GetPropertyResult{}, errors.New("forbidden: property is not available")
+		}
+
+		result.Data.RegisteredBy = ""
+		return result, nil
 	}
 
-	return result, nil
+	return GetPropertyResult{}, errors.New("forbidden: unsupported role")
 }
 
 func (s *service) GetPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error) {

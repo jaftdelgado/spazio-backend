@@ -126,6 +126,7 @@ SELECT
   p.property_uuid,
   p.title,
   p.cover_photo_url,
+  p.is_featured,
   pt.property_type_id,
   pt.name AS property_type_name,
   pt.icon AS property_type_icon,
@@ -158,6 +159,7 @@ SELECT
   COALESCE(st.name, '') AS state_name,
   ci.city_id,
   COALESCE(ci.name, '') AS city_name,
+  COALESCE(l.neighborhood, '') AS neighborhood,
   CAST(
     NULLIF(
       CONCAT_WS(
@@ -182,7 +184,16 @@ SELECT
   ) AS address_summary,
   res.bedrooms,
   res.bathrooms,
+  res.parking_spots,
   res.built_area,
+  EXISTS (
+    SELECT 1
+    FROM property_clauses pc
+    JOIN clauses cl ON cl.clause_id = pc.clause_id
+    WHERE pc.property_id = p.property_id
+      AND cl.code = 'pets_allowed'
+      AND COALESCE(pc.boolean_value, false) = true
+  ) AS pet_friendly,
   COUNT(*) OVER() AS total_count
 FROM properties p
 JOIN property_types pt ON pt.property_type_id = p.property_type_id
@@ -232,6 +243,25 @@ WHERE p.deleted_at IS NULL
   AND (
     sqlc.arg(min_bedrooms)::int = 0
     OR (pt.subtype = 'residential' AND res.bedrooms >= sqlc.arg(min_bedrooms)::int)
+  )
+  AND (
+    sqlc.narg('is_featured')::boolean IS NULL
+    OR p.is_featured = sqlc.narg('is_featured')::boolean
+  )
+  AND (
+    sqlc.arg(min_parking_spots)::int = 0
+    OR (pt.subtype = 'residential' AND res.parking_spots >= sqlc.arg(min_parking_spots)::int)
+  )
+  AND (
+    sqlc.arg(pet_friendly)::boolean = false
+    OR EXISTS (
+      SELECT 1
+      FROM property_clauses pc
+      JOIN clauses cl ON cl.clause_id = pc.clause_id
+      WHERE pc.property_id = p.property_id
+        AND cl.code = 'pets_allowed'
+        AND COALESCE(pc.boolean_value, false) = true
+    )
   )
   AND (
     (sqlc.arg(min_price)::numeric = 0 AND sqlc.arg(max_price)::numeric = 0)
@@ -311,6 +341,7 @@ SELECT
   p.property_uuid,
   p.title,
   p.cover_photo_url,
+  p.is_featured,
   pt.property_type_id,
   pt.name AS property_type_name,
   pt.icon AS property_type_icon,
@@ -343,6 +374,7 @@ SELECT
   COALESCE(st.name, '') AS state_name,
   ci.city_id,
   COALESCE(ci.name, '') AS city_name,
+  COALESCE(l.neighborhood, '') AS neighborhood,
   CAST(
     NULLIF(
       CONCAT_WS(
@@ -367,7 +399,16 @@ SELECT
   ) AS address_summary,
   res.bedrooms,
   res.bathrooms,
+  res.parking_spots,
   res.built_area,
+  EXISTS (
+    SELECT 1
+    FROM property_clauses pc
+    JOIN clauses cl ON cl.clause_id = pc.clause_id
+    WHERE pc.property_id = p.property_id
+      AND cl.code = 'pets_allowed'
+      AND COALESCE(pc.boolean_value, false) = true
+  ) AS pet_friendly,
   COUNT(*) OVER() AS total_count
 FROM properties p
 JOIN property_types pt ON pt.property_type_id = p.property_type_id
@@ -419,6 +460,25 @@ WHERE p.deleted_at IS NULL
   AND (
     sqlc.arg(min_bedrooms)::int = 0
     OR (pt.subtype = 'residential' AND res.bedrooms >= sqlc.arg(min_bedrooms)::int)
+  )
+  AND (
+    sqlc.narg('is_featured')::boolean IS NULL
+    OR p.is_featured = sqlc.narg('is_featured')::boolean
+  )
+  AND (
+    sqlc.arg(min_parking_spots)::int = 0
+    OR (pt.subtype = 'residential' AND res.parking_spots >= sqlc.arg(min_parking_spots)::int)
+  )
+  AND (
+    sqlc.arg(pet_friendly)::boolean = false
+    OR EXISTS (
+      SELECT 1
+      FROM property_clauses pc
+      JOIN clauses cl ON cl.clause_id = pc.clause_id
+      WHERE pc.property_id = p.property_id
+        AND cl.code = 'pets_allowed'
+        AND COALESCE(pc.boolean_value, false) = true
+    )
   )
   AND (
     (sqlc.arg(min_price)::numeric = 0 AND sqlc.arg(max_price)::numeric = 0)

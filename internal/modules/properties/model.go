@@ -119,22 +119,25 @@ type CreatePropertyClauseInput struct {
 
 // ListPropertiesInput defines filters for listing property cards.
 type ListPropertiesInput struct {
-	Page           int32
-	PageSize       int32
-	Query          string
-	StatusIDs      []int32
-	PropertyTypeID int32
-	ModalityID     int32
-	CountryID      int32
-	StateID        int32
-	CityID         int32
-	Sort           string
-	Order          string
-	MinPrice       float64
-	MaxPrice       float64
-	MinBedrooms    int32
-	UserID         int32
-	RoleID         int32
+	Page            int32
+	PageSize        int32
+	Query           string
+	StatusIDs       []int32
+	PropertyTypeID  int32
+	ModalityID      int32
+	CountryID       int32
+	StateID         int32
+	CityID          int32
+	Sort            string
+	Order           string
+	MinPrice        float64
+	MaxPrice        float64
+	MinBedrooms     int32
+	IsFeatured      *bool
+	MinParkingSpots int32
+	PetFriendly     bool
+	UserID          int32
+	RoleID          int32
 }
 
 // ListPropertiesResult is the response payload returned by the properties list endpoint.
@@ -159,14 +162,19 @@ type PropertyCardData struct {
 	PropertyUUID   string                   `json:"property_uuid" example:"123e4567-e89b-12d3-a456-426614174000"`
 	Title          string                   `json:"title" example:"Apartment in Downtown"`
 	CoverPhotoURL  *string                  `json:"cover_photo_url" example:"https://cdn.example.com/properties/cover.jpg"`
+	IsFeatured     bool                     `json:"is_featured"`
+	PetFriendly    bool                     `json:"pet_friendly"`
 	PropertyType   PropertyCardTypeData     `json:"property_type"`
 	Modality       PropertyCardModalityData `json:"modality"`
 	Status         PropertyCardStatusData   `json:"status"`
 	Price          *PropertyCardPriceData   `json:"price"`
 	Location       PropertyCardLocationData `json:"location"`
+	City           *string                  `json:"city,omitempty"`
+	Neighborhood   *string                  `json:"neighborhood,omitempty"`
 	AddressSummary string                   `json:"address_summary,omitempty" example:"Av. Principal 45, Centro, Xalapa, Veracruz, Mexico"`
 	Bedrooms       *int16                   `json:"bedrooms,omitempty"`
 	Bathrooms      *int16                   `json:"bathrooms,omitempty"`
+	ParkingSpots   *int16                   `json:"parking_spots,omitempty"`
 	BuiltArea      *float64                 `json:"built_area,omitempty"`
 }
 
@@ -536,12 +544,12 @@ type PropertyService interface {
 	GetPrices(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
 	GetPricesHistory(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
 	UpdatePrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
-	// New endpoints
+
 	GetPropertyForRole(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error)
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error
 
-	// CU-18
+	
 	GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error)
 }
 
