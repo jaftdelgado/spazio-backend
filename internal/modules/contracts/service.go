@@ -93,7 +93,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 			Currency:        row.Currency,
 			StartDate:       row.StartDate.Time,
 			Status:          row.StatusName,
-			ClientName:      strings.TrimSpace(row.ClientName),
+			ClientName:      strings.TrimSpace(fmt.Sprintf("%v", row.ClientName)),
 			CreatedAt:       row.CreatedAt.Time,
 		}
 	}
@@ -126,6 +126,7 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 	}
 
 	return ContractDetail{
+		ContractID:    row.ContractID,
 		ContractUUID:  formatPgUUID(row.ContractUuid),
 		PropertyTitle: row.PropertyTitle,
 		OwnerName:     fullName(row.OwnerFirstName, row.OwnerLastName),

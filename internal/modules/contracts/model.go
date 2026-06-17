@@ -70,6 +70,7 @@ type CreateContractResult struct {
 }
 
 type ContractDetail struct {
+	ContractID    int32      `json:"contract_id"`
 	ContractUUID  string     `json:"contract_uuid"`
 	PropertyTitle string     `json:"property_title"`
 	OwnerName     string     `json:"owner_name"`
