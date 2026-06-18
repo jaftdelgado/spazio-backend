@@ -13,14 +13,15 @@ import (
 
 // getServices godoc
 // @Summary      List property services
-// @Description  Returns the service IDs linked to a property by UUID. When the property has no services, the response contains an empty service_ids array.
+// @Description  Returns the service IDs linked to a property by UUID. When the property has no services, the response contains an empty service_ids array. Guests and clients can only view services from available properties.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid  path     string                   true  "Property UUID"
+// @Param        uuid  path      string                     true  "Property UUID"
 // @Success      200   {object}  GetPropertyServicesResult  "Property services"
-// @Failure      400   {object}  shared.ErrorResponse     "Invalid path parameter"
-// @Failure      404   {object}  shared.ErrorResponse     "Property not found"
-// @Failure      500   {object}  shared.ErrorResponse     "Internal error"
+// @Failure      400   {object}  shared.ErrorResponse       "Invalid path parameter"
+// @Failure      403   {object}  shared.ErrorResponse       "Forbidden"
+// @Failure      404   {object}  shared.ErrorResponse       "Property not found"
+// @Failure      500   {object}  shared.ErrorResponse       "Internal error"
 // @Router       /api/v1/properties/{uuid}/services [get]
 func (h *Handler) getServices(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
@@ -31,6 +32,10 @@ func (h *Handler) getServices(c *gin.Context) {
 
 	if _, err := uuid.Parse(propertyUUID); err != nil {
 		shared.BadRequest(c, errors.New("uuid must be a valid UUID"))
+		return
+	}
+
+	if !h.ensureReadableProperty(c, propertyUUID) {
 		return
 	}
 
@@ -54,12 +59,15 @@ func (h *Handler) getServices(c *gin.Context) {
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
-// @Param        uuid     path     string                    true  "Property UUID"
-// @Param        request  body     UpdatePropertyServicesInput  true  "Property services payload"
+// @Security     BearerAuth
+// @Param        uuid     path      string                       true  "Property UUID"
+// @Param        request  body      UpdatePropertyServicesInput  true  "Property services payload"
 // @Success      204
-// @Failure      400      {object}  shared.ErrorResponse     "Invalid input"
-// @Failure      404      {object}  shared.ErrorResponse     "Property not found"
-// @Failure      500      {object}  shared.ErrorResponse     "Internal error"
+// @Failure      400      {object}  shared.ErrorResponse         "Invalid input"
+// @Failure      401      {object}  shared.ErrorResponse         "Missing or invalid authenticated session"
+// @Failure      403      {object}  shared.ErrorResponse         "Forbidden"
+// @Failure      404      {object}  shared.ErrorResponse         "Property not found"
+// @Failure      500      {object}  shared.ErrorResponse         "Internal error"
 // @Router       /api/v1/properties/{uuid}/services [put]
 func (h *Handler) updateServices(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
