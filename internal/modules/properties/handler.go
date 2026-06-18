@@ -37,16 +37,17 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		adminOnly.GET("/:uuid/history", h.getPropertyHistory)
 		adminOnly.GET("/:uuid/prices/history", h.getPricesHistory)
 	}
+}
 
-	adminAgentOrClient := properties.Group("")
-	adminAgentOrClient.Use(middleware.RequireRole("admin", "agent", "client"))
+func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
+	properties := r.Group("/api/v1/properties")
 	{
-		adminAgentOrClient.GET("", h.listProperties)
-		adminAgentOrClient.GET("/:uuid", h.getProperty)
-		adminAgentOrClient.GET("/:uuid/photos", h.getPhotos)
-		adminAgentOrClient.GET("/:uuid/services", h.getServices)
-		adminAgentOrClient.GET("/:uuid/clauses", h.getClauses)
-		adminAgentOrClient.GET("/:uuid/prices", h.getPrices)
+		properties.GET("", h.listProperties)
+		properties.GET("/:uuid", h.getProperty)
+		properties.GET("/:uuid/photos", h.getPhotos)
+		properties.GET("/:uuid/services", h.getServices)
+		properties.GET("/:uuid/clauses", h.getClauses)
+		properties.GET("/:uuid/prices", h.getPrices)
 	}
 }
 

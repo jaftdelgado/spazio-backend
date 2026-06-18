@@ -78,6 +78,50 @@ func Auth(jwtService auth.JWTService, db *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
+func OptionalAuth(jwtService auth.JWTService, db *pgxpool.Pool) gin.HandlerFunc {
+	queries := sqlcgen.New(db)
+
+	return func(c *gin.Context) {
+		tokenString, err := resolveAccessToken(c)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		claims, err := jwtService.Validate(tokenString)
+		if err != nil || claims.UserUUID == "" {
+			c.Next()
+			return
+		}
+
+		userUUID, err := toPgUUID(claims.UserUUID)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		user, err := queries.GetAuthenticatedUserByUUID(c.Request.Context(), userUUID)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		resolvedUUID, err := fromPgUUID(user.UserUuid)
+		if err != nil {
+			c.Next()
+			return
+		}
+
+		c.Set(contextUserIDKey, user.UserID)
+		c.Set(contextRoleIDKey, user.RoleID)
+		c.Set(contextRoleNameKey, user.RoleName)
+		c.Set(contextUserUUIDKey, resolvedUUID)
+		c.Set(contextUserEmailKey, user.Email)
+
+		c.Next()
+	}
+}
+
 func resolveAccessToken(c *gin.Context) (string, error) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader != "" {

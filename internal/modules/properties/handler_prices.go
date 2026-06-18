@@ -12,14 +12,15 @@ import (
 
 // getPrices godoc
 // @Summary      Get property prices
-// @Description  Returns the active prices of a property by UUID. Sale price and rent prices include only currently active records (is_current=true). If no active sale price exists, sale_price is null. If no active rent prices exist, rent_prices is an empty array.
+// @Description  Returns the active prices of a property by UUID. Sale price and rent prices include only currently active records (is_current=true). Guests and clients can only view prices from available properties.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid  path     string  true  "Property UUID"
-// @Success      200   {object} GetPropertyPricesResult "Property prices"
-// @Failure      400   {object} shared.ErrorResponse    "Invalid path parameter"
-// @Failure      404   {object} shared.ErrorResponse    "Property not found"
-// @Failure      500   {object} shared.ErrorResponse    "Internal error"
+// @Param        uuid  path      string                   true  "Property UUID"
+// @Success      200   {object}  GetPropertyPricesResult  "Property prices"
+// @Failure      400   {object}  shared.ErrorResponse     "Invalid path parameter"
+// @Failure      403   {object}  shared.ErrorResponse     "Forbidden"
+// @Failure      404   {object}  shared.ErrorResponse     "Property not found"
+// @Failure      500   {object}  shared.ErrorResponse     "Internal error"
 // @Router       /api/v1/properties/{uuid}/prices [get]
 func (h *Handler) getPrices(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
@@ -30,6 +31,10 @@ func (h *Handler) getPrices(c *gin.Context) {
 
 	if _, err := uuid.Parse(propertyUUID); err != nil {
 		shared.BadRequest(c, errors.New("uuid must be a valid UUID"))
+		return
+	}
+
+	if !h.ensureReadableProperty(c, propertyUUID) {
 		return
 	}
 
@@ -53,12 +58,15 @@ func (h *Handler) getPrices(c *gin.Context) {
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
-// @Param        uuid     path     string                   true  "Property UUID"
-// @Param        request  body     UpdatePropertyPricesInput  true  "Property prices payload"
+// @Security     BearerAuth
+// @Param        uuid     path      string                     true  "Property UUID"
+// @Param        request  body      UpdatePropertyPricesInput  true  "Property prices payload"
 // @Success      204
-// @Failure      400      {object} shared.ErrorResponse   "Invalid input"
-// @Failure      404      {object} shared.ErrorResponse   "Property not found"
-// @Failure      500      {object} shared.ErrorResponse   "Internal error"
+// @Failure      400      {object}  shared.ErrorResponse       "Invalid input"
+// @Failure      401      {object}  shared.ErrorResponse       "Missing or invalid authenticated session"
+// @Failure      403      {object}  shared.ErrorResponse       "Forbidden"
+// @Failure      404      {object}  shared.ErrorResponse       "Property not found"
+// @Failure      500      {object}  shared.ErrorResponse       "Internal error"
 // @Router       /api/v1/properties/{uuid}/prices [put]
 func (h *Handler) updatePrices(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))

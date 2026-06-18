@@ -59,9 +59,11 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 			expectRoleID:   RoleAdminID,
 		},
 		{
-			name:        "returns unauthorized when auth context is missing",
-			queryParams: "",
-			wantStatus:  http.StatusUnauthorized,
+			name:         "allows guest reader when auth context is missing",
+			queryParams:  "",
+			wantStatus:   http.StatusOK,
+			expectUserID: 0,
+			expectRoleID: RoleClientID,
 		},
 		{
 			name:        "invalid min_price format",
@@ -87,12 +89,15 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSvc := &mockPropertyService{
 				listPropertiesFunc: func(ctx context.Context, input ListPropertiesInput) (ListPropertiesResult, error) {
+					if tt.wantStatus == http.StatusOK {
+						if input.UserID != tt.expectUserID || input.RoleID != tt.expectRoleID {
+							return ListPropertiesResult{}, errors.New("auth context mismatch")
+						}
+					}
+
 					if tt.name == "valid search with all CU-12 filters" {
 						if input.MinPrice != tt.expectMinPrice || input.MaxPrice != tt.expectMaxPrice || input.MinBedrooms != tt.expectBedrooms {
 							return ListPropertiesResult{}, errors.New("filter mismatch")
-						}
-						if input.UserID != tt.expectUserID || input.RoleID != tt.expectRoleID {
-							return ListPropertiesResult{}, errors.New("auth context mismatch")
 						}
 					}
 					return tt.mockResult, tt.mockErr
@@ -227,12 +232,14 @@ func TestHandler_GetProperty(t *testing.T) {
 	validUUID := "123e4567-e89b-12d3-a456-426614174000"
 
 	tests := []struct {
-		name       string
-		uuid       string
-		setAuth    bool
-		mockResult GetPropertyResult
-		mockErr    error
-		wantStatus int
+		name         string
+		uuid         string
+		setAuth      bool
+		mockResult   GetPropertyResult
+		mockErr      error
+		wantStatus   int
+		expectUserID int32
+		expectRoleID int32
 	}{
 		{
 			name:       "returns bad request when uuid is empty",
@@ -240,35 +247,58 @@ func TestHandler_GetProperty(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name:       "returns unauthorized when auth context is missing",
-			uuid:       validUUID,
-			wantStatus: http.StatusUnauthorized,
+			name: "allows guest reader when auth context is missing",
+			uuid: validUUID,
+			mockResult: GetPropertyResult{
+				Data: GetPropertyData{
+					PropertyUUID: validUUID,
+					Title:        "Casa pública",
+					Location: &LocationData{
+						CountryName: "Mexico",
+						StateName:   "Veracruz",
+						CityName:    "Xalapa",
+						Latitude:    19.5438,
+						Longitude:   -96.9102,
+					},
+				},
+			},
+			wantStatus:   http.StatusOK,
+			expectUserID: 0,
+			expectRoleID: RoleClientID,
 		},
 		{
-			name:       "returns forbidden when property is not assigned to agent",
-			uuid:       validUUID,
-			setAuth:    true,
-			mockErr:    errors.New("forbidden: property not assigned to agent"),
-			wantStatus: http.StatusForbidden,
+			name:         "returns forbidden when property is not assigned to agent",
+			uuid:         validUUID,
+			setAuth:      true,
+			mockErr:      errors.New("forbidden: property not assigned to agent"),
+			wantStatus:   http.StatusForbidden,
+			expectUserID: 10,
+			expectRoleID: RoleAdminID,
 		},
 		{
-			name:       "returns not found when property does not exist",
-			uuid:       validUUID,
-			setAuth:    true,
-			mockErr:    ErrPropertyNotFound,
-			wantStatus: http.StatusNotFound,
+			name:         "returns not found when property does not exist",
+			uuid:         validUUID,
+			setAuth:      true,
+			mockErr:      ErrPropertyNotFound,
+			wantStatus:   http.StatusNotFound,
+			expectUserID: 10,
+			expectRoleID: RoleAdminID,
 		},
 		{
-			name:       "returns internal server error when service fails",
-			uuid:       validUUID,
-			setAuth:    true,
-			mockErr:    errors.New("db"),
-			wantStatus: http.StatusInternalServerError,
+			name:         "returns internal server error when service fails",
+			uuid:         validUUID,
+			setAuth:      true,
+			mockErr:      errors.New("db"),
+			wantStatus:   http.StatusInternalServerError,
+			expectUserID: 10,
+			expectRoleID: RoleAdminID,
 		},
 		{
-			name:    "returns ok with property data",
-			uuid:    validUUID,
-			setAuth: true,
+			name:         "returns ok with property data",
+			uuid:         validUUID,
+			setAuth:      true,
+			expectUserID: 10,
+			expectRoleID: RoleAdminID,
 			mockResult: GetPropertyResult{
 				Data: GetPropertyData{
 					PropertyUUID: validUUID,
@@ -299,9 +329,15 @@ func TestHandler_GetProperty(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svcMock := &mockPropertyService{
 				getPropertyForRoleFunc: func(ctx context.Context, propertyUUID string, userID int32, roleID int32) (GetPropertyResult, error) {
-					if tt.setAuth {
-						if userID != 10 || roleID != RoleAdminID {
-							t.Fatalf("auth values: got userID=%d roleID=%d", userID, roleID)
+					if tt.uuid != "" {
+						if userID != tt.expectUserID || roleID != tt.expectRoleID {
+							t.Fatalf(
+								"auth values: got userID=%d roleID=%d, want userID=%d roleID=%d",
+								userID,
+								roleID,
+								tt.expectUserID,
+								tt.expectRoleID,
+							)
 						}
 					}
 					return tt.mockResult, tt.mockErr

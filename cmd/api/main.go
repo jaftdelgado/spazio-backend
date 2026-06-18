@@ -78,6 +78,10 @@ func main() {
 	catalogsModule.RegisterRoutes(public)
 	locationsModule.RegisterRoutes(public)
 
+	publicProperties := r.Group("")
+	publicProperties.Use(middleware.OptionalAuth(jwtService, database))
+	propertiesModule.RegisterPublicRoutes(publicProperties)
+
 	protected := r.Group("")
 	protected.Use(middleware.Auth(jwtService, database))
 	{
