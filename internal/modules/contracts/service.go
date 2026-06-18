@@ -84,6 +84,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 	result := make([]ContractListItem, len(rows))
 	for i, row := range rows {
 		amount, _ := row.AgreedAmount.Float64Value()
+		deposit, _ := row.SecurityDeposit.Float64Value()
 
 		result[i] = ContractListItem{
 			ContractID:      row.ContractID,
@@ -91,6 +92,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 			TransactionType: string(row.TransactionType),
 			PropertyTitle:   row.PropertyTitle,
 			AgreedAmount:    amount.Float64,
+			SecurityDeposit: deposit.Float64,
 			Currency:        row.Currency,
 			StartDate:       row.StartDate.Time,
 			EndDate:         func() *time.Time { if row.EndDate.Valid { t := row.EndDate.Time; return &t }; return nil }(),
@@ -116,6 +118,7 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 	}
 
 	amount, _ := row.AgreedAmount.Float64Value()
+	deposit, _ := row.SecurityDeposit.Float64Value()
 
 	pdfURL, err := s.storage.PublicURL(ctx, row.StorageKey)
 	if err != nil {
@@ -134,6 +137,7 @@ func (s *service) GetContractDetail(ctx context.Context, userID int32, roleID in
 		OwnerName:     fullName(row.OwnerFirstName, row.OwnerLastName),
 		ClientName:    fullName(row.ClientFirstName, row.ClientLastName),
 		AgreedAmount:  amount.Float64,
+		SecurityDeposit: deposit.Float64,
 		Currency:      row.Currency,
 		PeriodName:    row.PeriodName.String,
 		StartDate:     row.StartDate.Time,

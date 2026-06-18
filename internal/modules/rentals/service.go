@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -97,8 +98,8 @@ func (s *service) ConfirmRental(ctx context.Context, auth AuthContext, input Ren
 		Currency:        pricing.Currency,
 		AgreedAmount:    centsToFloat(pricing.SubtotalCents / int64(math.Max(1, float64(pricing.Units)))), // Base rent per unit
 		SecurityDeposit: centsToFloat(pricing.DepositCents),
-		StartDate:       input.StartDate.UTC(),
-		EndDate:         input.EndDate.UTC(),
+		StartDate:       input.StartDate,
+		EndDate:         input.EndDate,
 	})
 	if err != nil {
 		log.Printf("rentals: contract creation failed after transaction commit, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)
@@ -545,7 +546,8 @@ func (c *httpContractsClient) CreateContract(ctx context.Context, authHeader str
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return ContractCreateResult{}, fmt.Errorf("contracts endpoint returned status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return ContractCreateResult{}, fmt.Errorf("contracts endpoint returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result ContractCreateResult

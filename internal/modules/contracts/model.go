@@ -78,6 +78,7 @@ type ContractDetail struct {
 	OwnerName     string     `json:"owner_name"`
 	ClientName    string     `json:"client_name"`
 	AgreedAmount  float64    `json:"agreed_amount"`
+	SecurityDeposit float64  `json:"security_deposit"`
 	Currency      string     `json:"currency"`
 	PeriodName    string     `json:"period_name,omitempty"`
 	StartDate     time.Time  `json:"start_date"`
@@ -103,6 +104,7 @@ type ContractListItem struct {
 	TransactionType string     `json:"transaction_type"`
 	PropertyTitle   string     `json:"property_title"`
 	AgreedAmount    float64    `json:"agreed_amount"`
+	SecurityDeposit float64    `json:"security_deposit"`
 	Currency        string     `json:"currency"`
 	StartDate       time.Time  `json:"start_date"`
 	EndDate         *time.Time `json:"end_date"`
