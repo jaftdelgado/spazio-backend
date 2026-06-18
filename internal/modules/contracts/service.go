@@ -86,6 +86,7 @@ func (s *service) ListContracts(ctx context.Context, userID int32, roleID int32,
 		amount, _ := row.AgreedAmount.Float64Value()
 
 		result[i] = ContractListItem{
+			ContractID:      row.ContractID,
 			ContractUUID:    formatPgUUID(row.ContractUuid),
 			TransactionType: string(row.TransactionType),
 			PropertyTitle:   row.PropertyTitle,
