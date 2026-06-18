@@ -383,6 +383,66 @@ func TestService_PreviewRental_YearlyIncludesMonthlyRemainder(t *testing.T) {
 	}
 }
 
+func TestService_PreviewRental_NightlyOnlyRange_IsAccepted(t *testing.T) {
+	ctx := context.Background()
+	propertyUUID := uuid.New()
+	svc := NewService(&mockRentalsRepository{
+		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
+			return sqlcgen.GetRentalPropertyByUUIDRow{
+				PropertyID:     10,
+				PropertyUuid:   pgtype.UUID{Bytes: propertyUUID, Valid: true},
+				PropertyTypeID: 2,
+				ModalityID:     2,
+				StatusID:       2,
+			}, nil
+		},
+		getAllowedRentalPeriodsFunc: func(ctx context.Context, propertyTypeID int32) ([]int32, error) {
+			return []int32{1, 2, 3, 4}, nil
+		},
+		listRentalActivePricesFunc: func(ctx context.Context, propertyID int32) ([]sqlcgen.ListRentalActivePricesRow, error) {
+			return []sqlcgen.ListRentalActivePricesRow{
+				priceRow(1, "Nightly", "500.00", "1500.00", "MXN", false),
+				priceRow(2, "Weekly", "2500.00", "1500.00", "MXN", false),
+				priceRow(3, "Monthly", "5000.00", "1500.00", "MXN", false),
+			}, nil
+		},
+		listRentalBlockedDatesFunc: func(ctx context.Context, propertyID int32, startDate, endDate time.Time) ([]sqlcgen.ListRentalBlockedDatesRow, error) {
+			return nil, nil
+		},
+	}, &mockContractsClient{})
+
+	result, err := svc.PreviewRental(ctx, AuthContext{RoleID: 3}, RentalPreviewInput{
+		PropertyUUID: propertyUUID,
+		PeriodID:     1,
+		StartDate:    time.Date(2026, 6, 19, 0, 0, 0, 0, time.UTC),
+		EndDate:      time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.PeriodID != 1 {
+		t.Fatalf("period_id = %d, want 1", result.PeriodID)
+	}
+	if result.Units != 5 {
+		t.Fatalf("units = %d, want 5", result.Units)
+	}
+	if result.Subtotal != "2500.00" {
+		t.Fatalf("subtotal = %s, want 2500.00", result.Subtotal)
+	}
+	if result.Total != "4000.00" {
+		t.Fatalf("total = %s, want 4000.00", result.Total)
+	}
+	if result.Breakdown.Nights != 5 || result.Breakdown.Weeks != 0 || result.Breakdown.Months != 0 || result.Breakdown.Years != 0 {
+		t.Fatalf("breakdown = %+v, want only 5 nights", result.Breakdown)
+	}
+	if len(result.PriceComponents) != 1 {
+		t.Fatalf("price_components len = %d, want 1", len(result.PriceComponents))
+	}
+	if result.PriceComponents[0].PeriodID != 1 || result.PriceComponents[0].Units != 5 || result.PriceComponents[0].LineTotal != "2500.00" {
+		t.Fatalf("price_component = %+v, want nightly component for 5 nights", result.PriceComponents[0])
+	}
+}
+
 func TestService_ConfirmRental(t *testing.T) {
 	ctx := context.Background()
 	propertyUUID := uuid.New()

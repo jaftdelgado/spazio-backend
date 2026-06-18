@@ -264,6 +264,7 @@ func buildPricing(input RentalPreviewInput, rows []sqlcgen.ListRentalActivePrice
 		if err := appendPricedComponent(&details, priceMap, PeriodNightly, int32(nights)); err != nil {
 			return pricingDetails{}, err
 		}
+		current = current.AddDate(0, 0, nights)
 	case PeriodWeekly:
 		weeks, afterWeeks := consumeWeeks(current, remainingEnd)
 		details.Units = int32(weeks)
