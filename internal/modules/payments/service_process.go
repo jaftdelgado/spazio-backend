@@ -112,8 +112,16 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 
 	// F7: Safe Money Comparison
 	contractAmount, _ := contract.AgreedAmount.Float64Value()
-	if req.Amount != int64(contractAmount.Float64*100) {
-		return PaymentResponse{}, fmt.Errorf("el monto del pago (%.2f) no coincide con el monto pactado en el contrato (%.2f)", float64(req.Amount)/100.0, contractAmount.Float64)
+	expectedAmountCents := int64(contractAmount.Float64 * 100)
+
+	// If it's the first payment for a rent contract, add the security deposit
+	if contract.TransactionType == "rent" && completedCount == 0 {
+		depositAmount, _ := contract.SecurityDeposit.Float64Value()
+		expectedAmountCents += int64(depositAmount.Float64 * 100)
+	}
+
+	if req.Amount != expectedAmountCents {
+		return PaymentResponse{}, fmt.Errorf("el monto del pago (%.2f) no coincide con el monto pactado (%.2f)", float64(req.Amount)/100.0, float64(expectedAmountCents)/100.0)
 	}
 
 	installments := req.Installments

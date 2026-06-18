@@ -42,6 +42,7 @@ type CreateRentContractInput struct {
 	PeriodID      int32     `json:"period_id"`
 	Currency      string    `json:"currency"`
 	AgreedAmount  float64   `json:"agreed_amount"`
+	SecurityDeposit float64 `json:"security_deposit"`
 	StartDate     time.Time `json:"start_date"`
 	EndDate       time.Time `json:"end_date"`
 }
@@ -58,6 +59,7 @@ type CreateContractInput struct {
 	PeriodID      *int32
 	Currency      string
 	AgreedAmount  float64
+	SecurityDeposit float64
 	StartDate     time.Time
 	EndDate       *time.Time
 }

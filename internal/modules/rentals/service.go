@@ -91,19 +91,14 @@ func (s *service) ConfirmRental(ctx context.Context, auth AuthContext, input Ren
 		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not commit rental transaction")
 	}
 
-	agreedAmountCents, err := numericToCents(transaction.FinalAmount)
-	if err != nil {
-		log.Printf("rentals: committed transaction amount could not be read, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)
-		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not prepare rental contract")
-	}
-
 	contractResult, err := s.contractsClient.CreateContract(ctx, auth.AuthHeader, ContractCreateInput{
-		TransactionID: transaction.TransactionID,
-		PeriodID:      input.PeriodID,
-		Currency:      pricing.Currency,
-		AgreedAmount:  centsToFloat(agreedAmountCents),
-		StartDate:     input.StartDate.UTC(),
-		EndDate:       input.EndDate.UTC(),
+		TransactionID:   transaction.TransactionID,
+		PeriodID:        input.PeriodID,
+		Currency:        pricing.Currency,
+		AgreedAmount:    centsToFloat(pricing.SubtotalCents / int64(math.Max(1, float64(pricing.Units)))), // Base rent per unit
+		SecurityDeposit: centsToFloat(pricing.DepositCents),
+		StartDate:       input.StartDate.UTC(),
+		EndDate:         input.EndDate.UTC(),
 	})
 	if err != nil {
 		log.Printf("rentals: contract creation failed after transaction commit, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)

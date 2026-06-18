@@ -126,6 +126,77 @@ func TestService_ProcessPayment(t *testing.T) {
 			errContains: "no coincide con el monto pactado",
 		},
 		{
+			name: "error when amount mismatch (F7 Protection) - First payment requires deposit",
+			setupRepo: func() *mockPaymentRepository {
+				return &mockPaymentRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
+					},
+					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
+						return sqlcgen.GetContractForPaymentWithLockRow{
+							ClientID:         clientID,
+							Currency:         "MXN",
+							TransactionType:  "rent",
+							PropertyStatusID: 2, // Available, required for first payment validation
+							AgreedAmount:     pgtype.Numeric{Int: big.NewInt(500000), Exp: -2, Valid: true},  // 5000
+							SecurityDeposit: pgtype.Numeric{Int: big.NewInt(100000), Exp: -2, Valid: true},  // 1000
+						}, nil
+					},
+					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) {
+						return 0, nil
+					},
+				}
+			},
+			req: RegisterPaymentRequest{
+				ContractID: 1,
+				Amount:     500000, // Only rent, should fail because it needs rent + deposit
+				Currency:   "MXN",
+			},
+			wantErr:     true,
+			errContains: "no coincide con el monto pactado",
+		},
+		{
+			name: "success on subsequent payment - Only rent required (No deposit)",
+			setupRepo: func() *mockPaymentRepository {
+				return &mockPaymentRepository{
+					beginFunc: func(ctx context.Context) (pgx.Tx, error) {
+						return &mockTx{}, nil
+					},
+					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
+						return sqlcgen.GetContractForPaymentWithLockRow{
+							ClientID:        clientID,
+							Currency:        "MXN",
+							TransactionType: "rent",
+							AgreedAmount:    pgtype.Numeric{Int: big.NewInt(500000), Exp: -2, Valid: true}, // 5000
+							SecurityDeposit: pgtype.Numeric{Int: big.NewInt(100000), Exp: -2, Valid: true}, // 1000
+						}, nil
+					},
+					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) {
+						return 1, nil // Already has one payment
+					},
+					getPaymentByContractFunc: func(ctx context.Context, cid, sid int32) ([]sqlcgen.Payment, error) {
+						return nil, nil
+					},
+					getPendingPaymentsFunc: func(ctx context.Context, cid int32) ([]sqlcgen.GetPendingPaymentsRow, error) {
+						return nil, nil
+					},
+					createPaymentFunc: func(ctx context.Context, arg sqlcgen.CreatePaymentParams) (sqlcgen.Payment, error) {
+						return sqlcgen.Payment{StatusID: PaymentStatusCompleted, PaymentUuid: pgtype.UUID{Bytes: [16]byte{1}, Valid: true}}, nil
+					},
+				}
+			},
+			req: RegisterPaymentRequest{
+				ContractID:      1,
+				Amount:          500000, // Only rent, should pass
+				Currency:        "MXN",
+				PayerEmail:      "test@test.com",
+				GatewayMethodID: "visa",
+				GatewayID:       1,
+			},
+			wantErr:    false,
+			wantStatus: "Success",
+		},
+		{
 			name: "error when contract is blocked",
 			setupRepo: func() *mockPaymentRepository {
 				return &mockPaymentRepository{

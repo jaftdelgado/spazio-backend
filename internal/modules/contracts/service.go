@@ -158,12 +158,13 @@ func (s *service) GenerateRentContract(ctx context.Context, userID int32, input 
 	}
 
 	internalInput := CreateContractInput{
-		TransactionID: input.TransactionID,
-		PeriodID:      &input.PeriodID,
-		Currency:      input.Currency,
-		AgreedAmount:  input.AgreedAmount,
-		StartDate:     input.StartDate,
-		EndDate:       &input.EndDate,
+		TransactionID:   input.TransactionID,
+		PeriodID:        &input.PeriodID,
+		Currency:        input.Currency,
+		AgreedAmount:    input.AgreedAmount,
+		SecurityDeposit: input.SecurityDeposit,
+		StartDate:       input.StartDate,
+		EndDate:         &input.EndDate,
 	}
 
 	return s.createContractInternal(ctx, userID, internalInput, data)

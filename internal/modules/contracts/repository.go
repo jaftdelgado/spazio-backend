@@ -41,9 +41,13 @@ func (r *repository) WithTx(tx pgx.Tx) ContractRepository {
 
 func (r *repository) CreateContract(ctx context.Context, contractUUID uuid.UUID, input CreateContractInput, parentContractID *int32, storageKey string) (sqlcgen.Contract, error) {
 	amount := pgtype.Numeric{}
-
 	if err := amount.Scan(fmt.Sprintf("%.2f", input.AgreedAmount)); err != nil {
 		return sqlcgen.Contract{}, fmt.Errorf("scan agreed amount: %w", err)
+	}
+
+	deposit := pgtype.Numeric{}
+	if err := deposit.Scan(fmt.Sprintf("%.2f", input.SecurityDeposit)); err != nil {
+		return sqlcgen.Contract{}, fmt.Errorf("scan security deposit: %w", err)
 	}
 
 	var endDate pgtype.Date
@@ -52,14 +56,15 @@ func (r *repository) CreateContract(ctx context.Context, contractUUID uuid.UUID,
 	}
 
 	params := sqlcgen.CreateContractParams{
-		ContractUuid:  pgtype.UUID{Bytes: contractUUID, Valid: true},
-		TransactionID: input.TransactionID,
-		Currency:      input.Currency,
-		AgreedAmount:  amount,
-		StorageKey:    storageKey,
-		StartDate:     pgtype.Date{Time: input.StartDate, Valid: true},
-		EndDate:       endDate,
-		StatusID:      1, // Pending/Draft
+		ContractUuid:    pgtype.UUID{Bytes: contractUUID, Valid: true},
+		TransactionID:   input.TransactionID,
+		Currency:        input.Currency,
+		AgreedAmount:    amount,
+		SecurityDeposit: deposit,
+		StorageKey:      storageKey,
+		StartDate:       pgtype.Date{Time: input.StartDate, Valid: true},
+		EndDate:         endDate,
+		StatusID:        1, // Pending/Draft
 	}
 
 	if parentContractID != nil {
