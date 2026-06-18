@@ -48,6 +48,11 @@ func (h *Handler) processPayment(c *gin.Context) {
 			shared.BadRequest(c, err)
 			return
 		}
+		// Gateway/MercadoPago errors are user-facing (bad card, wrong amount, bin_not_found, etc.)
+		if strings.Contains(errMsg, "pasarela") || strings.Contains(errMsg, "rechazado") {
+			shared.BadRequest(c, err)
+			return
+		}
 		shared.InternalError(c, errMsg)
 		return
 	}
