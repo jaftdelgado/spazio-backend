@@ -76,6 +76,11 @@ func TestHandler_CreateProperty(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "returns bad request when agent id is zero",
+			body:       `{"title":"Casa","agent_id":0,"property_type_id":1,"modality_id":1,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:       "returns bad request when modality id is zero",
 			body:       `{"title":"Casa","property_type_id":1,"modality_id":0,"location":{"city_id":1,"street":"Av","exterior_number":"1","postal_code":"91000","latitude":19.5,"longitude":-96.9,"is_public_address":true}}`,
 			wantStatus: http.StatusBadRequest,

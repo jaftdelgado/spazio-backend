@@ -899,12 +899,7 @@ const docTemplate = `{
         },
         "/api/v1/properties": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Each card includes readable location fields and an address summary. Price selection logic prioritizes sale price, then the best current rent price (Monthly \u003e Annual \u003e Weekly \u003e Daily).",
+                "description": "Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.",
                 "produces": [
                     "application/json"
                 ],
@@ -939,7 +934,7 @@ const docTemplate = `{
                             "type": "integer"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter by status IDs (defaults to Available=2 when omitted)",
+                        "description": "Filter by status IDs",
                         "name": "status_id",
                         "in": "query"
                     },
@@ -992,6 +987,24 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "Filter featured properties",
+                        "name": "is_featured",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Minimum parking spots filter (Residential only)",
+                        "name": "min_parking_spots",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter properties that allow pets",
+                        "name": "pet_friendly",
+                        "in": "query"
+                    },
+                    {
                         "type": "string",
                         "description": "Sort by: created_at, title, price",
                         "name": "sort",
@@ -1017,18 +1030,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
-                    "401": {
-                        "description": "Missing or invalid authenticated session",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
                     "500": {
                         "description": "Internal server error",
                         "schema": {
@@ -1043,7 +1044,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.",
+                "description": "Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, clauses, and the optional assigned agent atomically. The authenticated user is set as the owner.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1089,12 +1090,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}": {
             "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Returns property base data, subtype, and expanded location data for the given UUID. The location payload includes country, state, and city identifiers and names in addition to the address fields. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
+                "description": "Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
                 "produces": [
                     "application/json"
                 ],
@@ -1120,12 +1116,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid path parameter",
-                        "schema": {
-                            "$ref": "#/definitions/shared.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Missing or invalid authenticated session",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1221,7 +1211,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates property base data, subtype and location.\nRequires an authenticated admin session.",
+                "description": "Updates property base data, subtype, location, and the assigned agent.\nRequires an authenticated admin session.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1333,7 +1323,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/clauses": {
             "get": {
-                "description": "Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array.",
+                "description": "Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array. Guests and clients can only view clauses from available properties.",
                 "produces": [
                     "application/json"
                 ],
@@ -1363,6 +1353,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Property not found",
                         "schema": {
@@ -1378,6 +1374,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Replaces all clauses linked to a property by UUID. When the payload omits clauses or sends an empty array, all linked clauses are removed.",
                 "consumes": [
                     "application/json"
@@ -1413,6 +1414,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1498,7 +1511,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/photos": {
             "get": {
-                "description": "Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. When the property has no photos, the response contains an empty data array.",
+                "description": "Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. Guests and clients can only view photos from available properties.",
                 "produces": [
                     "application/json"
                 ],
@@ -1528,6 +1541,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Property not found",
                         "schema": {
@@ -1543,6 +1562,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Replaces the stored metadata of the photos linked to a property by UUID. Exactly one photo must be marked as cover when the payload contains photos. When the payload omits photos or sends an empty array, all linked photos are removed.",
                 "consumes": [
                     "application/json"
@@ -1582,6 +1606,18 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Property not found",
                         "schema": {
@@ -1599,7 +1635,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/prices": {
             "get": {
-                "description": "Returns the active prices of a property by UUID. Sale price and rent prices include only currently active records (is_current=true). If no active sale price exists, sale_price is null. If no active rent prices exist, rent_prices is an empty array.",
+                "description": "Returns the active prices of a property by UUID. Sale price and rent prices include only currently active records (is_current=true). Guests and clients can only view prices from available properties.",
                 "produces": [
                     "application/json"
                 ],
@@ -1629,6 +1665,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Property not found",
                         "schema": {
@@ -1644,6 +1686,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Updates property prices by UUID. Only processes prices in the payload; unmodified prices remain unchanged. When the amount of a price changes, a new price record is created and the old one is marked as inactive. Amounts must be greater than 0. Currency is not editable.",
                 "consumes": [
                     "application/json"
@@ -1679,6 +1726,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -1764,7 +1823,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}/services": {
             "get": {
-                "description": "Returns the service IDs linked to a property by UUID. When the property has no services, the response contains an empty service_ids array.",
+                "description": "Returns the service IDs linked to a property by UUID. When the property has no services, the response contains an empty service_ids array. Guests and clients can only view services from available properties.",
                 "produces": [
                     "application/json"
                 ],
@@ -1794,6 +1853,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
                     },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Property not found",
                         "schema": {
@@ -1809,6 +1874,11 @@ const docTemplate = `{
                 }
             },
             "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Replaces all services linked to a property by UUID. When the payload omits service_ids or sends an empty array, all linked services are removed.",
                 "consumes": [
                     "application/json"
@@ -1844,6 +1914,18 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid input",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Missing or invalid authenticated session",
+                        "schema": {
+                            "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
                         }
@@ -2219,6 +2301,62 @@ const docTemplate = `{
                         "description": "Internal error",
                         "schema": {
                             "$ref": "#/definitions/shared.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/users/agents": {
+            "get": {
+                "description": "Returns the lightweight list of active agent accounts used to assign properties in admin interfaces.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List assignable agents",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer access token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Assignable agents",
+                        "schema": {
+                            "$ref": "#/definitions/users.ListAgentsResult"
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid session",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -3850,6 +3988,9 @@ const docTemplate = `{
                 "client_name": {
                     "type": "string"
                 },
+                "contract_id": {
+                    "type": "integer"
+                },
                 "contract_uuid": {
                     "type": "string"
                 },
@@ -4449,6 +4590,10 @@ const docTemplate = `{
         "properties.CreatePropertyInput": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "integer",
+                    "example": 21
+                },
                 "clauses": {
                     "type": "array",
                     "items": {
@@ -4637,6 +4782,9 @@ const docTemplate = `{
         "properties.GetPropertyData": {
             "type": "object",
             "properties": {
+                "assigned_agent": {
+                    "$ref": "#/definitions/properties.PropertyAgentData"
+                },
                 "commercial": {
                     "$ref": "#/definitions/properties.CommercialData"
                 },
@@ -4863,12 +5011,40 @@ const docTemplate = `{
                 }
             }
         },
+        "properties.PropertyAgentData": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "example": "Ada"
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Lovelace"
+                },
+                "profile_picture_url": {
+                    "type": "string",
+                    "example": "https://cdn.example.com/users/profile.webp"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 21
+                },
+                "user_uuid": {
+                    "type": "string",
+                    "example": "8b227e4e-ca58-41d9-b402-d773f95470ef"
+                }
+            }
+        },
         "properties.PropertyCardData": {
             "type": "object",
             "properties": {
                 "address_summary": {
                     "type": "string",
                     "example": "Av. Principal 45, Centro, Xalapa, Veracruz, Mexico"
+                },
+                "assigned_agent": {
+                    "$ref": "#/definitions/properties.PropertyAgentData"
                 },
                 "bathrooms": {
                     "type": "integer"
@@ -4879,15 +5055,30 @@ const docTemplate = `{
                 "built_area": {
                     "type": "number"
                 },
+                "city": {
+                    "type": "string"
+                },
                 "cover_photo_url": {
                     "type": "string",
                     "example": "https://cdn.example.com/properties/cover.jpg"
+                },
+                "is_featured": {
+                    "type": "boolean"
                 },
                 "location": {
                     "$ref": "#/definitions/properties.PropertyCardLocationData"
                 },
                 "modality": {
                     "$ref": "#/definitions/properties.PropertyCardModalityData"
+                },
+                "neighborhood": {
+                    "type": "string"
+                },
+                "parking_spots": {
+                    "type": "integer"
+                },
+                "pet_friendly": {
+                    "type": "boolean"
                 },
                 "price": {
                     "$ref": "#/definitions/properties.PropertyCardPriceData"
@@ -5254,6 +5445,10 @@ const docTemplate = `{
         "properties.UpdatePropertyInput": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "integer",
+                    "example": 21
+                },
                 "commercial": {
                     "$ref": "#/definitions/properties.UpdateCommercialInput"
                 },
@@ -5765,6 +5960,31 @@ const docTemplate = `{
                 }
             }
         },
+        "users.AgentListItem": {
+            "type": "object",
+            "properties": {
+                "first_name": {
+                    "type": "string",
+                    "example": "Ada"
+                },
+                "last_name": {
+                    "type": "string",
+                    "example": "Lovelace"
+                },
+                "profile_picture_url": {
+                    "type": "string",
+                    "example": "https://cdn.example.com/users/profile.webp"
+                },
+                "user_id": {
+                    "type": "integer",
+                    "example": 21
+                },
+                "user_uuid": {
+                    "type": "string",
+                    "example": "8b227e4e-ca58-41d9-b402-d773f95470ef"
+                }
+            }
+        },
         "users.AuthUser": {
             "type": "object",
             "properties": {
@@ -5869,6 +6089,17 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
+                }
+            }
+        },
+        "users.ListAgentsResult": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/users.AgentListItem"
+                    }
                 }
             }
         },

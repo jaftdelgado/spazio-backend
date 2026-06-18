@@ -77,6 +77,19 @@ FROM users u
 JOIN roles r ON r.role_id = u.role_id
 WHERE u.user_uuid = $1 AND u.deleted_at IS NULL;
 
+-- name: ListAgents :many
+SELECT
+    u.user_id,
+    u.user_uuid,
+    u.first_name,
+    u.last_name,
+    u.profile_picture_url
+FROM users u
+WHERE u.role_id = 2
+  AND u.status_id = 1
+  AND u.deleted_at IS NULL
+ORDER BY u.first_name ASC, u.last_name ASC, u.user_id ASC;
+
 -- name: UpdateUserProfile :one
 UPDATE users
 SET first_name = $1,

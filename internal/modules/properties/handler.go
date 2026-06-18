@@ -53,7 +53,7 @@ func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
 
 // createProperty godoc
 // @Summary      Register a new property
-// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.
+// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, clauses, and the optional assigned agent atomically. The authenticated user is set as the owner.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
@@ -142,6 +142,7 @@ func trimOptionalString(value *string) *string {
 func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	if err := shared.Validate([]shared.ValidationRule{
 		{Fail: req.Title == "", Msg: "title is required"},
+		{Fail: req.AgentID != nil && *req.AgentID <= 0, Msg: "agent_id must be greater than 0"},
 		{Fail: req.PropertyTypeID <= 0, Msg: "property_type_id must be greater than 0"},
 		{Fail: req.ModalityID <= 0, Msg: "modality_id must be greater than 0"},
 	}); err != nil {

@@ -25,6 +25,7 @@ type mockUserService struct {
 	verifyPasswordResetCodeFunc func(ctx context.Context, input VerifyPasswordResetCodeInput) (PasswordResetVerificationResult, error)
 	resetPasswordFunc           func(ctx context.Context, input ResetPasswordInput) error
 	getProfileFunc              func(ctx context.Context, uuidStr string) (UserProfile, error)
+	listAgentsFunc              func(ctx context.Context) (ListAgentsResult, error)
 	updateProfileFunc           func(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error)
 	uploadProfilePhotoFunc      func(ctx context.Context, input UploadProfilePhotoInput) (UpdateProfileResult, error)
 	requestEmailChangeFunc      func(ctx context.Context, uuidStr string, input RequestEmailChangeInput) error
@@ -103,6 +104,13 @@ func (m *mockUserService) GetProfile(ctx context.Context, uuidStr string) (UserP
 		return m.getProfileFunc(ctx, uuidStr)
 	}
 	return UserProfile{}, nil
+}
+
+func (m *mockUserService) ListAgents(ctx context.Context) (ListAgentsResult, error) {
+	if m.listAgentsFunc != nil {
+		return m.listAgentsFunc(ctx)
+	}
+	return ListAgentsResult{}, nil
 }
 
 func (m *mockUserService) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error) {
@@ -288,6 +296,38 @@ func TestHandler_UpdateProfile(t *testing.T) {
 	rec := callAuthedJSONHandler(http.MethodPut, "/users/profile", `{"first_name":" Ada ","last_name":" Lovelace ","phone":" 123 "}`, "user-uuid", NewHandler(service, testCookieConfig()).UpdateProfile)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandler_ListAgents(t *testing.T) {
+	service := &mockUserService{
+		listAgentsFunc: func(ctx context.Context) (ListAgentsResult, error) {
+			return ListAgentsResult{
+				Data: []AgentListItem{{
+					UserID:    21,
+					UserUUID:  "agent-uuid",
+					FirstName: "Ada",
+					LastName:  "Lovelace",
+				}},
+			}, nil
+		},
+	}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/users/agents", nil)
+
+	NewHandler(service, testCookieConfig()).ListAgents(c)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", rec.Code, rec.Body.String())
+	}
+
+	var result ListAgentsResult
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(result.Data) != 1 || result.Data[0].UserID != 21 {
+		t.Fatalf("unexpected result: %+v", result)
 	}
 }
 

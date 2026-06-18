@@ -40,6 +40,12 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 					Title:          "Casa Xalapa",
 					CoverPhotoURL:  ptrString("https://pub-ab9b26339b564d53b2f5ec019d1ca830.r2.dev/properties/abc/photos/cover.webp"),
 					AddressSummary: "Av. Principal 45, Centro, Xalapa, Veracruz, Mexico",
+					AssignedAgent: &PropertyAgentData{
+						UserID:    21,
+						UserUUID:  "agent-uuid",
+						FirstName: "Ada",
+						LastName:  "Lovelace",
+					},
 					Location: PropertyCardLocationData{
 						CountryID:   1,
 						CountryName: "Mexico",
@@ -138,6 +144,9 @@ func TestHandler_ListProperties_CU12(t *testing.T) {
 					}
 					if res.Data[0].CoverPhotoURL == nil || !strings.HasPrefix(*res.Data[0].CoverPhotoURL, "https://") {
 						t.Fatalf("cover_photo_url = %#v, want public https url", res.Data[0].CoverPhotoURL)
+					}
+					if res.Data[0].AssignedAgent == nil || res.Data[0].AssignedAgent.UserID != 21 {
+						t.Fatalf("assigned_agent = %#v, want user_id 21", res.Data[0].AssignedAgent)
 					}
 				}
 			}
@@ -253,6 +262,12 @@ func TestHandler_GetProperty(t *testing.T) {
 				Data: GetPropertyData{
 					PropertyUUID: validUUID,
 					Title:        "Casa pública",
+					AssignedAgent: &PropertyAgentData{
+						UserID:    21,
+						UserUUID:  "agent-uuid",
+						FirstName: "Ada",
+						LastName:  "Lovelace",
+					},
 					Location: &LocationData{
 						CountryName: "Mexico",
 						StateName:   "Veracruz",
@@ -304,6 +319,12 @@ func TestHandler_GetProperty(t *testing.T) {
 					PropertyUUID: validUUID,
 					Title:        "Casa",
 					RegisteredBy: "Admin User",
+					AssignedAgent: &PropertyAgentData{
+						UserID:    21,
+						UserUUID:  "agent-uuid",
+						FirstName: "Ada",
+						LastName:  "Lovelace",
+					},
 					Location: &LocationData{
 						CountryID:       1,
 						CountryName:     "Mexico",
@@ -384,6 +405,9 @@ func TestHandler_GetProperty(t *testing.T) {
 				}
 				if res.Data.Location.Longitude != -96.9102 {
 					t.Fatalf("location.longitude = %v, want -96.9102", res.Data.Location.Longitude)
+				}
+				if res.Data.AssignedAgent == nil || res.Data.AssignedAgent.UserID != 21 {
+					t.Fatalf("assigned_agent = %#v, want user_id 21", res.Data.AssignedAgent)
 				}
 			}
 		})

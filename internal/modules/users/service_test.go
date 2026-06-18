@@ -19,6 +19,7 @@ type mockUserRepository struct {
 	getUserByUUIDFunc                      func(ctx context.Context, uuidStr string) (UserAuthRecord, error)
 	getUserByIDFunc                        func(ctx context.Context, userID int32) (UserAuthRecord, error)
 	getUserProfileByUUIDFunc               func(ctx context.Context, uuidStr string) (UserProfile, error)
+	listAgentsFunc                         func(ctx context.Context) ([]AgentListItem, error)
 	updateUserStatusFunc                   func(ctx context.Context, userID int32, statusID int32) error
 	updateProfileFunc                      func(ctx context.Context, uuidStr string, input UpdateProfileInput) (UserProfile, error)
 	updateUserEmailFunc                    func(ctx context.Context, userID int32, email string) (UserProfile, error)
@@ -72,6 +73,13 @@ func (m *mockUserRepository) GetUserProfileByUUID(ctx context.Context, uuidStr s
 		return m.getUserProfileByUUIDFunc(ctx, uuidStr)
 	}
 	return UserProfile{}, ErrUserNotFound
+}
+
+func (m *mockUserRepository) ListAgents(ctx context.Context) ([]AgentListItem, error) {
+	if m.listAgentsFunc != nil {
+		return m.listAgentsFunc(ctx)
+	}
+	return nil, nil
 }
 
 func (m *mockUserRepository) UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error {
@@ -573,6 +581,27 @@ func TestService_AdminCreateUser(t *testing.T) {
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(createdInput.PasswordHash), []byte(result.TemporaryPassword)); err != nil {
 		t.Fatalf("temporary password hash mismatch: %v", err)
+	}
+}
+
+func TestService_ListAgents(t *testing.T) {
+	repo := &mockUserRepository{
+		listAgentsFunc: func(ctx context.Context) ([]AgentListItem, error) {
+			return []AgentListItem{{
+				UserID:    21,
+				UserUUID:  "agent-uuid",
+				FirstName: "Ada",
+				LastName:  "Lovelace",
+			}}, nil
+		},
+	}
+
+	result, err := newTestService(repo, &mockEmailSender{}, nil).ListAgents(context.Background())
+	if err != nil {
+		t.Fatalf("ListAgents() error = %v", err)
+	}
+	if len(result.Data) != 1 || result.Data[0].UserID != 21 {
+		t.Fatalf("unexpected result: %+v", result)
 	}
 }
 

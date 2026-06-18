@@ -92,6 +92,25 @@ func TestService_CreateProperty(t *testing.T) {
 	}{
 		// Subtype resolution
 		{
+			name: "returns validation error when agent id is invalid",
+			buildInput: func() CreatePropertyInput {
+				inp := baseInput(ModalitySale)
+				inp.SalePrice = validSalePrice()
+				inp.AgentID = ptrInt32(999)
+				return inp
+			},
+			setupRepo: func() *mockPropertyRepository {
+				return &mockPropertyRepository{
+					getAgentByIDFunc: func(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+						return PropertyAgentData{}, errors.New("not found")
+					},
+				}
+			},
+			wantErr:        true,
+			wantValidation: true,
+			wantRepoCalled: false,
+		},
+		{
 			name: "returns error when getting property subtype fails",
 			buildInput: func() CreatePropertyInput {
 				return baseInput(ModalitySale)
@@ -210,10 +229,17 @@ func TestService_CreateProperty(t *testing.T) {
 				inp := baseInput(ModalitySale)
 				inp.SalePrice = validSalePrice()
 				inp.Residential = validResidentialInput()
+				inp.AgentID = ptrInt32(21)
 				return inp
 			},
 			setupRepo: func() *mockPropertyRepository {
 				return &mockPropertyRepository{
+					getAgentByIDFunc: func(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+						if agentID != 21 {
+							t.Fatalf("agentID = %d, want 21", agentID)
+						}
+						return PropertyAgentData{UserID: 21}, nil
+					},
 					getPropertySubtypeFunc: func(ctx context.Context, propertyTypeID int32) (string, error) {
 						return SubtypeResidential, nil
 					},
@@ -221,6 +247,9 @@ func TestService_CreateProperty(t *testing.T) {
 						return map[int32]struct{}{}, nil
 					},
 					createPropertyFunc: func(ctx context.Context, input CreatePropertyInput) (CreatePropertyResult, error) {
+						if input.AgentID == nil || *input.AgentID != 21 {
+							t.Fatalf("input.AgentID = %+v, want 21", input.AgentID)
+						}
 						return CreatePropertyResult{Data: CreatePropertyResultData{PropertyUUID: "res-123"}}, nil
 					},
 				}

@@ -163,6 +163,24 @@ func boolPointerToPgBool(value *bool) pgtype.Bool {
 	return pgtype.Bool{Bool: *value, Valid: true}
 }
 
+func (r *repository) GetAgentByID(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+	row, err := r.queries.GetAgentByID(ctx, agentID)
+	if err != nil {
+		if errorsIsPgxNoRows(err) {
+			return PropertyAgentData{}, ErrPropertyNotFound
+		}
+		return PropertyAgentData{}, fmt.Errorf("get agent by id: %w", err)
+	}
+
+	return PropertyAgentData{
+		UserID:            row.UserID,
+		UserUUID:          row.UserUuid.String(),
+		FirstName:         row.FirstName,
+		LastName:          row.LastName,
+		ProfilePictureURL: stringPointerFromText(row.ProfilePictureUrl),
+	}, nil
+}
+
 func (r *repository) GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error) {
 	return r.GetPropertyByUUID(ctx, propertyUUID)
 }
@@ -243,6 +261,7 @@ func (r *repository) getPropertyDataFromBaseRow(ctx context.Context, baseRow sql
 		LotArea:        lotValue.Float64,
 		IsFeatured:     baseRow.IsFeatured,
 		RegisteredBy:   stringValueFromUnknown(baseRow.RegisteredBy),
+		AssignedAgent:  propertyAgentPointerFromValues(baseRow.AgentID, baseRow.AgentUuid, baseRow.AgentFirstName, baseRow.AgentLastName, baseRow.AgentProfilePictureUrl),
 	}
 
 	propertyID := baseRow.PropertyID
@@ -347,6 +366,11 @@ func propertyCardDataFromRow(row sqlcgen.ListPropertiesCardsRow) (PropertyCardDa
 		row.Bathrooms,
 		row.ParkingSpots,
 		row.BuiltArea,
+		row.AgentID,
+		row.AgentUuid,
+		row.AgentFirstName,
+		row.AgentLastName,
+		row.AgentProfilePictureUrl,
 		row.PetFriendly,
 	)
 }
@@ -381,6 +405,11 @@ func propertyCardDataFromAgentRow(row sqlcgen.ListPropertiesCardsForAgentRow) (P
 		row.Bathrooms,
 		row.ParkingSpots,
 		row.BuiltArea,
+		row.AgentID,
+		row.AgentUuid,
+		row.AgentFirstName,
+		row.AgentLastName,
+		row.AgentProfilePictureUrl,
 		row.PetFriendly,
 	)
 }
@@ -414,6 +443,11 @@ func propertyCardDataFromValues(
 	bathrooms pgtype.Int2,
 	parkingSpots pgtype.Int2,
 	builtArea pgtype.Numeric,
+	agentID int32,
+	agentUUID pgtype.UUID,
+	agentFirstName string,
+	agentLastName string,
+	agentProfilePictureURL pgtype.Text,
 	petFriendly bool,
 ) (PropertyCardData, error) {
 	card := PropertyCardData{
@@ -444,6 +478,7 @@ func propertyCardDataFromValues(
 			CityID:      cityID.Int32,
 			CityName:    cityName,
 		},
+		AssignedAgent: propertyAgentPointerFromValues(agentID, agentUUID, agentFirstName, agentLastName, agentProfilePictureURL),
 	}
 
 	if addressSummary != "" {
@@ -555,6 +590,29 @@ func timePointerFromTimestamptz(value pgtype.Timestamptz) *time.Time {
 	return &timeValue
 }
 
+func propertyAgentPointerFromValues(agentID int32, userUUID pgtype.UUID, firstName, lastName string, profilePictureURL pgtype.Text) *PropertyAgentData {
+	if !userUUID.Valid {
+		return nil
+	}
+
+	return &PropertyAgentData{
+		UserID:            agentID,
+		UserUUID:          userUUID.String(),
+		FirstName:         firstName,
+		LastName:          lastName,
+		ProfilePictureURL: optionalTextPointer(profilePictureURL),
+	}
+}
+
 func errorsIsPgxNoRows(err error) bool {
 	return err == pgx.ErrNoRows
+}
+
+func optionalTextPointer(value pgtype.Text) *string {
+	if !value.Valid || value.String == "" {
+		return nil
+	}
+
+	text := value.String
+	return &text
 }
