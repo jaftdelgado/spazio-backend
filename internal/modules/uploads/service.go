@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nickalie/go-webpbin"
+	_ "golang.org/x/image/webp"
 )
 
 type service struct {
