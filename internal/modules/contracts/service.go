@@ -216,8 +216,17 @@ func (s *service) createContractInternal(ctx context.Context, userID int32, inpu
 	}
 
 	transactionAmount, _ := data.FinalAmount.Float64Value()
-	if int64(input.AgreedAmount*100) != int64(transactionAmount.Float64*100) {
-		return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) no coincide con el monto de la transacción (%.2f)", input.AgreedAmount, transactionAmount.Float64)
+	if data.TransactionType == sqlcgen.TransactionTypeSale {
+		if int64(input.AgreedAmount*100) != int64(transactionAmount.Float64*100) {
+			return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) no coincide con el monto de la transacción (%.2f)", input.AgreedAmount, transactionAmount.Float64)
+		}
+	} else {
+		if input.AgreedAmount <= 0 {
+			return CreateContractResult{}, fmt.Errorf("el monto acordado (%.2f) debe ser mayor a cero", input.AgreedAmount)
+		}
+		if input.SecurityDeposit < 0 {
+			return CreateContractResult{}, fmt.Errorf("el depósito de seguridad (%.2f) no puede ser negativo", input.SecurityDeposit)
+		}
 	}
 
 	clauses, err := s.repository.GetPropertyClausesByTransactionID(ctx, input.TransactionID)
