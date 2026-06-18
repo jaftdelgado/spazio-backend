@@ -96,6 +96,7 @@ type ListContractsFilter struct {
 }
 
 type ContractListItem struct {
+	ContractID      int32     `json:"contract_id"`
 	ContractUUID    string    `json:"contract_uuid"`
 	TransactionType string    `json:"transaction_type"`
 	PropertyTitle   string    `json:"property_title"`
