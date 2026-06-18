@@ -115,6 +115,15 @@ type AdminCreateUserInput struct {
 	RoleID    int32  `json:"role_id" binding:"required"`
 }
 
+// AgentListItem represents the lightweight agent payload used by property assignment UIs.
+type AgentListItem struct {
+	UserID            int32   `json:"user_id" example:"21"`
+	UserUUID          string  `json:"user_uuid" example:"8b227e4e-ca58-41d9-b402-d773f95470ef"`
+	FirstName         string  `json:"first_name" example:"Ada"`
+	LastName          string  `json:"last_name" example:"Lovelace"`
+	ProfilePictureURL *string `json:"profile_picture_url,omitempty" example:"https://cdn.example.com/users/profile.webp"`
+}
+
 // AuthUser represents an authenticated user returned by auth flows.
 type AuthUser struct {
 	UserID    int32     `json:"user_id" example:"13"`
@@ -180,6 +189,11 @@ type AdminCreateUserResult struct {
 	Message           string   `json:"message" example:"Usuario creado correctamente."`
 	TemporaryPassword string   `json:"temporary_password" example:"X7m2Q9kL4pTz"`
 	User              AuthUser `json:"user"`
+}
+
+// ListAgentsResult contains the lightweight staff list used to assign agents to properties.
+type ListAgentsResult struct {
+	Data []AgentListItem `json:"data"`
 }
 
 // MessageResult is a generic message response.
@@ -267,6 +281,7 @@ type UserRepository interface {
 	GetUserByUUID(ctx context.Context, uuidStr string) (UserAuthRecord, error)
 	GetUserByID(ctx context.Context, userID int32) (UserAuthRecord, error)
 	GetUserProfileByUUID(ctx context.Context, uuidStr string) (UserProfile, error)
+	ListAgents(ctx context.Context) ([]AgentListItem, error)
 	UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error
 	UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UserProfile, error)
 	UpdateUserEmail(ctx context.Context, userID int32, email string) (UserProfile, error)
@@ -304,6 +319,7 @@ type UserService interface {
 	VerifyEmailChange(ctx context.Context, uuidStr string, input VerifyEmailChangeInput) (EmailChangeVerificationResult, error)
 	ConfirmEmailChange(ctx context.Context, uuidStr string, input ConfirmEmailChangeInput) (UpdateProfileResult, error)
 	ChangePassword(ctx context.Context, uuidStr string, input ChangePasswordInput) error
+	ListAgents(ctx context.Context) (ListAgentsResult, error)
 	AdminCreateUser(ctx context.Context, input AdminCreateUserInput) (AdminCreateUserResult, error)
 	DeleteUser(ctx context.Context, uuidStr string) error
 }

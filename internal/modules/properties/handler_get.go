@@ -19,7 +19,7 @@ const (
 
 // listProperties godoc
 // @Summary      List properties with advanced filters
-// @Description  Returns a paginated list of property cards. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.
+// @Description  Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.
 // @Tags         Properties
 // @Produce      json
 // @Param        page              query     int                   false  "Page number (starts at 1)" default(1)
@@ -204,7 +204,7 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 
 // getProperty godoc
 // @Summary      Get property by UUID
-// @Description  Returns property base data, subtype, and expanded location data for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
+// @Description  Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
 // @Tags         Properties
 // @Produce      json
 // @Param        uuid  path      string                true   "Property UUID"

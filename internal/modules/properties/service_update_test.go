@@ -58,6 +58,12 @@ func TestService_UpdateProperty(t *testing.T) {
 			var calledInput UpdatePropertyInput
 
 			repo := &mockPropertyRepository{
+				getAgentByIDFunc: func(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+					if agentID == 999 {
+						return PropertyAgentData{}, errors.New("not found")
+					}
+					return PropertyAgentData{UserID: agentID}, nil
+				},
 				updatePropertyFunc: func(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error) {
 					repoUpdateCalled = true
 					calledUUID = propertyUUID
@@ -103,5 +109,26 @@ func TestService_UpdateProperty(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestService_UpdateProperty_InvalidAgentID(t *testing.T) {
+	svc := NewService(&mockPropertyRepository{
+		getAgentByIDFunc: func(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+			return PropertyAgentData{}, errors.New("not found")
+		},
+	}, &mockPropertyPhotoStorage{})
+
+	_, err := svc.UpdateProperty(context.Background(), "123e4567-e89b-12d3-a456-426614174000", UpdatePropertyInput{
+		Actor:   ActorContext{UserID: 1, RoleID: RoleAdminID},
+		AgentID: ptrInt32(999),
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	var validationErr ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T: %v", err, err)
 	}
 }

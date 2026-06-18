@@ -137,6 +137,15 @@ func (r *repository) CreateProperty(ctx context.Context, input CreatePropertyInp
 		}
 	}
 
+	if input.AgentID != nil {
+		if err := queries.CreatePropertyAgent(ctx, sqlcgen.CreatePropertyAgentParams{
+			PropertyID: propertyRow.PropertyID,
+			AgentID:    *input.AgentID,
+		}); err != nil {
+			return CreatePropertyResult{}, fmt.Errorf("create property agent %d: %w", *input.AgentID, err)
+		}
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return CreatePropertyResult{}, fmt.Errorf("commit transaction: %w", err)
 	}

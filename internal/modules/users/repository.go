@@ -174,6 +174,31 @@ func (r *repository) GetUserProfileByUUID(ctx context.Context, uuidStr string) (
 	)
 }
 
+func (r *repository) ListAgents(ctx context.Context) ([]AgentListItem, error) {
+	rows, err := r.queries.ListAgents(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list agents: %w", err)
+	}
+
+	agents := make([]AgentListItem, 0, len(rows))
+	for _, row := range rows {
+		userUUID, err := fromPgUUID(row.UserUuid)
+		if err != nil {
+			return nil, fmt.Errorf("list agents: %w", err)
+		}
+
+		agents = append(agents, AgentListItem{
+			UserID:            row.UserID,
+			UserUUID:          userUUID,
+			FirstName:         row.FirstName,
+			LastName:          row.LastName,
+			ProfilePictureURL: nullableString(row.ProfilePictureUrl),
+		})
+	}
+
+	return agents, nil
+}
+
 func (r *repository) UpdateUserStatus(ctx context.Context, userID int32, statusID int32) error {
 	if err := r.queries.UpdateUserStatus(ctx, sqlcgen.UpdateUserStatusParams{
 		StatusID: statusID,
@@ -560,7 +585,7 @@ func nullableInt32(value pgtype.Int4) *int32 {
 }
 
 func nullableString(value pgtype.Text) *string {
-	if !value.Valid {
+	if !value.Valid || value.String == "" {
 		return nil
 	}
 

@@ -327,6 +327,27 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// ListAgents godoc
+// @Summary      List assignable agents
+// @Description  Returns the lightweight list of active agent accounts used to assign properties in admin interfaces.
+// @Tags         Users
+// @Produce      json
+// @Param        Authorization  header    string            true  "Bearer access token"
+// @Success      200            {object}  ListAgentsResult  "Assignable agents"
+// @Failure      401            {object}  map[string]string "Invalid session"
+// @Failure      403            {object}  map[string]string "Forbidden"
+// @Failure      500            {object}  map[string]string "Internal server error"
+// @Router       /api/v1/users/agents [get]
+func (h *Handler) ListAgents(c *gin.Context) {
+	result, err := h.service.ListAgents(c.Request.Context())
+	if err != nil {
+		writeUserError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 // UpdateProfile godoc
 // @Summary      Update user profile
 // @Description  Updates the authenticated user's local profile data.

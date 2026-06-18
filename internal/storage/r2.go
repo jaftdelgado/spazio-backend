@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"time"
 
@@ -77,8 +76,6 @@ func (r *R2Client) PublicURL(ctx context.Context, storageKey string) (string, er
 
 // Upload uploads a file to R2.
 func (r *R2Client) Upload(ctx context.Context, storageKey string, contentType string, body io.Reader) error {
-	log.Printf("[R2 Upload] bucket=%q key=%q contentType=%q", r.bucket, storageKey, contentType)
-
 	_, err := r.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(r.bucket),
 		Key:         aws.String(storageKey),
@@ -86,10 +83,8 @@ func (r *R2Client) Upload(ctx context.Context, storageKey string, contentType st
 		ContentType: aws.String(contentType),
 	})
 	if err != nil {
-		log.Printf("[R2 Upload] error: %v", err)
 		return fmt.Errorf("upload to r2: %w", err)
 	}
-	log.Printf("[R2 Upload] success: %q", storageKey)
 	return nil
 }
 
