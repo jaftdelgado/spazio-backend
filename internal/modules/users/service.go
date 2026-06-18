@@ -23,6 +23,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/email"
 	"github.com/nickalie/go-webpbin"
 	"golang.org/x/crypto/bcrypt"
+	_ "golang.org/x/image/webp"
 )
 
 const (
@@ -337,6 +338,15 @@ func (s *service) GetProfile(ctx context.Context, uuidStr string) (UserProfile, 
 	}
 
 	return user, nil
+}
+
+func (s *service) ListAgents(ctx context.Context) (ListAgentsResult, error) {
+	agents, err := s.repository.ListAgents(ctx)
+	if err != nil {
+		return ListAgentsResult{}, fmt.Errorf("list agents: %w", err)
+	}
+
+	return ListAgentsResult{Data: agents}, nil
 }
 
 func (s *service) UpdateProfile(ctx context.Context, uuidStr string, input UpdateProfileInput) (UpdateProfileResult, error) {

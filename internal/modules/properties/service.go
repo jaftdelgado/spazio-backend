@@ -43,6 +43,12 @@ func requireAdminActor(actor ActorContext) error {
 func (s *service) CreateProperty(ctx context.Context, userID int32, input CreatePropertyInput) (CreatePropertyResult, error) {
 	input.OwnerID = userID
 
+	if input.AgentID != nil {
+		if _, err := s.repository.GetAgentByID(ctx, *input.AgentID); err != nil {
+			return CreatePropertyResult{}, ValidationError{Message: fmt.Sprintf("agent_id %d is invalid", *input.AgentID)}
+		}
+	}
+
 	subtype, err := s.repository.GetPropertySubtype(ctx, input.PropertyTypeID)
 	if err != nil {
 		return CreatePropertyResult{}, fmt.Errorf("get property subtype: %w", err)

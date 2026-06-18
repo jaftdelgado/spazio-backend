@@ -11,7 +11,7 @@ import (
 
 // updateProperty godoc
 // @Summary      Update property
-// @Description  Updates property base data, subtype and location.
+// @Description  Updates property base data, subtype, location, and the assigned agent.
 // @Description  Requires an authenticated admin session.
 // @Tags         Properties
 // @Accept       json
@@ -54,6 +54,10 @@ func (h *Handler) updateProperty(c *gin.Context) {
 			shared.BadRequest(c, errors.New("lot_area must be greater than 0"))
 			return
 		}
+	}
+	if req.AgentID != nil && *req.AgentID <= 0 {
+		shared.BadRequest(c, errors.New("agent_id must be greater than 0"))
+		return
 	}
 
 	// Validate residential/commercial/location payload completeness

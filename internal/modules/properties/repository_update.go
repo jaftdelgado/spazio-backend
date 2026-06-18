@@ -38,9 +38,12 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 	}
 
 	var (
-		baseChanged     bool
-		subtypeChanged  bool
-		locationChanged bool
+		baseChanged        bool
+		subtypeChanged     bool
+		locationChanged    bool
+		agentChanged       bool
+		currentAssignedID  int32
+		hasCurrentAssigned bool
 	)
 
 	// Compare base fields
@@ -61,6 +64,19 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 	}
 	if input.IsFeatured != nil && *input.IsFeatured != baseRow.IsFeatured {
 		baseChanged = true
+	}
+	if input.AgentID != nil {
+		currentAgent, err := queries.GetPrimaryPropertyAgentByPropertyID(ctx, propertyID)
+		if err == nil {
+			currentAssignedID = currentAgent.AgentID
+			hasCurrentAssigned = true
+		} else if !errorsIsPgxNoRows(err) {
+			return UpdatePropertyResult{}, fmt.Errorf("get current property agent: %w", err)
+		}
+
+		if !hasCurrentAssigned || currentAssignedID != *input.AgentID {
+			agentChanged = true
+		}
 	}
 
 	// Compare/prepare subtype updates
@@ -214,7 +230,19 @@ func (r *repository) UpdateProperty(ctx context.Context, propertyUUID string, in
 		}
 	}
 
-	if !baseChanged && !subtypeChanged && !locationChanged {
+	if agentChanged {
+		if err := queries.DeletePropertyAgents(ctx, propertyID); err != nil {
+			return UpdatePropertyResult{}, fmt.Errorf("delete property agents: %w", err)
+		}
+		if err := queries.CreatePropertyAgent(ctx, sqlcgen.CreatePropertyAgentParams{
+			PropertyID: propertyID,
+			AgentID:    *input.AgentID,
+		}); err != nil {
+			return UpdatePropertyResult{}, fmt.Errorf("create property agent: %w", err)
+		}
+	}
+
+	if !baseChanged && !subtypeChanged && !locationChanged && !agentChanged {
 		if err := tx.Commit(ctx); err != nil {
 			return UpdatePropertyResult{}, fmt.Errorf("commit transaction: %w", err)
 		}

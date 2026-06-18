@@ -8,7 +8,7 @@ import (
 )
 
 func CORS(allowedOrigins string) gin.HandlerFunc {
-	origins := strings.Split(allowedOrigins, ",")
+	origins := parseAllowedOrigins(allowedOrigins)
 
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
@@ -28,4 +28,21 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func parseAllowedOrigins(raw string) []string {
+	parts := strings.Split(raw, ",")
+	origins := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		origin := strings.TrimSpace(part)
+		origin = strings.Trim(origin, `"'`)
+		if origin == "" {
+			continue
+		}
+
+		origins = append(origins, origin)
+	}
+
+	return origins
 }

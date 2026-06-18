@@ -54,7 +54,7 @@ func Load() *Config {
 	}
 
 	return &Config{
-		Port:        getEnv("APP_PORT", "8080"),
+		Port:        getEnvAny([]string{"APP_PORT", "PORT"}, "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
 		MigrateURL:  getEnv("MIGRATE_URL", ""),
 		R2: R2Config{
@@ -79,6 +79,15 @@ func Load() *Config {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvAny(keys []string, fallback string) string {
+	for _, key := range keys {
+		if v := os.Getenv(key); v != "" {
+			return v
+		}
 	}
 	return fallback
 }

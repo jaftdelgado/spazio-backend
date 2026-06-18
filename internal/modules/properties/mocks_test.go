@@ -19,6 +19,7 @@ type mockPropertyRepository struct {
 	getPropertyPricesFunc         func(ctx context.Context, propertyUUID string) (GetPropertyPricesResult, error)
 	getPropertyPricesHistoryFunc  func(ctx context.Context, propertyUUID string) (GetPropertyPricesHistoryResult, error)
 	updatePropertyPricesFunc      func(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
+	getAgentByIDFunc              func(ctx context.Context, agentID int32) (PropertyAgentData, error)
 	getPropertyFunc               func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	getPropertyByUUIDFunc         func(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	isPropertyAssignedToAgentFunc func(ctx context.Context, propertyID int32, agentID int32) (bool, error)
@@ -142,6 +143,13 @@ func (m *mockPropertyRepository) GetPropertyPricesHistory(ctx context.Context, p
 		return m.getPropertyPricesHistoryFunc(ctx, propertyUUID)
 	}
 	return GetPropertyPricesHistoryResult{}, nil
+}
+
+func (m *mockPropertyRepository) GetAgentByID(ctx context.Context, agentID int32) (PropertyAgentData, error) {
+	if m.getAgentByIDFunc != nil {
+		return m.getAgentByIDFunc(ctx, agentID)
+	}
+	return PropertyAgentData{}, nil
 }
 
 func (m *mockPropertyRepository) UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error {

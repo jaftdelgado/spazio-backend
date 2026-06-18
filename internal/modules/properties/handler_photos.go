@@ -13,12 +13,13 @@ import (
 
 // getPhotos godoc
 // @Summary      List property photos
-// @Description  Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. When the property has no photos, the response contains an empty data array.
+// @Description  Returns the photo metadata linked to a property by UUID ordered by sort_order ascending, including the storage key and the resolved public URL for each photo. Guests and clients can only view photos from available properties.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid  path     string                   true  "Property UUID"
+// @Param        uuid  path      string                   true  "Property UUID"
 // @Success      200   {object}  GetPropertyPhotosResult  "Property photos"
 // @Failure      400   {object}  shared.ErrorResponse     "Invalid path parameter"
+// @Failure      403   {object}  shared.ErrorResponse     "Forbidden"
 // @Failure      404   {object}  shared.ErrorResponse     "Property not found"
 // @Failure      500   {object}  shared.ErrorResponse     "Internal error"
 // @Router       /api/v1/properties/{uuid}/photos [get]
@@ -31,6 +32,10 @@ func (h *Handler) getPhotos(c *gin.Context) {
 
 	if _, err := uuid.Parse(propertyUUID); err != nil {
 		shared.BadRequest(c, errors.New("uuid must be a valid UUID"))
+		return
+	}
+
+	if !h.ensureReadableProperty(c, propertyUUID) {
 		return
 	}
 
@@ -54,12 +59,15 @@ func (h *Handler) getPhotos(c *gin.Context) {
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
-// @Param        uuid     path     string                     true  "Property UUID"
-// @Param        request  body     UpdatePropertyPhotosInput  true  "Property photos payload"
+// @Security     BearerAuth
+// @Param        uuid     path      string                     true  "Property UUID"
+// @Param        request  body      UpdatePropertyPhotosInput  true  "Property photos payload"
 // @Success      204
-// @Failure      400      {object}  shared.ErrorResponse  "Invalid input"
-// @Failure      404      {object}  shared.ErrorResponse  "Property not found"
-// @Failure      500      {object}  shared.ErrorResponse  "Internal error"
+// @Failure      400      {object}  shared.ErrorResponse       "Invalid input"
+// @Failure      401      {object}  shared.ErrorResponse       "Missing or invalid authenticated session"
+// @Failure      403      {object}  shared.ErrorResponse       "Forbidden"
+// @Failure      404      {object}  shared.ErrorResponse       "Property not found"
+// @Failure      500      {object}  shared.ErrorResponse       "Internal error"
 // @Router       /api/v1/properties/{uuid}/photos [put]
 func (h *Handler) updatePhotos(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))

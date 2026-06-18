@@ -186,6 +186,11 @@ SELECT
   res.bathrooms,
   res.parking_spots,
   res.built_area,
+  COALESCE(assignment.agent_id, 0)::integer AS agent_id,
+  assignment.agent_uuid,
+  COALESCE(assignment.agent_first_name, '') AS agent_first_name,
+  COALESCE(assignment.agent_last_name, '') AS agent_last_name,
+  assignment.agent_profile_picture_url,
   EXISTS (
     SELECT 1
     FROM property_clauses pc
@@ -206,6 +211,20 @@ LEFT JOIN states st ON st.state_id = ci.state_id
 LEFT JOIN countries co ON co.country_id = st.country_id
 LEFT JOIN sale_current sc ON sc.property_id = p.property_id
 LEFT JOIN selected_rent sr ON sr.property_id = p.property_id
+LEFT JOIN LATERAL (
+  SELECT
+    pa.agent_id,
+    u.user_uuid AS agent_uuid,
+    u.first_name AS agent_first_name,
+    u.last_name AS agent_last_name,
+    u.profile_picture_url AS agent_profile_picture_url
+  FROM property_agents pa
+  JOIN users u ON u.user_id = pa.agent_id
+  WHERE pa.property_id = p.property_id
+    AND u.deleted_at IS NULL
+  ORDER BY pa.is_primary DESC, pa.assigned_at ASC, pa.agent_id ASC
+  LIMIT 1
+) assignment ON true
 WHERE p.deleted_at IS NULL
   AND (
     sqlc.arg(search_query)::text = ''
@@ -401,6 +420,11 @@ SELECT
   res.bathrooms,
   res.parking_spots,
   res.built_area,
+  COALESCE(assignment.agent_id, 0)::integer AS agent_id,
+  assignment.agent_uuid,
+  COALESCE(assignment.agent_first_name, '') AS agent_first_name,
+  COALESCE(assignment.agent_last_name, '') AS agent_last_name,
+  assignment.agent_profile_picture_url,
   EXISTS (
     SELECT 1
     FROM property_clauses pc
@@ -423,6 +447,20 @@ LEFT JOIN states st ON st.state_id = ci.state_id
 LEFT JOIN countries co ON co.country_id = st.country_id
 LEFT JOIN sale_current sc ON sc.property_id = p.property_id
 LEFT JOIN selected_rent sr ON sr.property_id = p.property_id
+LEFT JOIN LATERAL (
+  SELECT
+    pa.agent_id,
+    u.user_uuid AS agent_uuid,
+    u.first_name AS agent_first_name,
+    u.last_name AS agent_last_name,
+    u.profile_picture_url AS agent_profile_picture_url
+  FROM property_agents pa
+  JOIN users u ON u.user_id = pa.agent_id
+  WHERE pa.property_id = p.property_id
+    AND u.deleted_at IS NULL
+  ORDER BY pa.is_primary DESC, pa.assigned_at ASC, pa.agent_id ASC
+  LIMIT 1
+) assignment ON true
 WHERE p.deleted_at IS NULL
   AND (
     sqlc.arg(search_query)::text = ''
@@ -689,10 +727,29 @@ SELECT
   p.lot_area,
   p.is_featured,
   pt.subtype,
-  u.first_name || ' ' || u.last_name AS registered_by
+  u.first_name || ' ' || u.last_name AS registered_by,
+  COALESCE(assignment.agent_id, 0)::integer AS agent_id,
+  assignment.agent_uuid,
+  COALESCE(assignment.agent_first_name, '') AS agent_first_name,
+  COALESCE(assignment.agent_last_name, '') AS agent_last_name,
+  assignment.agent_profile_picture_url
 FROM properties p
 JOIN property_types pt ON pt.property_type_id = p.property_type_id
 JOIN users u ON u.user_id = p.owner_id
+LEFT JOIN LATERAL (
+  SELECT
+    pa.agent_id,
+    agent.user_uuid AS agent_uuid,
+    agent.first_name AS agent_first_name,
+    agent.last_name AS agent_last_name,
+    agent.profile_picture_url AS agent_profile_picture_url
+  FROM property_agents pa
+  JOIN users agent ON agent.user_id = pa.agent_id
+  WHERE pa.property_id = p.property_id
+    AND agent.deleted_at IS NULL
+  ORDER BY pa.is_primary DESC, pa.assigned_at ASC, pa.agent_id ASC
+  LIMIT 1
+) assignment ON true
 WHERE p.property_uuid = $1 AND p.deleted_at IS NULL;
 
 -- name: IsPropertyAssignedToAgent :one
@@ -701,6 +758,44 @@ SELECT EXISTS (
   FROM property_agents
   WHERE property_id = $1 AND agent_id = $2
 ) AS assigned;
+
+-- name: GetAgentByID :one
+SELECT
+  u.user_id,
+  u.user_uuid,
+  u.first_name,
+  u.last_name,
+  u.profile_picture_url
+FROM users u
+WHERE u.user_id = $1
+  AND u.role_id = 2
+  AND u.status_id = 1
+  AND u.deleted_at IS NULL;
+
+-- name: GetPrimaryPropertyAgentByPropertyID :one
+SELECT
+  pa.agent_id,
+  u.user_uuid,
+  u.first_name,
+  u.last_name,
+  u.profile_picture_url
+FROM property_agents pa
+JOIN users u ON u.user_id = pa.agent_id
+WHERE pa.property_id = $1
+  AND u.deleted_at IS NULL
+ORDER BY pa.is_primary DESC, pa.assigned_at ASC, pa.agent_id ASC
+LIMIT 1;
+
+-- name: DeletePropertyAgents :exec
+DELETE FROM property_agents
+WHERE property_id = $1;
+
+-- name: CreatePropertyAgent :exec
+INSERT INTO property_agents (
+  property_id,
+  agent_id,
+  is_primary
+) VALUES ($1, $2, true);
 
 -- name: GetResidentialByPropertyID :one
 SELECT

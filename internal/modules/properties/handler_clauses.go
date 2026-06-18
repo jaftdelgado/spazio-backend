@@ -12,14 +12,15 @@ import (
 
 // getClauses godoc
 // @Summary      List property clauses
-// @Description  Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array.
+// @Description  Returns the clauses linked to a property by UUID. When the property has no clauses, the response contains an empty data array. Guests and clients can only view clauses from available properties.
 // @Tags         Properties
 // @Produce      json
-// @Param        uuid  path     string                 true  "Property UUID"
+// @Param        uuid  path      string                    true  "Property UUID"
 // @Success      200   {object}  GetPropertyClausesResult  "Property clauses"
-// @Failure      400   {object}  shared.ErrorResponse   "Invalid path parameter"
-// @Failure      404   {object}  shared.ErrorResponse   "Property not found"
-// @Failure      500   {object}  shared.ErrorResponse   "Internal error"
+// @Failure      400   {object}  shared.ErrorResponse      "Invalid path parameter"
+// @Failure      403   {object}  shared.ErrorResponse      "Forbidden"
+// @Failure      404   {object}  shared.ErrorResponse      "Property not found"
+// @Failure      500   {object}  shared.ErrorResponse      "Internal error"
 // @Router       /api/v1/properties/{uuid}/clauses [get]
 func (h *Handler) getClauses(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))
@@ -30,6 +31,10 @@ func (h *Handler) getClauses(c *gin.Context) {
 
 	if _, err := uuid.Parse(propertyUUID); err != nil {
 		shared.BadRequest(c, errors.New("uuid must be a valid UUID"))
+		return
+	}
+
+	if !h.ensureReadableProperty(c, propertyUUID) {
 		return
 	}
 
@@ -53,12 +58,15 @@ func (h *Handler) getClauses(c *gin.Context) {
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
-// @Param        uuid     path     string                   true  "Property UUID"
-// @Param        request   body     UpdatePropertyClausesInput  true  "Property clauses payload"
+// @Security     BearerAuth
+// @Param        uuid     path      string                       true  "Property UUID"
+// @Param        request  body      UpdatePropertyClausesInput   true  "Property clauses payload"
 // @Success      204
-// @Failure      400      {object}  shared.ErrorResponse   "Invalid input"
-// @Failure      404      {object}  shared.ErrorResponse   "Property not found"
-// @Failure      500      {object}  shared.ErrorResponse   "Internal error"
+// @Failure      400      {object}  shared.ErrorResponse         "Invalid input"
+// @Failure      401      {object}  shared.ErrorResponse         "Missing or invalid authenticated session"
+// @Failure      403      {object}  shared.ErrorResponse         "Forbidden"
+// @Failure      404      {object}  shared.ErrorResponse         "Property not found"
+// @Failure      500      {object}  shared.ErrorResponse         "Internal error"
 // @Router       /api/v1/properties/{uuid}/clauses [put]
 func (h *Handler) updateClauses(c *gin.Context) {
 	propertyUUID := strings.TrimSpace(c.Param("uuid"))

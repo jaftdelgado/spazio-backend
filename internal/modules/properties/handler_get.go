@@ -19,14 +19,13 @@ const (
 
 // listProperties godoc
 // @Summary      List properties with advanced filters
-// @Description  Returns a paginated list of property cards. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents. Supports filtering by search query, status, property type, modality, location (country, state, city), price range, and minimum bedrooms. Each card includes readable location fields and an address summary. Price selection logic prioritizes sale price, then the best current rent price (Monthly > Annual > Weekly > Daily).
+// @Description  Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.
 // @Tags         Properties
 // @Produce      json
-// @Security     BearerAuth
 // @Param        page              query     int                   false  "Page number (starts at 1)" default(1)
 // @Param        page_size         query     int                   false  "Items per page (max 100)" default(20)
 // @Param        q                 query     string                false  "Search term (matches title, address, city, state, country)"
-// @Param        status_id         query     []int                 false  "Filter by status IDs (defaults to Available=2 when omitted)"
+// @Param        status_id         query     []int                 false  "Filter by status IDs"
 // @Param        property_type_id  query     int                   false  "Filter by property type ID"
 // @Param        modality_id       query     int                   false  "Filter by modality ID"
 // @Param        country_id        query     int                   false  "Filter by country ID"
@@ -42,22 +41,10 @@ const (
 // @Param        order             query     string                false  "Sort order: asc, desc"
 // @Success      200               {object}  ListPropertiesResult  "Paginated list of property cards"
 // @Failure      400               {object}  shared.ErrorResponse  "Invalid input parameters"
-// @Failure      401               {object}  shared.ErrorResponse  "Missing or invalid authenticated session"
-// @Failure      403               {object}  shared.ErrorResponse  "Forbidden"
 // @Failure      500               {object}  shared.ErrorResponse  "Internal server error"
 // @Router       /api/v1/properties [get]
 func (h *Handler) listProperties(c *gin.Context) {
-	userID, err := middleware.AuthenticatedUserID(c)
-	if err != nil {
-		shared.Unauthorized(c)
-		return
-	}
-
-	roleID, err := middleware.AuthenticatedRoleID(c)
-	if err != nil {
-		shared.Unauthorized(c)
-		return
-	}
+	userID, roleID := resolvePropertyReader(c)
 
 	page, err := resolveOptionalPropertyInt(strings.TrimSpace(c.Query("page")), defaultPropertiesPage, "page")
 	if err != nil {
@@ -217,14 +204,12 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 
 // getProperty godoc
 // @Summary      Get property by UUID
-// @Description  Returns property base data, subtype, and expanded location data for the given UUID. The location payload includes country, state, and city identifiers and names in addition to the address fields. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
+// @Description  Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
 // @Tags         Properties
 // @Produce      json
-// @Security     BearerAuth
 // @Param        uuid  path      string                true   "Property UUID"
 // @Success      200   {object}  GetPropertyResult     "Property data"
 // @Failure      400   {object}  shared.ErrorResponse  "Invalid path parameter"
-// @Failure      401   {object}  shared.ErrorResponse  "Missing or invalid authenticated session"
 // @Failure      403   {object}  shared.ErrorResponse  "Forbidden"
 // @Failure      404   {object}  shared.ErrorResponse  "Property not found"
 // @Failure      500   {object}  shared.ErrorResponse  "Internal error"
@@ -236,17 +221,7 @@ func (h *Handler) getProperty(c *gin.Context) {
 		return
 	}
 
-	userID, err := middleware.AuthenticatedUserID(c)
-	if err != nil {
-		shared.Unauthorized(c)
-		return
-	}
-
-	roleID, err := middleware.AuthenticatedRoleID(c)
-	if err != nil {
-		shared.Unauthorized(c)
-		return
-	}
+	userID, roleID := resolvePropertyReader(c)
 
 	result, err := h.service.GetPropertyForRole(c.Request.Context(), propertyUUID, userID, roleID)
 	if err != nil {
@@ -264,6 +239,38 @@ func (h *Handler) getProperty(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func resolvePropertyReader(c *gin.Context) (int32, int32) {
+	userID, userErr := middleware.AuthenticatedUserID(c)
+	roleID, roleErr := middleware.AuthenticatedRoleID(c)
+	if userErr != nil || roleErr != nil {
+		return 0, RoleClientID
+	}
+
+	return userID, roleID
+}
+
+func (h *Handler) ensureReadableProperty(c *gin.Context, propertyUUID string) bool {
+	userID, roleID := resolvePropertyReader(c)
+
+	_, err := h.service.GetPropertyForRole(c.Request.Context(), propertyUUID, userID, roleID)
+	if err == nil {
+		return true
+	}
+
+	if errors.Is(err, ErrPropertyNotFound) {
+		shared.NotFound(c, err.Error())
+		return false
+	}
+
+	if strings.Contains(err.Error(), "forbidden") {
+		shared.Forbidden(c, err.Error())
+		return false
+	}
+
+	shared.InternalError(c, "could not validate property access")
+	return false
 }
 
 // getPricesHistory godoc
@@ -330,6 +337,7 @@ func resolveOptionalPositivePropertyInt(rawValue string, field string) (int, err
 
 	return value, nil
 }
+
 func resolveStatusIDs(rawValues []string) ([]int32, error) {
 	statusIDs := make([]int32, 0, len(rawValues))
 	for _, rawValue := range rawValues {

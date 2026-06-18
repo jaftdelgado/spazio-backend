@@ -41,6 +41,7 @@ type GetPropertyHistoryResult struct {
 // CreatePropertyInput is the request payload required to register a property.
 type CreatePropertyInput struct {
 	OwnerID        int32                       `json:"-"`
+	AgentID        *int32                      `json:"agent_id,omitempty" example:"21"`
 	Subtype        string                      `json:"subtype" example:"residential"`
 	Title          string                      `json:"title" example:"Casa en Xalapa"`
 	Description    string                      `json:"description" example:"Spacious residential property near downtown"`
@@ -176,6 +177,16 @@ type PropertyCardData struct {
 	Bathrooms      *int16                   `json:"bathrooms,omitempty"`
 	ParkingSpots   *int16                   `json:"parking_spots,omitempty"`
 	BuiltArea      *float64                 `json:"built_area,omitempty"`
+	AssignedAgent  *PropertyAgentData       `json:"assigned_agent,omitempty"`
+}
+
+// PropertyAgentData represents the lightweight agent payload attached to property responses.
+type PropertyAgentData struct {
+	UserID            int32   `json:"user_id" example:"21"`
+	UserUUID          string  `json:"user_uuid" example:"8b227e4e-ca58-41d9-b402-d773f95470ef"`
+	FirstName         string  `json:"first_name" example:"Ada"`
+	LastName          string  `json:"last_name" example:"Lovelace"`
+	ProfilePictureURL *string `json:"profile_picture_url,omitempty" example:"https://cdn.example.com/users/profile.webp"`
 }
 
 // PropertyCardTypeData contains the serialized property type used in cards.
@@ -227,21 +238,22 @@ type GetPropertyResult struct {
 
 // GetPropertyData contiene los datos base, subtipo y ubicación de la propiedad.
 type GetPropertyData struct {
-	PropertyID     int32            `json:"-"`
-	PropertyUUID   string           `json:"property_uuid"`
-	OwnerID        int32            `json:"-"`
-	Subtype        string           `json:"subtype"`
-	Title          string           `json:"title"`
-	Description    string           `json:"description"`
-	PropertyTypeID int32            `json:"property_type_id"`
-	ModalityID     int32            `json:"modality_id"`
-	StatusID       int32            `json:"status_id"`
-	LotArea        float64          `json:"lot_area"`
-	IsFeatured     bool             `json:"is_featured"`
-	RegisteredBy   string           `json:"registered_by,omitempty"`
-	Residential    *ResidentialData `json:"residential"`
-	Commercial     *CommercialData  `json:"commercial"`
-	Location       *LocationData    `json:"location"`
+	PropertyID     int32              `json:"-"`
+	PropertyUUID   string             `json:"property_uuid"`
+	OwnerID        int32              `json:"-"`
+	Subtype        string             `json:"subtype"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	PropertyTypeID int32              `json:"property_type_id"`
+	ModalityID     int32              `json:"modality_id"`
+	StatusID       int32              `json:"status_id"`
+	LotArea        float64            `json:"lot_area"`
+	IsFeatured     bool               `json:"is_featured"`
+	RegisteredBy   string             `json:"registered_by,omitempty"`
+	AssignedAgent  *PropertyAgentData `json:"assigned_agent,omitempty"`
+	Residential    *ResidentialData   `json:"residential"`
+	Commercial     *CommercialData    `json:"commercial"`
+	Location       *LocationData      `json:"location"`
 }
 
 // PropertyPriceHistoryData contains one historical price entry.
@@ -308,6 +320,7 @@ type UpdatePropertyInput struct {
 	Description *string                 `json:"description,omitempty"`
 	LotArea     *float64                `json:"lot_area,omitempty"`
 	IsFeatured  *bool                   `json:"is_featured,omitempty"`
+	AgentID     *int32                  `json:"agent_id,omitempty" example:"21"`
 	Residential *UpdateResidentialInput `json:"residential,omitempty"`
 	Commercial  *UpdateCommercialInput  `json:"commercial,omitempty"`
 	Location    *UpdateLocationInput    `json:"location,omitempty"`
@@ -518,6 +531,7 @@ type PropertyRepository interface {
 	UpdatePropertyPrices(ctx context.Context, propertyUUID string, input UpdatePropertyPricesInput) error
 
 	// New persistence operations for GET / PATCH
+	GetAgentByID(ctx context.Context, agentID int32) (PropertyAgentData, error)
 	GetProperty(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	GetPropertyByUUID(ctx context.Context, propertyUUID string) (GetPropertyResult, error)
 	IsPropertyAssignedToAgent(ctx context.Context, propertyID int32, agentID int32) (bool, error)
@@ -549,7 +563,6 @@ type PropertyService interface {
 	UpdateProperty(ctx context.Context, propertyUUID string, input UpdatePropertyInput) (UpdatePropertyResult, error)
 	DeleteProperty(ctx context.Context, propertyUUID string, input DeletePropertyInput) error
 
-	
 	GetPropertyHistory(ctx context.Context, propertyUUID string) (GetPropertyHistoryResult, error)
 }
 

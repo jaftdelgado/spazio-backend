@@ -37,22 +37,23 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 		adminOnly.GET("/:uuid/history", h.getPropertyHistory)
 		adminOnly.GET("/:uuid/prices/history", h.getPricesHistory)
 	}
+}
 
-	adminAgentOrClient := properties.Group("")
-	adminAgentOrClient.Use(middleware.RequireRole("admin", "agent", "client"))
+func (h *Handler) RegisterPublicRoutes(r *gin.RouterGroup) {
+	properties := r.Group("/api/v1/properties")
 	{
-		adminAgentOrClient.GET("", h.listProperties)
-		adminAgentOrClient.GET("/:uuid", h.getProperty)
-		adminAgentOrClient.GET("/:uuid/photos", h.getPhotos)
-		adminAgentOrClient.GET("/:uuid/services", h.getServices)
-		adminAgentOrClient.GET("/:uuid/clauses", h.getClauses)
-		adminAgentOrClient.GET("/:uuid/prices", h.getPrices)
+		properties.GET("", h.listProperties)
+		properties.GET("/:uuid", h.getProperty)
+		properties.GET("/:uuid/photos", h.getPhotos)
+		properties.GET("/:uuid/services", h.getServices)
+		properties.GET("/:uuid/clauses", h.getClauses)
+		properties.GET("/:uuid/prices", h.getPrices)
 	}
 }
 
 // createProperty godoc
 // @Summary      Register a new property
-// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, and clauses atomically. The authenticated user is set as the owner.
+// @Description  Registers a property and all related records in a single database transaction. The backend generates the property UUID and stores subtype, location, pricing, services, clauses, and the optional assigned agent atomically. The authenticated user is set as the owner.
 // @Tags         Properties
 // @Accept       json
 // @Produce      json
@@ -141,6 +142,7 @@ func trimOptionalString(value *string) *string {
 func validateCreatePropertyRequest(req CreatePropertyInput) error {
 	if err := shared.Validate([]shared.ValidationRule{
 		{Fail: req.Title == "", Msg: "title is required"},
+		{Fail: req.AgentID != nil && *req.AgentID <= 0, Msg: "agent_id must be greater than 0"},
 		{Fail: req.PropertyTypeID <= 0, Msg: "property_type_id must be greater than 0"},
 		{Fail: req.ModalityID <= 0, Msg: "modality_id must be greater than 0"},
 	}); err != nil {

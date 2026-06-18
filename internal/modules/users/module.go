@@ -60,6 +60,7 @@ func (m *Module) RegisterRoutes(router *gin.RouterGroup) {
 
 		adminOnly := protected.Group("")
 		adminOnly.Use(middleware.RequireRole("Admin"))
+		adminOnly.GET("/agents", m.handler.ListAgents)
 		adminOnly.POST("/staff", m.handler.AdminCreateUser)
 	}
 }
