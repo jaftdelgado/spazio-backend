@@ -3,6 +3,7 @@ SELECT
     c.contract_id, 
     t.client_id, 
     c.agreed_amount, 
+    c.security_deposit,
     c.status_id, 
     c.start_date,
     c.end_date,

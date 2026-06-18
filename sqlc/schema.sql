@@ -418,6 +418,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 	period_id int REFERENCES rent_periods(period_id),
 	currency char(3) NOT NULL,
 	agreed_amount decimal(15,2) NOT NULL,
+	security_deposit decimal(15,2) NOT NULL DEFAULT 0.00,
 	storage_key varchar(255) NOT NULL,
 	start_date date NOT NULL,
 	end_date date,

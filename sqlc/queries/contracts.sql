@@ -16,12 +16,13 @@ INSERT INTO contracts (
     period_id,
     currency,
     agreed_amount,
+    security_deposit,
     storage_key,
     start_date,
     end_date,
     status_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: FindLatestContractByPropertyAndClient :one

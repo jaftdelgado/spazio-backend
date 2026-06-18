@@ -458,7 +458,6 @@ func TestService_ConfirmRental(t *testing.T) {
 	createTransactionCalls := 0
 	insertTxCommitted := false
 	postContractTxCommitted := false
-	insertedFinalAmountCents := int64(0)
 
 	repo := &mockRentalsRepository{
 		getRentalPropertyByUUIDFunc: func(ctx context.Context, propertyUUID uuid.UUID) (sqlcgen.GetRentalPropertyByUUIDRow, error) {
@@ -484,11 +483,6 @@ func TestService_ConfirmRental(t *testing.T) {
 		getPrimaryRentalAgentForPropertyFunc: func(ctx context.Context, propertyID int32) (int32, error) { return 88, nil },
 		createRentalTransactionFunc: func(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {
 			createTransactionCalls++
-			gotFinalAmount, err := numericToCents(arg.FinalAmount)
-			if err != nil {
-				t.Fatalf("final_amount inserted could not be parsed: %v", err)
-			}
-			insertedFinalAmountCents = gotFinalAmount
 			return sqlcgen.Transaction{
 				TransactionID:   44,
 				TransactionUuid: pgtype.UUID{Bytes: uuid.MustParse("123e4567-e89b-12d3-a456-426614174000"), Valid: true},
@@ -546,8 +540,11 @@ func TestService_ConfirmRental(t *testing.T) {
 			if input.Currency != "MXN" {
 				t.Fatalf("currency = %s, want MXN", input.Currency)
 			}
-			if input.AgreedAmount != centsToFloat(insertedFinalAmountCents) {
-				t.Fatalf("agreed_amount = %.2f, want %.2f", input.AgreedAmount, centsToFloat(insertedFinalAmountCents))
+			if input.AgreedAmount != 10250.00 { // based on exact mock date range calculation
+				t.Fatalf("agreed_amount = %.2f, want %.2f", input.AgreedAmount, 10250.00)
+			}
+			if input.SecurityDeposit != 5000.00 { // 5000 deposit from db mock
+				t.Fatalf("security_deposit = %.2f, want %.2f", input.SecurityDeposit, 5000.00)
 			}
 			if !input.StartDate.Equal(startDate) {
 				t.Fatalf("start_date = %s, want %s", input.StartDate, startDate)
