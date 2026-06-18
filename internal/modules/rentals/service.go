@@ -103,7 +103,7 @@ func (s *service) ConfirmRental(ctx context.Context, auth AuthContext, input Ren
 	})
 	if err != nil {
 		log.Printf("rentals: contract creation failed after transaction commit, transaction_id=%d transaction_uuid=%s err=%v", transaction.TransactionID, formatUUIDValue(transaction.TransactionUuid), err)
-		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not generate rental contract")
+		return RentalResponse{}, newStatusError(http.StatusInternalServerError, "could not generate rental contract: %v", err)
 	}
 
 	tx, err := s.repo.Begin(ctx)
