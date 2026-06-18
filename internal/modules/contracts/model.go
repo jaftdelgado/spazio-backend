@@ -96,14 +96,15 @@ type ListContractsFilter struct {
 }
 
 type ContractListItem struct {
-	ContractID      int32     `json:"contract_id"`
-	ContractUUID    string    `json:"contract_uuid"`
-	TransactionType string    `json:"transaction_type"`
-	PropertyTitle   string    `json:"property_title"`
-	AgreedAmount    float64   `json:"agreed_amount"`
-	Currency        string    `json:"currency"`
-	StartDate       time.Time `json:"start_date"`
-	Status          string    `json:"status"`
-	ClientName      string    `json:"client_name"`
-	CreatedAt       time.Time `json:"created_at"`
+	ContractID      int32      `json:"contract_id"`
+	ContractUUID    string     `json:"contract_uuid"`
+	TransactionType string     `json:"transaction_type"`
+	PropertyTitle   string     `json:"property_title"`
+	AgreedAmount    float64    `json:"agreed_amount"`
+	Currency        string     `json:"currency"`
+	StartDate       time.Time  `json:"start_date"`
+	EndDate         *time.Time `json:"end_date"`
+	Status          string     `json:"status"`
+	ClientName      string     `json:"client_name"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
