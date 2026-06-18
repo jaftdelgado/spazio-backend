@@ -97,6 +97,7 @@ func (r *repository) CreateProperty(ctx context.Context, input CreatePropertyInp
 		ModalityID:     input.ModalityID,
 		LotArea:        lotArea,
 		IsFeatured:     input.IsFeatured,
+		AgentID:        int4FromPointer(input.AgentID),
 	})
 	if err != nil {
 		return CreatePropertyResult{}, fmt.Errorf("create property: %w", err)
@@ -134,15 +135,6 @@ func (r *repository) CreateProperty(ctx context.Context, input CreatePropertyInp
 	for _, clause := range input.Clauses {
 		if err := r.createPropertyClause(ctx, queries, propertyRow.PropertyID, clause); err != nil {
 			return CreatePropertyResult{}, err
-		}
-	}
-
-	if input.AgentID != nil {
-		if err := queries.CreatePropertyAgent(ctx, sqlcgen.CreatePropertyAgentParams{
-			PropertyID: propertyRow.PropertyID,
-			AgentID:    *input.AgentID,
-		}); err != nil {
-			return CreatePropertyResult{}, fmt.Errorf("create property agent %d: %w", *input.AgentID, err)
 		}
 	}
 

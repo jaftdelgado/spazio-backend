@@ -1124,11 +1124,11 @@ func createContractIntegrationFixture(t *testing.T, ctx context.Context, pool *p
 	}
 
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO property_agents (property_id, agent_id, is_primary)
-		VALUES ($1, $2, true)
-		ON CONFLICT (property_id, agent_id) DO NOTHING
+		UPDATE properties
+		SET agent_id = $2
+		WHERE property_id = $1
 	`, propertyID, agentID); err != nil {
-		t.Fatalf("insert integration property agent: %v", err)
+		t.Fatalf("assign integration property agent: %v", err)
 	}
 
 	if transactionType == "rent" {
@@ -1325,7 +1325,7 @@ func cleanupContractIntegrationFixture(t *testing.T, ctx context.Context, pool *
 		{query: `DELETE FROM locations WHERE property_id = $1`, args: []any{fixture.propertyID}},
 		{query: `DELETE FROM residential_properties WHERE property_id = $1`, args: []any{fixture.propertyID}},
 		{query: `DELETE FROM commercial_properties WHERE property_id = $1`, args: []any{fixture.propertyID}},
-		{query: `DELETE FROM property_agents WHERE property_id = $1`, args: []any{fixture.propertyID}},
+		{query: `UPDATE properties SET agent_id = NULL WHERE property_id = $1`, args: []any{fixture.propertyID}},
 		{query: `DELETE FROM properties WHERE property_id = $1`, args: []any{fixture.propertyID}},
 		{query: `DELETE FROM users WHERE user_id = $1`, args: []any{fixture.ownerID}},
 		{query: `DELETE FROM users WHERE user_id = $1`, args: []any{fixture.clientID}},

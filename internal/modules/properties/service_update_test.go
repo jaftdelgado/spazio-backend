@@ -120,8 +120,9 @@ func TestService_UpdateProperty_InvalidAgentID(t *testing.T) {
 	}, &mockPropertyPhotoStorage{})
 
 	_, err := svc.UpdateProperty(context.Background(), "123e4567-e89b-12d3-a456-426614174000", UpdatePropertyInput{
-		Actor:   ActorContext{UserID: 1, RoleID: RoleAdminID},
-		AgentID: ptrInt32(999),
+		Actor:      ActorContext{UserID: 1, RoleID: RoleAdminID},
+		AgentID:    ptrInt32(999),
+		AgentIDSet: true,
 	})
 	if err == nil {
 		t.Fatal("expected error, got nil")

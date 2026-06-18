@@ -899,7 +899,7 @@ const docTemplate = `{
         },
         "/api/v1/properties": {
             "get": {
-                "description": "Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.",
+                "description": "Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties whose properties.agent_id matches the authenticated user.",
                 "produces": [
                     "application/json"
                 ],
@@ -1090,7 +1090,7 @@ const docTemplate = `{
         },
         "/api/v1/properties/{uuid}": {
             "get": {
-                "description": "Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.",
+                "description": "Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access properties whose properties.agent_id matches the authenticated user and do not receive registered_by.",
                 "produces": [
                     "application/json"
                 ],
@@ -1211,7 +1211,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Updates property base data, subtype, location, and the assigned agent.\nRequires an authenticated admin session.",
+                "description": "Updates property base data, subtype, location, and the assigned agent. Send agent_id as null to remove the current assignment.\nRequires an authenticated admin session.",
                 "consumes": [
                     "application/json"
                 ],

@@ -321,6 +321,7 @@ type UpdatePropertyInput struct {
 	LotArea     *float64                `json:"lot_area,omitempty"`
 	IsFeatured  *bool                   `json:"is_featured,omitempty"`
 	AgentID     *int32                  `json:"agent_id,omitempty" example:"21"`
+	AgentIDSet  bool                    `json:"-"`
 	Residential *UpdateResidentialInput `json:"residential,omitempty"`
 	Commercial  *UpdateCommercialInput  `json:"commercial,omitempty"`
 	Location    *UpdateLocationInput    `json:"location,omitempty"`

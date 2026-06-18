@@ -121,6 +121,7 @@ CREATE TABLE properties (
 	property_id serial PRIMARY KEY,
 	property_uuid uuid NOT NULL UNIQUE,
 	owner_id int NOT NULL REFERENCES users(user_id),
+	agent_id int REFERENCES users(user_id),
 	current_resident_id int REFERENCES users(user_id),
 	title varchar(128) NOT NULL,
 	description text NOT NULL,
@@ -312,14 +313,6 @@ CREATE TABLE property_status_history (
 	new_status_id int NOT NULL REFERENCES property_status(status_id),
 	changed_by_user_id int NOT NULL REFERENCES users(user_id),
 	changed_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE property_agents (
-	property_id integer NOT NULL REFERENCES properties(property_id),
-	agent_id integer NOT NULL REFERENCES users(user_id),
-	is_primary boolean DEFAULT true NOT NULL,
-	assigned_at timestamp with time zone DEFAULT now() NOT NULL,
-	PRIMARY KEY (property_id, agent_id)
 );
 
 CREATE TABLE agent_schedules (

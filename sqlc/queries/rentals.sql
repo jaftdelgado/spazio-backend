@@ -42,9 +42,10 @@ ORDER BY exception_date ASC;
 
 -- name: GetPrimaryRentalAgentForProperty :one
 SELECT agent_id
-FROM property_agents
+FROM properties
 WHERE property_id = $1
-  AND is_primary = true
+  AND deleted_at IS NULL
+  AND agent_id IS NOT NULL
 LIMIT 1;
 
 -- name: CreateRentalTransaction :one
