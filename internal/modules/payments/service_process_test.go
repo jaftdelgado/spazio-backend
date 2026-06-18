@@ -72,7 +72,7 @@ func TestService_ProcessPayment(t *testing.T) {
 						return &mockTx{}, nil
 					},
 					getContractForPaymentWithLockFunc: func(ctx context.Context, contractID int32) (sqlcgen.GetContractForPaymentWithLockRow, error) {
-						return sqlcgen.GetContractForPaymentWithLockRow{PropertyStatusID: 1}, nil
+						return sqlcgen.GetContractForPaymentWithLockRow{PropertyStatusID: 4}, nil
 					},
 					countCompletedPaymentsForContractFunc: func(ctx context.Context, contractID int32) (int64, error) {
 						return 0, nil

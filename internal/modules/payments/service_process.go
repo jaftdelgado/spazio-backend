@@ -35,8 +35,8 @@ func (s *service) ProcessPayment(ctx context.Context, userID int32, req Register
 		return PaymentResponse{}, fmt.Errorf("error al verificar historial de pagos: %w", err)
 	}
 
-	if completedCount == 0 && contract.PropertyStatusID != 2 {
-		return PaymentResponse{}, errors.New("la propiedad ya no está disponible para contratación (debe estar en estado Disponible)")
+	if completedCount == 0 && contract.PropertyStatusID != 2 && contract.PropertyStatusID != 1 {
+		return PaymentResponse{}, errors.New("la propiedad ya no está disponible para contratación (debe estar en estado Disponible o Reservada)")
 	}
 
 	if contract.StatusID == ContractStatusBlocked {

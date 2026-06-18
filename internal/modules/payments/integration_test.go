@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jaftdelgado/spazio-backend/internal/shared"
+	"github.com/mercadopago/sdk-go/pkg/payment"
 )
 
 func TestIntegration_ProcessPayment(t *testing.T) {
