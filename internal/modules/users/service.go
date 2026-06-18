@@ -23,6 +23,7 @@ import (
 	"github.com/jaftdelgado/spazio-backend/internal/email"
 	"github.com/nickalie/go-webpbin"
 	"golang.org/x/crypto/bcrypt"
+	_ "golang.org/x/image/webp"
 )
 
 const (
