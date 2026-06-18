@@ -15,7 +15,10 @@ func (r *repository) GetPrimaryAgentForProperty(ctx context.Context, propertyID 
 	if err != nil {
 		return 0, fmt.Errorf("get primary agent for property: %w", err)
 	}
-	return agentID, nil
+	if !agentID.Valid {
+		return 0, nil
+	}
+	return agentID.Int32, nil
 }
 
 func (r *repository) GetAgentSchedule(ctx context.Context, agentID int32) ([]sqlcgen.GetAgentScheduleRow, error) {

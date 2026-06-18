@@ -52,7 +52,6 @@ func main() {
     // Clean up test properties, users and schedules
     conn.Exec(ctx, "DELETE FROM agent_schedules WHERE agent_id >= 200 AND agent_id <= 203")
     conn.Exec(ctx, "DELETE FROM residential_properties WHERE property_id >= 500")
-    conn.Exec(ctx, "DELETE FROM property_agents WHERE property_id >= 500")
     conn.Exec(ctx, "DELETE FROM locations WHERE property_id >= 500")
     conn.Exec(ctx, "DELETE FROM properties WHERE property_id >= 500")
     conn.Exec(ctx, "DELETE FROM users WHERE user_id >= 200 AND user_id <= 203")
@@ -88,8 +87,8 @@ func main() {
 	fmt.Println("Inserting Certified Test Properties...")
 	// Property 500: Rent (Available)
 	_, err = conn.Exec(ctx, `
-		INSERT INTO properties (property_id, owner_id, title, description, property_type_id, modality_id, status_id, cover_photo_url)
-		VALUES (500, 202, 'Casa Test Integration (Rent)', 'Casa de prueba para integración de rentas', 1, 2, 2, 'http://test.com/photo.jpg')`)
+		INSERT INTO properties (property_id, owner_id, agent_id, title, description, property_type_id, modality_id, status_id, cover_photo_url)
+		VALUES (500, 202, 201, 'Casa Test Integration (Rent)', 'Casa de prueba para integración de rentas', 1, 2, 2, 'http://test.com/photo.jpg')`)
 	if err != nil {
 		log.Fatalf("Error inserting property 500: %v\n", err)
 	}
@@ -100,8 +99,8 @@ func main() {
     
     // Property 501: Sale (Available)
 	_, err = conn.Exec(ctx, `
-		INSERT INTO properties (property_id, owner_id, title, description, property_type_id, modality_id, status_id, cover_photo_url)
-		VALUES (501, 202, 'Depto Test Integration (Sale)', 'Depto de prueba para integración de ventas', 2, 1, 2, 'http://test.com/photo2.jpg')`)
+		INSERT INTO properties (property_id, owner_id, agent_id, title, description, property_type_id, modality_id, status_id, cover_photo_url)
+		VALUES (501, 202, 201, 'Depto Test Integration (Sale)', 'Depto de prueba para integración de ventas', 2, 1, 2, 'http://test.com/photo2.jpg')`)
 	if err != nil {
 		log.Fatalf("Error inserting property 501: %v\n", err)
 	}
@@ -137,10 +136,6 @@ func main() {
             log.Fatalf("Error inserting schedule for day %d: %v\n", day, err)
         }
     }
-
-    // Assign agent 201 as primary for properties 500 and 501
-    conn.Exec(ctx, "DELETE FROM property_agents WHERE property_id >= 500")
-    conn.Exec(ctx, "INSERT INTO property_agents (property_id, agent_id, is_primary) VALUES (500, 201, true), (501, 201, true)")
 
 	fmt.Println("\nSeeding completed successfully! Database is ready for integration tests.")
     fmt.Println("- Admin: ID 200")

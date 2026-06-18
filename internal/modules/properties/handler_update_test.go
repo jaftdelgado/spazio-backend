@@ -123,6 +123,13 @@ func TestHandler_UpdateProperty(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
+			name:       "returns ok when agent id is null",
+			uuid:       validUUID,
+			rawBody:    []byte(`{"agent_id":null}`),
+			mockErr:    nil,
+			wantStatus: http.StatusOK,
+		},
+		{
 			name:       "returns bad request when residential field is missing",
 			uuid:       validUUID,
 			rawBody:    []byte(`{"residential":{"bathrooms":1}}`),

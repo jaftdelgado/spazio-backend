@@ -276,7 +276,7 @@
 - `message` (TEXT)
 - `follow_up_status_id` (INT, FK -> follow_up_status)
 
-**Clase: property_agents**
+**Clase: property_agents (legacy, removed by migration 000019)**
 
 - `property_id` (INT, PK, FK -> properties)
 - `agent_id` (INT, PK, FK -> users)

@@ -2425,7 +2425,7 @@ paths:
       description: Returns a paginated list of property cards including the assigned
         agent summary when available. Guests and clients can view available properties.
         Administrators can view non-deleted properties, while agents can only view
-        properties assigned in property_agents.
+        properties whose properties.agent_id matches the authenticated user.
       parameters:
       - default: 1
         description: Page number (starts at 1)
@@ -2602,7 +2602,8 @@ paths:
       description: Returns property base data, subtype, expanded location data, and
         the assigned agent summary for the given UUID. Guests and clients can only
         view available properties. Administrators can view all fields including registered_by.
-        Agents can only access assigned properties and do not receive registered_by.
+        Agents can only access properties whose properties.agent_id matches the authenticated
+        user and do not receive registered_by.
       parameters:
       - description: Property UUID
         in: path
@@ -2639,7 +2640,8 @@ paths:
       consumes:
       - application/json
       description: |-
-        Updates property base data, subtype, location, and the assigned agent.
+        Updates property base data, subtype, location, and the assigned agent. Send
+        agent_id as null to remove the current assignment.
         Requires an authenticated admin session.
       parameters:
       - description: Property UUID

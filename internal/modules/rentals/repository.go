@@ -76,7 +76,10 @@ func (r *repository) GetPrimaryRentalAgentForProperty(ctx context.Context, prope
 	if err != nil {
 		return 0, fmt.Errorf("get primary rental agent for property: %w", err)
 	}
-	return agentID, nil
+	if !agentID.Valid {
+		return 0, nil
+	}
+	return agentID.Int32, nil
 }
 
 func (r *repository) CreateRentalTransaction(ctx context.Context, arg sqlcgen.CreateRentalTransactionParams) (sqlcgen.Transaction, error) {

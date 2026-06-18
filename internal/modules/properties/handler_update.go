@@ -1,7 +1,10 @@
 package properties
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -11,7 +14,7 @@ import (
 
 // updateProperty godoc
 // @Summary      Update property
-// @Description  Updates property base data, subtype, location, and the assigned agent.
+// @Description  Updates property base data, subtype, location, and the assigned agent. Send agent_id as null to remove the current assignment.
 // @Description  Requires an authenticated admin session.
 // @Tags         Properties
 // @Accept       json
@@ -37,9 +40,29 @@ func (h *Handler) updateProperty(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	rawBody, err := c.GetRawData()
+	if err != nil {
 		shared.BadRequest(c, err)
 		return
+	}
+
+	if err := json.Unmarshal(rawBody, &req); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(rawBody))
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(rawBody, &rawFields); err != nil {
+		shared.BadRequest(c, err)
+		return
+	}
+
+	if rawValue, ok := rawFields["agent_id"]; ok {
+		req.AgentIDSet = true
+		if string(rawValue) == "null" {
+			req.AgentID = nil
+		}
 	}
 
 	// Basic validations: title not empty if present, lot_area > 0 if present
@@ -55,7 +78,7 @@ func (h *Handler) updateProperty(c *gin.Context) {
 			return
 		}
 	}
-	if req.AgentID != nil && *req.AgentID <= 0 {
+	if req.AgentIDSet && req.AgentID != nil && *req.AgentID <= 0 {
 		shared.BadRequest(c, errors.New("agent_id must be greater than 0"))
 		return
 	}

@@ -1,7 +1,9 @@
 -- name: GetPrimaryAgentForProperty :one
 SELECT agent_id 
-FROM property_agents 
-WHERE property_id = $1 AND is_primary = true
+FROM properties
+WHERE property_id = $1
+  AND deleted_at IS NULL
+  AND agent_id IS NOT NULL
 LIMIT 1;
 
 -- name: GetAgentSchedule :many

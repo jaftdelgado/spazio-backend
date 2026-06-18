@@ -63,7 +63,7 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 		statusIDs = []int32{}
 	}
 
-	rows, err := r.queries.ListPropertiesCards(ctx, sqlcgen.ListPropertiesCardsParams{
+	params := sqlcgen.ListPropertiesCardsParams{
 		SearchQuery:     input.Query,
 		StatusIds:       statusIDs,
 		PropertyTypeID:  input.PropertyTypeID,
@@ -81,7 +81,9 @@ func (r *repository) ListProperties(ctx context.Context, input ListPropertiesInp
 		SortOrder:       input.Order,
 		PageOffset:      resolvePageOffset(input.Page, input.PageSize),
 		PageSize:        input.PageSize,
-	})
+	}
+
+	rows, err := r.queries.ListPropertiesCards(ctx, params)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list properties: %w", err)
 	}
@@ -108,7 +110,7 @@ func (r *repository) ListPropertiesForAgent(ctx context.Context, input ListPrope
 		statusIDs = []int32{}
 	}
 
-	rows, err := r.queries.ListPropertiesCardsForAgent(ctx, sqlcgen.ListPropertiesCardsForAgentParams{
+	params := sqlcgen.ListPropertiesCardsForAgentParams{
 		AgentID:         input.UserID,
 		SearchQuery:     input.Query,
 		StatusIds:       statusIDs,
@@ -127,7 +129,9 @@ func (r *repository) ListPropertiesForAgent(ctx context.Context, input ListPrope
 		SortOrder:       input.Order,
 		PageOffset:      resolvePageOffset(input.Page, input.PageSize),
 		PageSize:        input.PageSize,
-	})
+	}
+
+	rows, err := r.queries.ListPropertiesCardsForAgent(ctx, params)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list properties for agent: %w", err)
 	}
@@ -210,7 +214,7 @@ func (r *repository) GetPropertyByUUID(ctx context.Context, propertyUUID string)
 func (r *repository) IsPropertyAssignedToAgent(ctx context.Context, propertyID int32, agentID int32) (bool, error) {
 	assigned, err := r.queries.IsPropertyAssignedToAgent(ctx, sqlcgen.IsPropertyAssignedToAgentParams{
 		PropertyID: propertyID,
-		AgentID:    agentID,
+		AgentID:    int4FromPointer(&agentID),
 	})
 	if err != nil {
 		return false, fmt.Errorf("check property assignment: %w", err)

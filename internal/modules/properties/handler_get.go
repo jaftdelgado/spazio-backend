@@ -19,7 +19,7 @@ const (
 
 // listProperties godoc
 // @Summary      List properties with advanced filters
-// @Description  Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties assigned in property_agents.
+// @Description  Returns a paginated list of property cards including the assigned agent summary when available. Guests and clients can view available properties. Administrators can view non-deleted properties, while agents can only view properties whose properties.agent_id matches the authenticated user.
 // @Tags         Properties
 // @Produce      json
 // @Param        page              query     int                   false  "Page number (starts at 1)" default(1)
@@ -138,7 +138,7 @@ func (h *Handler) listProperties(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.ListProperties(c.Request.Context(), ListPropertiesInput{
+	input := ListPropertiesInput{
 		Page:            int32(page),
 		PageSize:        int32(pageSize),
 		Query:           strings.TrimSpace(c.Query("q")),
@@ -158,7 +158,9 @@ func (h *Handler) listProperties(c *gin.Context) {
 		RoleID:          roleID,
 		Sort:            sortField,
 		Order:           resolvePropertySortOrder(sortOrder),
-	})
+	}
+
+	result, err := h.service.ListProperties(c.Request.Context(), input)
 	if err != nil {
 		shared.InternalError(c, "could not list properties")
 		return
@@ -204,7 +206,7 @@ func (h *Handler) getPropertyHistory(c *gin.Context) {
 
 // getProperty godoc
 // @Summary      Get property by UUID
-// @Description  Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access assigned properties and do not receive registered_by.
+// @Description  Returns property base data, subtype, expanded location data, and the assigned agent summary for the given UUID. Guests and clients can only view available properties. Administrators can view all fields including registered_by. Agents can only access properties whose properties.agent_id matches the authenticated user and do not receive registered_by.
 // @Tags         Properties
 // @Produce      json
 // @Param        uuid  path      string                true   "Property UUID"
