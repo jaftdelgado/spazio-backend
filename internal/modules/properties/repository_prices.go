@@ -240,7 +240,27 @@ func (r *repository) updateRentPriceWithHistory(ctx context.Context, queries *sq
 			}
 		}
 	} else {
-		return ValidationError{Message: fmt.Sprintf("no active rent_price found for period_id %d", update.PeriodID)}
+		// Allow adding a new rent period during updates by inheriting the
+		// currency from any other active rent price already linked to the property.
+		activeRentRows, err := queries.ListActiveRentPrices(ctx, propertyID)
+		if err != nil {
+			return fmt.Errorf("list active rent prices: %w", err)
+		}
+		if len(activeRentRows) == 0 {
+			return ValidationError{Message: fmt.Sprintf("cannot create rent_price for period_id %d without an existing active rent price to inherit currency", update.PeriodID)}
+		}
+
+		if err := queries.CreateRentPriceHistoryRecord(ctx, sqlcgen.CreateRentPriceHistoryRecordParams{
+			PropertyID:      propertyID,
+			PeriodID:        update.PeriodID,
+			RentPrice:       newAmount,
+			Deposit:         newDeposit,
+			Currency:        activeRentRows[0].Currency,
+			IsNegotiable:    update.IsNegotiable,
+			ChangedByUserID: changedByUserID,
+		}); err != nil {
+			return fmt.Errorf("create rent price history record: %w", err)
+		}
 	}
 
 	return nil

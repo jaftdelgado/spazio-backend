@@ -119,7 +119,7 @@ func TestHandler_ListClauses_PaginationDefaultsAndValidation(t *testing.T) {
 	assertHasKeys(t, rec, "data", "meta")
 
 	// invalid page_size > max
-	ctx2, rec2 := newTestContext(http.MethodGet, "/api/v1/clauses?modality_id=1&page_size=51")
+	ctx2, rec2 := newTestContext(http.MethodGet, "/api/v1/clauses?modality_id=1&page_size=201")
 	h.listClauses(ctx2)
 	assertStatus(t, rec2, http.StatusBadRequest)
 	assertHasKeys(t, rec2, "error")
@@ -260,7 +260,7 @@ func TestValidateListClausesRequest(t *testing.T) {
 	if err := validateListClausesRequest(1, 1, 0); err == nil {
 		t.Fatal("expected error when pageSize=0")
 	}
-	if err := validateListClausesRequest(1, 1, 51); err == nil {
+	if err := validateListClausesRequest(1, 1, 201); err == nil {
 		t.Fatal("expected error when pageSize>max")
 	}
 	if err := validateListClausesRequest(1, 1, 20); err != nil {

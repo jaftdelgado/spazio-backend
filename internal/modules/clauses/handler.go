@@ -13,7 +13,7 @@ import (
 const (
 	defaultPage     = 1
 	defaultPageSize = 20
-	maxPageSize     = 50
+	maxPageSize     = 200
 )
 
 type Handler struct {
@@ -36,7 +36,7 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup) {
 // @Param        modality_id  query     int                true   "Modality ID"
 // @Param        q            query     string             false  "Search term"
 // @Param        page         query     int                false  "Page number" default(1)
-// @Param        page_size    query     int                false  "Results per page" default(20)
+// @Param        page_size    query     int                false  "Results per page (max 200)" default(20)
 // @Success      200          {object}  ListClausesResult  "List of clauses"
 // @Failure      400          {object}  shared.ErrorResponse "Invalid query params"
 // @Failure      500          {object}  shared.ErrorResponse "Internal error"
@@ -126,6 +126,6 @@ func validateListClausesRequest(modalityID, page, pageSize int) error {
 		{Fail: modalityID <= 0, Msg: "modality_id must be greater than 0"},
 		{Fail: page <= 0, Msg: "page must be greater than 0"},
 		{Fail: pageSize <= 0, Msg: "page_size must be greater than 0"},
-		{Fail: pageSize > maxPageSize, Msg: "page_size must be less than or equal to 50"},
+		{Fail: pageSize > maxPageSize, Msg: "page_size must be less than or equal to 200"},
 	})
 }
