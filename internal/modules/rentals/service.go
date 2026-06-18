@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -545,7 +546,8 @@ func (c *httpContractsClient) CreateContract(ctx context.Context, authHeader str
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return ContractCreateResult{}, fmt.Errorf("contracts endpoint returned status %d", resp.StatusCode)
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		return ContractCreateResult{}, fmt.Errorf("contracts endpoint returned status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result ContractCreateResult
